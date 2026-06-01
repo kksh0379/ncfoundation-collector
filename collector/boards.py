@@ -162,6 +162,12 @@ def crawl_source(cfg, max_items=8, max_workers=3):
         return []
 
     soup = BeautifulSoup(resp.text, "lxml")
+    # 헤더/푸터/내비를 먼저 제거 (오시는 길·운영시간·문의 같은 푸터 링크가 같은 클래스를
+    # 써서 글로 잘못 잡히는 것을 방지)
+    for chrome in soup.select("header, footer, nav, aside, .footer, .header, .gnb, .lnb, "
+                              ".sticky-menu, .util, [class*=footer], [class*=header]"):
+        chrome.decompose()
+
     anchors = _select_any(soup, cfg["item_link_sel"])
     if not anchors:
         print(f"[board] {label}: 글 링크 0개", flush=True)

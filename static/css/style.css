@@ -25,11 +25,87 @@ body {
   z-index: 10;
   background: var(--primary);
   color: #fff;
-  padding: 14px 16px;
+  padding: 12px 16px;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
-.app-header h1 { margin: 0; font-size: 18px; font-weight: 700; }
+.app-header h1 { margin: 0; font-size: 17px; font-weight: 700; flex: 1; }
 .ver { font-size: 11px; font-weight: 600; opacity: 0.8; vertical-align: middle; }
+
+.auth-btn {
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  background: transparent;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 10px;
+  border-radius: 7px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.auth-btn:active { background: rgba(255, 255, 255, 0.15); }
+
+/* 관리자 전용 요소: 기본 숨김, 로그인 시 노출 */
+.admin-only { display: none !important; }
+body.is-admin .admin-only { display: inline-block !important; }
+body.is-admin .guest-only { display: none !important; }
+
+.last-crawl {
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 8px;
+  min-height: 16px;
+}
+
+/* 모달(팝업) 공통 */
+.modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+  padding: 20px;
+}
+.modal[hidden] { display: none; }
+.modal-box {
+  background: #fff;
+  border-radius: 14px;
+  width: 100%;
+  max-width: 420px;
+  max-height: 80vh;
+  overflow: auto;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.25);
+}
+.modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+  font-weight: 700;
+}
+.modal-close {
+  border: none;
+  background: none;
+  font-size: 16px;
+  color: var(--muted);
+  cursor: pointer;
+}
+.modal-body { padding: 12px 16px; }
+
+.login-form { display: flex; flex-direction: column; gap: 10px; }
+.login-form input {
+  padding: 11px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 15px;
+}
+.login-form .btn-collect { display: block; width: 100%; padding: 11px; }
+.login-err { font-size: 13px; color: #dc2626; min-height: 16px; }
 
 .mini-spin {
   display: inline-block;

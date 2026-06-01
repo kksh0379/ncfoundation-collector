@@ -63,11 +63,12 @@ def _youtube_channel_id(url):
     return None
 
 
-def _crawl_youtube(cfg, max_items=10):
+def _crawl_youtube(cfg, max_items=15):
     cid = _youtube_channel_id(cfg["url"])
     if not cid:
-        print(f"[social] {cfg['channel']}·{cfg['account']}: channel_id 못 찾음", flush=True)
+        print(f"[social] {cfg['channel']}·{cfg['account']}: channel_id 못 찾음 ({cfg['url']})", flush=True)
         return []
+    print(f"[social] 유튜브 channel_id={cid}", flush=True)
     try:
         resp = fetcher.get(YT_FEED, params={"channel_id": cid})
     except Exception as e:  # noqa: BLE001
@@ -75,21 +76,26 @@ def _crawl_youtube(cfg, max_items=10):
         return []
 
     soup = BeautifulSoup(resp.content, "xml")
+    entries = soup.find_all("entry")
+    print(f"[social] 유튜브 RSS 영상 {len(entries)}개", flush=True)
     items = []
-    for entry in soup.find_all("entry")[:max_items]:
+    for entry in entries[:max_items]:
         title_el = entry.find("title")
+        vid_el = entry.find("videoId")
         link_el = entry.find("link")
         pub_el = entry.find("published")
         desc_el = entry.find("description")  # media:description
 
-        link = link_el.get("href") if link_el else None
-        published = None
-        if pub_el and pub_el.text:
-            published = pub_el.text[:16].replace("T", " ")
+        if vid_el and vid_el.text:
+            link = "https://www.youtube.com/watch?v=" + vid_el.text.strip()
+        else:
+            link = link_el.get("href") if link_el else None
+
+        published = pub_el.text[:16].replace("T", " ") if (pub_el and pub_el.text) else None
         if published:
             try:
                 if datetime.fromisoformat(published.replace(" ", "T")) < START_DATE:
-                    continue
+                    continue  # 2026-01-01 이전 제외
             except ValueError:
                 pass
 

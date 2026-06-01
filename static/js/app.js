@@ -94,31 +94,33 @@ function statusRow(t) {
     </div>`;
 }
 
-async function runStatus(btn, group, panel) {
-  btn.disabled = true;
-  panel.hidden = false;
-  panel.innerHTML = '<div class="status-loading">접속 상태 확인 중…</div>';
+const statusModal = document.getElementById("status-modal");
+const statusModalBody = document.getElementById("status-modal-body");
+
+function closeStatus() {
+  statusModal.hidden = true;
+}
+document.getElementById("status-close").addEventListener("click", closeStatus);
+statusModal.addEventListener("click", (e) => {
+  if (e.target === statusModal) closeStatus(); // 배경 클릭 시 닫기
+});
+
+async function runStatus(group) {
+  statusModal.hidden = false;
+  statusModalBody.innerHTML = '<div class="status-loading">접속 상태 확인 중…</div>';
   try {
     const res = await fetch("/api/diag?group=" + group);
     if (!res.ok) throw new Error("HTTP " + res.status);
     const data = await res.json();
-    panel.innerHTML = data.map(statusRow).join("");
+    statusModalBody.innerHTML = data.map(statusRow).join("");
   } catch (e) {
-    panel.innerHTML = `<div class="status-loading" style="color:#dc2626">상태 확인 실패: ${escapeHtml(e.message)}</div>`;
-  } finally {
-    btn.disabled = false;
+    statusModalBody.innerHTML = `<div class="status-loading" style="color:#dc2626">상태 확인 실패: ${escapeHtml(e.message)}</div>`;
   }
 }
 
-document.getElementById("status-news-btn").addEventListener("click", (e) =>
-  runStatus(e.currentTarget, "news", document.getElementById("status-news"))
-);
-document.getElementById("status-boards-btn").addEventListener("click", (e) =>
-  runStatus(e.currentTarget, "boards", document.getElementById("status-boards"))
-);
-document.getElementById("status-social-btn").addEventListener("click", (e) =>
-  runStatus(e.currentTarget, "social", document.getElementById("status-social"))
-);
+document.getElementById("status-news-btn").addEventListener("click", () => runStatus("news"));
+document.getElementById("status-boards-btn").addEventListener("click", () => runStatus("boards"));
+document.getElementById("status-social-btn").addEventListener("click", () => runStatus("social"));
 
 // ----------------------------- 수집 실행 -----------------------------
 // 수집은 동기 방식: 요청 한 번으로 끝까지 처리하고 결과를 받는다.
@@ -135,9 +137,11 @@ async function runCrawl(btn, group, msgEl, reload) {
       msgEl.textContent = `수집 실패: ${d.error}`;
     } else {
       msgEl.style.color = "#16a34a";
-      msgEl.textContent = `수집 ${d.crawled}건 · 신규 ${d.saved}건 저장 · 중복 ${d.duplicates}건 제외`;
+      const dupTxt = d.duplicates ? ` · 중복 ${d.duplicates}건 제외` : "";
+      msgEl.textContent = `수집 ${d.crawled}건 · 신규 ${d.new ?? 0}건 · 갱신 ${d.updated ?? 0}건${dupTxt}`;
     }
     await reload();
+    loadMeta();  // 마지막 수집 일시 갱신
   } catch (e) {
     msgEl.style.color = "#dc2626";
     msgEl.textContent = "수집 실패: " + e.message;
@@ -157,7 +161,77 @@ document.getElementById("collect-social").addEventListener("click", (e) =>
 );
 document.getElementById("filter-service").addEventListener("change", loadBoards);
 
+// ----------------------------- 관리자 로그인 -----------------------------
+const loginModal = document.getElementById("login-modal");
+const loginErr = document.getElementById("login-err");
+
+function setAdmin(isAdmin) {
+  document.body.classList.toggle("is-admin", !!isAdmin);
+}
+
+async function checkMe() {
+  try {
+    const r = await fetch("/api/me");
+    const d = await r.json();
+    setAdmin(d.admin);
+  } catch (e) { setAdmin(false); }
+}
+
+document.getElementById("login-btn").addEventListener("click", () => {
+  loginErr.textContent = "";
+  document.getElementById("login-id").value = "";
+  document.getElementById("login-pw").value = "";
+  loginModal.hidden = false;
+});
+document.getElementById("login-close").addEventListener("click", () => (loginModal.hidden = true));
+loginModal.addEventListener("click", (e) => { if (e.target === loginModal) loginModal.hidden = true; });
+
+document.getElementById("login-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  loginErr.textContent = "";
+  try {
+    const res = await fetch("/api/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        id: document.getElementById("login-id").value,
+        pw: document.getElementById("login-pw").value,
+      }),
+    });
+    const d = await res.json();
+    if (res.ok && d.ok) {
+      setAdmin(true);
+      loginModal.hidden = true;
+    } else {
+      loginErr.textContent = d.error || "로그인 실패";
+    }
+  } catch (err) {
+    loginErr.textContent = "로그인 요청 실패: " + err.message;
+  }
+});
+
+document.getElementById("logout-btn").addEventListener("click", async () => {
+  try { await fetch("/api/logout", { method: "POST" }); } catch (e) {}
+  setAdmin(false);
+});
+
+// ----------------------------- 마지막 수집 일시 -----------------------------
+function fmtLast(ts) {
+  return ts ? `마지막 수집: ${ts} (서버 기준)` : "아직 수집 기록 없음";
+}
+async function loadMeta() {
+  try {
+    const r = await fetch("/api/meta");
+    const m = await r.json();
+    document.getElementById("last-news").textContent = fmtLast(m.news);
+    document.getElementById("last-boards").textContent = fmtLast(m.boards);
+    document.getElementById("last-social").textContent = fmtLast(m.social);
+  } catch (e) {}
+}
+
 // ----------------------------- 초기 로드 -----------------------------
+checkMe();
+loadMeta();
 loadNews();
 loadBoards();
 loadSocial();

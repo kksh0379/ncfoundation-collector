@@ -13,6 +13,8 @@ RSS 검색 피드를 사용한다 — 제목/링크/작성일/언론사/요약�
 한계: 구글 RSS의 링크는 구글 리다이렉트 URL이라 원문 전체 본문 추출이 항상
 보장되지 않는다. 원문 추출을 시도하되, 실패 시 RSS 요약(snippet)으로 대체한다.
 """
+import base64
+import re
 import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
@@ -83,20 +85,39 @@ def _collect_items(query):
     return out
 
 
+def _decode_google_url(url):
+    """구글 뉴스 리다이렉트 링크(/articles/<base64>)에서 원문 URL을 복원 시도."""
+    m = re.search(r"news\.google\.com/(?:rss/)?articles/([A-Za-z0-9_\-]+)", url or "")
+    if not m:
+        return None
+    token = m.group(1)
+    token += "=" * (-len(token) % 4)
+    try:
+        raw = base64.urlsafe_b64decode(token)
+    except Exception:  # noqa: BLE001
+        return None
+    text = raw.decode("latin-1", "ignore")
+    m2 = re.search(r"https?://[^\s\"'<>\\]+", text)
+    return m2.group(0) if m2 else None
+
+
 def _summary_from_article(entry):
-    """구글 링크가 실제 기사로 리다이렉트되면 원문에서 요약을 뽑는다.
-    구글 인터스티셜에 머물면(News.google.com) 건너뛰고 RSS 요약을 쓴다."""
-    summary = extractor.summarize(entry.get("snippet") or "")
-    if FETCH_FULL_BODY and entry.get("url"):
-        try:
-            resp = fetcher.get(entry["url"])
-            if "news.google." not in (resp.url or ""):  # 실제 기사로 풀린 경우만
-                art = extractor.extract_article(BeautifulSoup(resp.text, "lxml"), resp.url)
-                if art.get("content") and len(art["content"]) > 150:
-                    summary = extractor.summarize(art["content"])
-                    entry["published_at"] = entry.get("published_at") or art.get("published_at")
-        except Exception:  # noqa: BLE001
-            pass
+    """구글 링크를 원문으로 복원해 본문에서 요약을 추출한다.
+    출처(언론사)는 본문 요약에 넣지 않는다. 복원 실패 시 요약은 비워 둔다."""
+    summary = ""
+    try:
+        real = _decode_google_url(entry.get("url", ""))
+        resp = fetcher.get(real or entry["url"])  # requests가 리다이렉트를 따라감
+        final = resp.url or ""
+        if "news.google." not in final and "consent.google" not in final:
+            art = extractor.extract_article(BeautifulSoup(resp.text, "lxml"), final)
+            if art.get("content") and len(art["content"]) > 120:
+                summary = extractor.summarize(art["content"])
+                entry["published_at"] = entry.get("published_at") or art.get("published_at")
+            if real:
+                entry["url"] = final  # 원문 URL을 알면 원문보기를 그쪽으로
+    except Exception:  # noqa: BLE001
+        pass
     entry["content"] = summary
     return entry
 

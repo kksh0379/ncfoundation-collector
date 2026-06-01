@@ -65,79 +65,101 @@ def init_db():
             CREATE INDEX IF NOT EXISTS idx_news_hash ON news(content_hash);
             CREATE INDEX IF NOT EXISTS idx_boards_title ON boards(service, title);
             CREATE INDEX IF NOT EXISTS idx_social_url ON social(url);
+
+            CREATE TABLE IF NOT EXISTS meta (
+                key   TEXT PRIMARY KEY,
+                value TEXT
+            );
             """
         )
 
 
-def insert_news(item):
-    """뉴스 1건 저장. 성공 시 row id, URL 중복이면 None."""
+def set_meta(key, value):
     with get_conn() as conn:
-        try:
-            cur = conn.execute(
-                """INSERT INTO news (title, published_at, author, content, url, content_hash, collected_at)
-                   VALUES (?, ?, ?, ?, ?, ?, ?)""",
-                (
-                    item.get("title"),
-                    item.get("published_at"),
-                    item.get("author"),
-                    item.get("content"),
-                    item.get("url"),
-                    item.get("content_hash"),
-                    datetime.now().isoformat(timespec="seconds"),
-                ),
-            )
-            return cur.lastrowid
-        except sqlite3.IntegrityError:
-            return None
+        conn.execute(
+            "INSERT INTO meta (key, value) VALUES (?, ?) "
+            "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+            (key, value),
+        )
 
 
-def insert_board(item):
+def get_all_meta():
     with get_conn() as conn:
-        try:
-            cur = conn.execute(
-                """INSERT INTO boards (service, category, title, published_at, author, content, url, collected_at)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-                (
-                    item.get("service"),
-                    item.get("category"),
-                    item.get("title"),
-                    item.get("published_at"),
-                    item.get("author"),
-                    item.get("content"),
-                    item.get("url"),
-                    datetime.now().isoformat(timespec="seconds"),
-                ),
-            )
-            return cur.lastrowid
-        except sqlite3.IntegrityError:
-            return None
+        rows = conn.execute("SELECT key, value FROM meta").fetchall()
+        return {r["key"]: r["value"] for r in rows}
 
 
-def insert_social(item):
+# 수집 정보의 고유 키 = 원문 URL.
+# 테스트 단계에서는 본문이 계속 보정되므로, 같은 URL이면 기존 행의 모든 필드를
+# 갱신(upsert)한다. 새 URL이면 신규 삽입한다. 반환: "inserted" | "updated".
+
+def upsert_news(item):
+    now = datetime.now().isoformat(timespec="seconds")
     with get_conn() as conn:
-        try:
-            cur = conn.execute(
-                """INSERT INTO social (channel, account, title, published_at, content, url, collected_at)
-                   VALUES (?, ?, ?, ?, ?, ?, ?)""",
-                (
-                    item.get("channel"),
-                    item.get("account"),
-                    item.get("title"),
-                    item.get("published_at"),
-                    item.get("content"),
-                    item.get("url"),
-                    datetime.now().isoformat(timespec="seconds"),
-                ),
+        row = conn.execute("SELECT id FROM news WHERE url = ?", (item.get("url"),)).fetchone()
+        if row:
+            conn.execute(
+                """UPDATE news SET title=?, published_at=?, author=?, content=?, content_hash=?, collected_at=?
+                   WHERE url=?""",
+                (item.get("title"), item.get("published_at"), item.get("author"),
+                 item.get("content"), item.get("content_hash"), now, item.get("url")),
             )
-            return cur.lastrowid
-        except sqlite3.IntegrityError:
-            return None
+            return "updated"
+        conn.execute(
+            """INSERT INTO news (title, published_at, author, content, url, content_hash, collected_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            (item.get("title"), item.get("published_at"), item.get("author"),
+             item.get("content"), item.get("url"), item.get("content_hash"), now),
+        )
+        return "inserted"
+
+
+def upsert_board(item):
+    now = datetime.now().isoformat(timespec="seconds")
+    with get_conn() as conn:
+        row = conn.execute("SELECT id FROM boards WHERE url = ?", (item.get("url"),)).fetchone()
+        if row:
+            conn.execute(
+                """UPDATE boards SET service=?, category=?, title=?, published_at=?, author=?, content=?, collected_at=?
+                   WHERE url=?""",
+                (item.get("service"), item.get("category"), item.get("title"), item.get("published_at"),
+                 item.get("author"), item.get("content"), now, item.get("url")),
+            )
+            return "updated"
+        conn.execute(
+            """INSERT INTO boards (service, category, title, published_at, author, content, url, collected_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+            (item.get("service"), item.get("category"), item.get("title"), item.get("published_at"),
+             item.get("author"), item.get("content"), item.get("url"), now),
+        )
+        return "inserted"
+
+
+def upsert_social(item):
+    now = datetime.now().isoformat(timespec="seconds")
+    with get_conn() as conn:
+        row = conn.execute("SELECT id FROM social WHERE url = ?", (item.get("url"),)).fetchone()
+        if row:
+            conn.execute(
+                """UPDATE social SET channel=?, account=?, title=?, published_at=?, content=?, collected_at=?
+                   WHERE url=?""",
+                (item.get("channel"), item.get("account"), item.get("title"),
+                 item.get("published_at"), item.get("content"), now, item.get("url")),
+            )
+            return "updated"
+        conn.execute(
+            """INSERT INTO social (channel, account, title, published_at, content, url, collected_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            (item.get("channel"), item.get("account"), item.get("title"),
+             item.get("published_at"), item.get("content"), item.get("url"), now),
+        )
+        return "inserted"
 
 
 def all_news_fingerprints():
-    """중복 비교용으로 기존 뉴스의 (id, content_hash, content)만 가볍게 로드."""
+    """중복 비교용으로 기존 뉴스의 (id, url, content_hash, content)만 가볍게 로드."""
     with get_conn() as conn:
-        rows = conn.execute("SELECT id, content_hash, content FROM news").fetchall()
+        rows = conn.execute("SELECT id, url, content_hash, content FROM news").fetchall()
         return [dict(r) for r in rows]
 
 
