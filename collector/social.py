@@ -13,13 +13,10 @@
 """
 import re
 import time
-from datetime import datetime
 
 from bs4 import BeautifulSoup
 
 from . import extractor, fetcher
-
-START_DATE = datetime(2026, 1, 1)
 
 SOURCES = [
     {
@@ -98,13 +95,8 @@ def _crawl_youtube(cfg, max_items=15):
         else:
             link = link_el.get("href") if link_el else None
 
+        # 날짜 제한은 두지 않는다(영상 수가 많지 않아 전체 수집).
         published = pub_el.text[:16].replace("T", " ") if (pub_el and pub_el.text) else None
-        if published:
-            try:
-                if datetime.fromisoformat(published.replace(" ", "T")) < START_DATE:
-                    continue  # 2026-01-01 이전 제외
-            except ValueError:
-                pass
 
         items.append({
             "channel": cfg["channel"],

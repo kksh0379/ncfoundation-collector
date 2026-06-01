@@ -7,9 +7,9 @@
 - 대표 홈페이지 : 재단소식             (React SPA → 정적 HTML에 목록 없음)
 
 규칙
-- 2026-01-01 이후 글만 수집 (START_DATE)
 - 수집 항목: 제목, 작성일, 작성자, 본문, 원문 URL
 - 중복: 제목 기반 (dedup.is_duplicate_title) — 저장 단계에서 판단
+- 날짜 제한 없음(글 수가 많지 않아 전체 수집)
 - 수동 실행
 
 선택자는 /api/inspect 로 확인한 실제 구조 기준이다. SPA 사이트(FAIR AI, 대표홈페이지)는
@@ -19,14 +19,11 @@
 import re
 import time
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime
 from urllib.parse import urljoin
 
 from bs4 import BeautifulSoup
 
 from . import extractor, fetcher
-
-START_DATE = datetime(2026, 1, 1)
 
 SOURCES = [
     {
@@ -190,14 +187,9 @@ def crawl_source(cfg, max_items=8, max_workers=3):
         seen.add(key)
 
         # 날짜/요약은 행(li/dd/tr/article) 범위에서만 찾는다(전체 목록 X)
+        # 날짜 제한은 두지 않는다(글 수가 많지 않아 전체 수집).
         row = a.find_parent(["li", "dd", "tr", "article"]) or a
         published = extractor.parse_date(row.get_text(" ", strip=True))
-        if published:
-            try:
-                if datetime.fromisoformat(published.replace(" ", "T")) < START_DATE:
-                    continue  # 2026-01-01 이전 제외
-            except ValueError:
-                pass
 
         desc_el = _first(row, cfg.get("desc_sel", "")) if cfg.get("desc_sel") else None
         entries.append({

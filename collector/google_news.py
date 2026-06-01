@@ -14,10 +14,10 @@ RSS 검색 피드를 사용한다 — 제목/링크/작성일/언론사/요약�
 보장되지 않는다. 원문 추출을 시도하되, 실패 시 RSS 요약(snippet)으로 대체한다.
 """
 import base64
+import json
 import re
 import time
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime
 from email.utils import parsedate_to_datetime
 
 from bs4 import BeautifulSoup
@@ -25,8 +25,8 @@ from bs4 import BeautifulSoup
 from . import extractor, fetcher
 
 RSS_URL = "https://news.google.com/rss/search"
+BATCH_URL = "https://news.google.com/_/DotsSplashUi/data/batchexecute"
 KEYWORDS = ["엔씨문화재단", "NC문화재단"]
-START_DATE = datetime(2026, 1, 1)
 # 원문 본문 추출 시도 여부. 구글 링크는 리다이렉트라 대부분 실패하면서 느려지므로
 # 기본은 끄고 RSS 요약을 본문으로 쓴다. (속도·안정성 우선)
 FETCH_FULL_BODY = True  # 원문 기사로 풀리면 요약 추출 시도(실패 시 RSS 요약 사용)
@@ -86,19 +86,66 @@ def _collect_items(query):
 
 
 def _decode_google_url(url):
-    """구글 뉴스 리다이렉트 링크(/articles/<base64>)에서 원문 URL을 복원 시도."""
+    """구글 뉴스 리다이렉트 링크(/articles/<token>)에서 원문 URL을 복원 시도.
+
+    1) 구형 포맷: 토큰을 base64로 풀면 평문 URL이 들어있다 → 그대로 사용.
+    2) 신형 포맷(AU_yqL...): 평문 URL이 없다. 구글 뉴스 batchexecute API에
+       (signature/timestamp와 함께) 질의해 원문 URL을 받아온다.
+    실패하면 None을 돌려주고, 호출측은 RSS 요약으로 폴백한다.
+    """
     m = re.search(r"news\.google\.com/(?:rss/)?articles/([A-Za-z0-9_\-]+)", url or "")
     if not m:
         return None
     token = m.group(1)
-    token += "=" * (-len(token) % 4)
+
+    # 1) 구형 포맷: base64 안의 평문 URL
+    padded = token + "=" * (-len(token) % 4)
     try:
-        raw = base64.urlsafe_b64decode(token)
+        text = base64.urlsafe_b64decode(padded).decode("latin-1", "ignore")
+        m2 = re.search(r"https?://[^\s\"'<>\\]+", text)
+        if m2 and "google.com" not in m2.group(0):
+            return m2.group(0)
+    except Exception:  # noqa: BLE001
+        pass
+
+    # 2) 신형 포맷: batchexecute API로 복원
+    return _decode_via_batchexecute(token)
+
+
+def _decode_via_batchexecute(token):
+    """구글 뉴스 신형 기사 토큰을 원문 URL로 복원한다.
+    기사 페이지에서 서명(data-n-a-sg)/타임스탬프(data-n-a-ts)를 읽어
+    내부 RPC(Fbv4je/garturlreq)를 호출한다."""
+    try:
+        page = fetcher.get(f"https://news.google.com/rss/articles/{token}")
+        div = BeautifulSoup(page.text, "lxml").select_one("c-wiz > div")
+        if not div:
+            return None
+        sig, ts = div.get("data-n-a-sg"), div.get("data-n-a-ts")
+        if not (sig and ts):
+            return None
+        inner = json.dumps([
+            "garturlreq",
+            [["X", "X", ["X", "X"], None, None, 1, 1, "US:en", None, 1,
+              None, None, None, None, None, 0, 1],
+             "X", "X", 1, [1, 1, 1], 1, 1, None, 0, 0, None, 0],
+            token, int(ts), sig,
+        ])
+        f_req = json.dumps([[["Fbv4je", inner, None, "generic"]]])
+        resp = fetcher.post(
+            BATCH_URL,
+            data={"f.req": f_req},
+            headers={"content-type": "application/x-www-form-urlencoded;charset=UTF-8"},
+        )
+        for line in resp.text.splitlines():
+            if "wrb.fr" in line and "garturlres" in line:
+                arr = json.loads(line)
+                decoded = json.loads(arr[0][2])
+                if isinstance(decoded, list) and len(decoded) > 1:
+                    return decoded[1]
+        return None
     except Exception:  # noqa: BLE001
         return None
-    text = raw.decode("latin-1", "ignore")
-    m2 = re.search(r"https?://[^\s\"'<>\\]+", text)
-    return m2.group(0) if m2 else None
 
 
 def _summary_from_article(entry):
@@ -125,17 +172,9 @@ def _summary_from_article(entry):
 
 
 def _passes_filters(item):
+    # 재단 키워드 포함만 통과(본사 단독 기사 제외). 날짜 제한은 두지 않는다.
     haystack = f"{item.get('title', '')}\n{item.get('content', '')}".lower()
-    if not any(k.lower() in haystack for k in KEYWORDS):
-        return False
-    pub = item.get("published_at")
-    if pub:
-        try:
-            if datetime.fromisoformat(pub.replace(" ", "T")) < START_DATE:
-                return False
-        except ValueError:
-            pass
-    return True
+    return any(k.lower() in haystack for k in KEYWORDS)
 
 
 def crawl(max_workers=5, max_items=15, progress=None):
