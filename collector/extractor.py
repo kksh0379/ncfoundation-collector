@@ -20,6 +20,17 @@ _CONTENT_HINTS = [
 _DATE_RE = re.compile(r"(20\d{2})[.\-/년 ]\s*(\d{1,2})[.\-/월 ]\s*(\d{1,2})")
 
 
+def clean_text(s):
+    """본문에 섞일 수 있는 HTML 태그/과도한 공백을 제거해 순수 텍스트로."""
+    if not s:
+        return s
+    if "<" in s and ">" in s:
+        from bs4 import BeautifulSoup
+
+        s = BeautifulSoup(s, "lxml").get_text(" ", strip=True)
+    return re.sub(r"\s+", " ", s).strip()
+
+
 def parse_date(text):
     """문자열에서 YYYY.MM.DD 형태를 찾아 ISO 문자열로. 실패 시 None."""
     if not text:
@@ -84,5 +95,5 @@ def extract_article(soup, url):
         m = re.search(r"https?://(?:www\.|m\.)?([^/]+)", url or "")
         author = m.group(1) if m else None
 
-    content = extract_main_text(soup)
-    return {"title": title, "published_at": published, "author": author, "content": content}
+    content = clean_text(extract_main_text(soup))
+    return {"title": clean_text(title), "published_at": published, "author": author, "content": content}

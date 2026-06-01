@@ -55,7 +55,7 @@ function renderList(el, items, opts) {
     return;
   }
   items.forEach((item) => el.appendChild(renderCard(item, {
-    badge: opts.badgeKey ? item[opts.badgeKey] : null,
+    badge: opts.badgeFn ? opts.badgeFn(item) : null,
   })));
 }
 
@@ -69,7 +69,9 @@ async function loadBoards() {
   const service = document.getElementById("filter-service").value;
   const res = await fetch("/api/boards?service=" + encodeURIComponent(service));
   const items = await res.json();
-  renderList(document.getElementById("list-boards"), items, { badgeKey: "category" });
+  renderList(document.getElementById("list-boards"), items, {
+    badgeFn: (it) => `${it.service} · ${it.category}`,
+  });
 }
 
 // ----------------------------- 상태 확인 -----------------------------

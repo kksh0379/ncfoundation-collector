@@ -17,6 +17,7 @@
 헤드리스 브라우저(Playwright) 도입이 필요하다(spa=True로 표시).
 """
 import time
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from urllib.parse import urljoin
 
@@ -113,12 +114,21 @@ def _select_any(soup, selector):
     return []
 
 
-def crawl_source(cfg, max_items=10):
+def _parse_detail(url):
+    try:
+        resp = fetcher.get(url)
+    except Exception as e:  # noqa: BLE001
+        print(f"[board] 상세 요청 실패: {url} ({e})", flush=True)
+        return {}
+    return extractor.extract_article(BeautifulSoup(resp.text, "lxml"), url)
+
+
+def crawl_source(cfg, max_items=8, max_workers=3):
     """게시판 1개 크롤링 → 글 dict 리스트.
 
-    무료 호스팅(메모리/시간 제한)에서 안전하도록 목록 페이지 한 번만 받아
-    제목·날짜·요약을 추출한다(상세 페이지는 받지 않음). 본문은 목록 요약을 사용한다.
-    SPA 사이트는 정적 목록이 없으므로 아예 건너뛴다.
+    목록 페이지에서 글 링크/제목/날짜/요약을 뽑고, 정상 http 링크인 글은 상세 페이지를
+    가볍게(소량·저동시성) 받아 본문을 채운다. 본문에서 마크업은 제거한다.
+    SPA 사이트(정적 목록 없음)는 건너뛴다.
     """
     label = f"{cfg['service']} · {cfg['category']}"
     if cfg.get("spa"):
@@ -138,7 +148,8 @@ def crawl_source(cfg, max_items=10):
         print(f"[board] {label}: 글 링크 0개", flush=True)
         return []
 
-    items, seen = [], set()
+    # 1) 목록에서 항목 메타 수집
+    entries, seen = [], set()
     for a in anchors:
         href = a.get("href")
         if not href:
@@ -153,7 +164,7 @@ def crawl_source(cfg, max_items=10):
         if cfg.get("title_sel"):
             t = _first(container, cfg["title_sel"]) or _first(a, cfg["title_sel"])
             title = t.get_text(strip=True) if t else None
-        title = title or a.get_text(strip=True)
+        title = extractor.clean_text(title or a.get_text(strip=True))
         if not title:
             continue
 
@@ -166,17 +177,40 @@ def crawl_source(cfg, max_items=10):
                 pass
 
         desc_el = _first(container, cfg.get("desc_sel", "")) if cfg.get("desc_sel") else None
-        items.append({
-            "service": cfg["service"],
-            "category": cfg["category"],
+        entries.append({
+            "url": url,
+            "valid": url.startswith("http"),  # javascript:/# 링크 구분
             "title": title,
             "published_at": published,
-            "author": None,
-            "content": desc_el.get_text(strip=True) if desc_el else None,
-            "url": url,
+            "desc": extractor.clean_text(desc_el.get_text(" ", strip=True)) if desc_el else None,
         })
-        if len(items) >= max_items:
+        if len(entries) >= max_items:
             break
+
+    # 2) http 링크는 상세 페이지로 본문 보강
+    def build(e):
+        content = e["desc"]
+        published = e["published_at"]
+        author = None
+        link = e["url"] if e["valid"] else cfg["list_url"]  # JS 링크는 목록으로 폴백
+        if e["valid"]:
+            detail = _parse_detail(e["url"])
+            if detail.get("content") and len(detail["content"]) > 80:
+                content = detail["content"]
+            published = published or detail.get("published_at")
+            author = detail.get("author")
+        return {
+            "service": cfg["service"],
+            "category": cfg["category"],
+            "title": e["title"],
+            "published_at": published,
+            "author": author,
+            "content": content,
+            "url": link,
+        }
+
+    with ThreadPoolExecutor(max_workers=max_workers) as pool:
+        items = list(pool.map(build, entries))
 
     print(f"[board] {label}: 수집 {len(items)}건 / {time.time() - t0:.1f}s", flush=True)
     return items

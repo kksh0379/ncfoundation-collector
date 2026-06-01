@@ -65,6 +65,42 @@ def is_duplicate_news(new_content, existing_items, threshold=SIMILARITY_THRESHOL
     return _tfidf_max_similarity(new_content, existing_contents) >= threshold
 
 
+def dedup_news_items(items, existing_contents, threshold=SIMILARITY_THRESHOLD):
+    """뉴스 묶음을 한 번의 벡터화로 효율적으로 중복 제거한다.
+
+    기존 기사 + 신규 기사 전체를 한 번만 TF-IDF 벡터화하고, 신규 기사를 순서대로
+    보며 (기존 + 이미 채택한 신규)와의 최대 유사도가 임계값 이상이면 버린다.
+    items별로 매번 벡터라이저를 새로 학습하던 O(N^2) 비용을 없애 무료 CPU에서도
+    빠르게 동작한다. 반환: (남길 items, 중복 수)
+    """
+    if not items:
+        return [], 0
+    existing_norm = [normalize_text(c or "") for c in existing_contents]
+    item_norm = [normalize_text(it.get("content", "")) for it in items]
+    corpus = existing_norm + item_norm
+    if not any(corpus):
+        return list(items), 0  # 비교할 텍스트가 없으면 전부 신규로
+
+    vectorizer = TfidfVectorizer(analyzer="char", ngram_range=NGRAM_RANGE, min_df=1)
+    try:
+        matrix = vectorizer.fit_transform(corpus)
+    except ValueError:
+        return list(items), 0
+
+    n_exist = len(existing_norm)
+    kept_items, kept_rows, dup = [], list(range(n_exist)), 0
+    for i, it in enumerate(items):
+        row = n_exist + i
+        if item_norm[i] and kept_rows:
+            sims = cosine_similarity(matrix[row], matrix[kept_rows])
+            if sims.size and sims.max() >= threshold:
+                dup += 1
+                continue
+        kept_items.append(it)
+        kept_rows.append(row)
+    return kept_items, dup
+
+
 def normalize_title(title):
     return normalize_text(title)
 

@@ -113,7 +113,7 @@ def _passes_filters(item):
     return True
 
 
-def crawl(max_workers=6, max_items=40, progress=None):
+def crawl(max_workers=6, max_items=30, progress=None):
     """뉴스 수집 실행. 파싱된 기사 리스트 반환(중복 판단/저장은 호출측).
     progress(msg): 진행상황 콜백(선택).
     """
@@ -139,7 +139,7 @@ def crawl(max_workers=6, max_items=40, progress=None):
                 processed = list(pool.map(_fetch_body, entries))
         else:
             for e in entries:
-                e["content"] = e.get("snippet") or ""
+                e["content"] = extractor.clean_text(e.get("snippet") or "")
             processed = entries
         items = [
             {k: e.get(k) for k in ("title", "published_at", "author", "content", "url")}

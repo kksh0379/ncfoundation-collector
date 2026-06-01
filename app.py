@@ -114,21 +114,17 @@ _last_result = {"news": None, "boards": None}
 
 
 def _save_news(items):
-    saved = dup = 0
     existing = db.all_news_fingerprints()
-    for item in items:
-        if dedup.is_duplicate_news(item.get("content", ""), existing):
-            dup += 1
-            continue
+    existing_contents = [it.get("content") or "" for it in existing]
+    kept, dup = dedup.dedup_news_items(items, existing_contents)
+    saved = 0
+    for item in kept:
         item["content_hash"] = dedup.content_hash(item.get("content", ""))
         rid = db.insert_news(item)
         if rid:
             saved += 1
-            existing.append(
-                {"id": rid, "content_hash": item["content_hash"], "content": item.get("content")}
-            )
         else:
-            dup += 1
+            dup += 1  # URL 중복
     return saved, dup
 
 
