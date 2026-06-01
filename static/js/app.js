@@ -1,9 +1,14 @@
 "use strict";
 
 const loading = document.getElementById("loading");
+const loadingText = document.getElementById("loading-text");
 
 function showLoading(on) {
   loading.hidden = !on;
+}
+
+function setLoadingText(msg) {
+  if (loadingText) loadingText.textContent = msg;
 }
 
 function escapeHtml(s) {
@@ -126,6 +131,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 // 수집은 백그라운드로 실행되고, 상태를 폴링해 진행상황을 보여준다.
 async function runCrawl(btn, group, msgEl, reload) {
   btn.disabled = true;
+  setLoadingText("수집 시작…");
   showLoading(true);
   msgEl.style.color = "";
   msgEl.textContent = "수집 시작…";
@@ -138,7 +144,11 @@ async function runCrawl(btn, group, msgEl, reload) {
       const res = await fetch("/api/crawl/status?group=" + group);
       if (!res.ok) throw new Error("status HTTP " + res.status);
       const st = await res.json();
-      if (st.log && st.log.length) msgEl.textContent = "진행: " + st.log[st.log.length - 1];
+      if (st.log && st.log.length) {
+        const last = "진행: " + st.log[st.log.length - 1];
+        setLoadingText(last);   // 스피너 안에 진행상황 표시(가려지지 않게)
+        msgEl.textContent = last;
+      }
 
       if (!st.running) {
         const r = st.result || {};
