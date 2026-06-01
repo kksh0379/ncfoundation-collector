@@ -9,7 +9,7 @@ import os
 
 from flask import Flask, jsonify, render_template, request
 
-from collector import boards, db, dedup, fetcher, naver_news
+from collector import boards, db, dedup, fetcher, google_news
 
 app = Flask(__name__)
 
@@ -44,14 +44,18 @@ def diag():
     import time as _t
     from concurrent.futures import ThreadPoolExecutor
 
-    targets = [
-        ("네이버뉴스검색", naver_news.SEARCH_URL + "?where=news&query=NC%EB%AC%B8%ED%99%94%EC%9E%AC%EB%8B%A8")
-    ]
-    seen = set()
-    for s in boards.SOURCES:
-        if s["list_url"] not in seen:
-            seen.add(s["list_url"])
-            targets.append((f"{s['service']}/{s['category']}", s["list_url"]))
+    group = request.args.get("group", "all")  # news | boards | all
+    targets = []
+    if group in ("all", "news"):
+        targets.append(
+            ("구글 뉴스(RSS)", google_news.RSS_URL + "?q=NC%EB%AC%B8%ED%99%94%EC%9E%AC%EB%8B%A8&hl=ko&gl=KR&ceid=KR:ko")
+        )
+    if group in ("all", "boards"):
+        seen = set()
+        for s in boards.SOURCES:
+            if s["list_url"] not in seen:
+                seen.add(s["list_url"])
+                targets.append((f"{s['service']} · {s['category']}", s["list_url"]))
 
     def check(item):
         name, url = item
@@ -104,9 +108,8 @@ def inspect():
 @app.post("/api/crawl/news")
 def crawl_news():
     """탭1 수집. 본문 유사도로 중복을 제거하며 신규만 저장."""
-    max_pages = int(request.json.get("max_pages", 2)) if request.is_json else 2
-    print(f"[crawl] /api/crawl/news 시작 (max_pages={max_pages})", flush=True)
-    items = naver_news.crawl(max_pages=max_pages)
+    print("[crawl] /api/crawl/news 시작 (구글 뉴스 RSS)", flush=True)
+    items = google_news.crawl()
 
     saved, dup = 0, 0
     existing = db.all_news_fingerprints()  # 비교 기준 (실행 중 누적 갱신)

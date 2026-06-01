@@ -78,6 +78,48 @@ async function loadBoards() {
   renderList(document.getElementById("list-boards"), items, { badgeKey: "category" });
 }
 
+// ----------------------------- 상태 확인 -----------------------------
+function statusRow(t) {
+  // 접속 성공 + 200 + HTML이면 정상, 그 외는 주의/실패
+  let cls = "bad", label = "실패";
+  if (t.ok && t.status === 200) {
+    if (t.looks_html === false) { cls = "warn"; label = "주의"; }
+    else { cls = "good"; label = "정상"; }
+  }
+  const detail = t.ok
+    ? `${t.status} · ${(t.bytes / 1024).toFixed(0)}KB · ${t.sec}s`
+    : (t.error || "오류");
+  return `<div class="status-row">
+      <span class="dot ${cls}"></span>
+      <span class="st-name">${escapeHtml(t.name)}</span>
+      <span class="st-badge ${cls}">${label}</span>
+      <span class="st-detail">${escapeHtml(detail)}</span>
+    </div>`;
+}
+
+async function runStatus(btn, group, panel) {
+  btn.disabled = true;
+  panel.hidden = false;
+  panel.innerHTML = '<div class="status-loading">접속 상태 확인 중…</div>';
+  try {
+    const res = await fetch("/api/diag?group=" + group);
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    const data = await res.json();
+    panel.innerHTML = data.map(statusRow).join("");
+  } catch (e) {
+    panel.innerHTML = `<div class="status-loading" style="color:#dc2626">상태 확인 실패: ${escapeHtml(e.message)}</div>`;
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+document.getElementById("status-news-btn").addEventListener("click", (e) =>
+  runStatus(e.currentTarget, "news", document.getElementById("status-news"))
+);
+document.getElementById("status-boards-btn").addEventListener("click", (e) =>
+  runStatus(e.currentTarget, "boards", document.getElementById("status-boards"))
+);
+
 // ----------------------------- 수집 실행 -----------------------------
 async function runCrawl(btn, url, msgEl, reload) {
   btn.disabled = true;

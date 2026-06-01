@@ -19,9 +19,11 @@
   <!-- 탭1: 뉴스 -->
   <section class="panel active" id="panel-news">
     <div class="toolbar">
-      <span class="hint">네이버 뉴스 · 엔씨문화재단/NC문화재단 · 2026.01.01~</span>
+      <span class="hint">구글 뉴스(RSS) · 엔씨문화재단/NC문화재단 · 2026.01.01~</span>
+      <button class="btn-status" id="status-news-btn">상태 확인</button>
       <button class="btn-collect" id="collect-news">수집 실행</button>
     </div>
+    <div class="status-panel" id="status-news" hidden></div>
     <div class="result-msg" id="msg-news"></div>
     <ul class="list" id="list-news"></ul>
   </section>
@@ -35,8 +37,10 @@
         <option value="{{ s }}">{{ s }}</option>
         {% endfor %}
       </select>
+      <button class="btn-status" id="status-boards-btn">상태 확인</button>
       <button class="btn-collect" id="collect-boards">수집 실행</button>
     </div>
+    <div class="status-panel" id="status-boards" hidden></div>
     <div class="result-msg" id="msg-boards"></div>
     <ul class="list" id="list-boards"></ul>
   </section>
