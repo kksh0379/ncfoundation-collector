@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>엔씨문화재단 콜렉터</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css', v='3') }}" />
 </head>
 <body>
   <header class="app-header">
@@ -47,9 +47,9 @@
 
   <div class="loading" id="loading" hidden>
     <div class="spinner"></div>
-    <span>수집 중…</span>
+    <span>수집 진행 중… (진행상황은 버튼 아래에 표시)</span>
   </div>
 
-  <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/app.js', v='3') }}"></script>
 </body>
 </html>

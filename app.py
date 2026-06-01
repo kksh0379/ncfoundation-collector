@@ -12,6 +12,8 @@ from flask import Flask, jsonify, render_template, request
 from collector import boards, db, dedup, fetcher, google_news
 
 app = Flask(__name__)
+# 초안 단계: 브라우저가 옛 JS/CSS를 캐시해 혼란을 주지 않도록 정적파일 캐시를 끈다.
+app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 0
 
 # gunicorn 등으로 띄울 때도 테이블이 준비되도록 import 시점에 초기화한다.
 db.init_db()
