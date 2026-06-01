@@ -10,3 +10,5 @@ services:
     envVars:
       - key: PYTHON_VERSION
         value: "3.11.9"
+      - key: PYTHONUNBUFFERED   # print 로그가 즉시 Render Logs에 보이도록
+        value: "1"

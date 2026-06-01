@@ -23,6 +23,8 @@ fetcher를 Playwright 기반으로 교체하거나, 해당 사이트의 내부 J
 찾아 list_parser를 JSON 파서로 바꾸면 된다.
 =====================================================================
 """
+import time
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from urllib.parse import urljoin
 
@@ -208,14 +210,15 @@ def _parse_detail(url, cfg):
     return {"title": title, "published_at": published, "author": author, "content": content}
 
 
-def crawl_source(cfg, max_items=30):
+def crawl_source(cfg, max_items=10, max_workers=5):
     """게시판 1개 크롤링 → 글 dict 리스트."""
-    items = []
+    label = f"{cfg['service']}/{cfg['category']}"
+    t0 = time.time()
     try:
         resp = fetcher.get(cfg["list_url"])
     except Exception as e:  # noqa: BLE001
-        print(f"[board] 목록 요청 실패: {cfg['service']}/{cfg['category']} ({e})")
-        return items
+        print(f"[board] {label} 목록 요청 실패: {e}", flush=True)
+        return []
 
     soup = BeautifulSoup(resp.text, "lxml")
     rows = []
@@ -224,6 +227,8 @@ def crawl_source(cfg, max_items=30):
         if rows:
             break
 
+    # 1) 목록에서 링크/제목/날짜 먼저 수집
+    entries = []
     for row in rows[:max_items]:
         link_el = row.select_one(cfg["link_sel"])
         if not link_el or not link_el.get("href"):
@@ -231,41 +236,54 @@ def crawl_source(cfg, max_items=30):
         href = urljoin(cfg["base_url"], link_el["href"])
         if href in (cfg["list_url"], cfg["base_url"]):
             continue
+        entries.append(
+            {
+                "href": href,
+                "list_title": _text(_first(row, cfg["title_sel"])) or _text(link_el),
+                "list_date": _parse_date_str(_text(_first(row, cfg["date_sel"]))),
+            }
+        )
 
-        list_title = _text(_first(row, cfg["title_sel"])) or _text(link_el)
-        list_date = _parse_date_str(_text(_first(row, cfg["date_sel"])))
-
-        detail = _parse_detail(href, cfg) or {}
-        title = detail.get("title") or list_title
+    # 2) 상세 페이지는 병렬로 가져온다
+    def build(entry):
+        detail = _parse_detail(entry["href"], cfg) or {}
+        title = detail.get("title") or entry["list_title"]
         if not title:
-            continue
-
-        published = detail.get("published_at") or list_date
-        # 2026-01-01 이후만
+            return None
+        published = detail.get("published_at") or entry["list_date"]
         if published:
             try:
                 if datetime.fromisoformat(published) < START_DATE:
-                    continue
+                    return None  # 2026-01-01 이전 제외
             except ValueError:
                 pass
+        return {
+            "service": cfg["service"],
+            "category": cfg["category"],
+            "title": title,
+            "published_at": published,
+            "author": detail.get("author"),
+            "content": detail.get("content"),
+            "url": entry["href"],
+        }
 
-        items.append(
-            {
-                "service": cfg["service"],
-                "category": cfg["category"],
-                "title": title,
-                "published_at": published,
-                "author": detail.get("author"),
-                "content": detail.get("content"),
-                "url": href,
-            }
-        )
+    items = []
+    if entries:
+        with ThreadPoolExecutor(max_workers=max_workers) as pool:
+            items = [r for r in pool.map(build, entries) if r]
+
+    print(
+        f"[board] {label}: 목록 {len(entries)}건 → 수집 {len(items)}건 / {time.time() - t0:.1f}s",
+        flush=True,
+    )
     return items
 
 
-def crawl_all(max_items=30):
+def crawl_all(max_items=10):
     """모든 게시판 크롤링. 호출측에서 제목 기반 중복 판단 후 저장."""
+    t0 = time.time()
     results = []
     for cfg in SOURCES:
         results.extend(crawl_source(cfg, max_items=max_items))
+    print(f"[board] 전체 완료: 총 {len(results)}건 / {time.time() - t0:.1f}s", flush=True)
     return results

@@ -17,10 +17,10 @@ DEFAULT_HEADERS = {
     "Accept-Language": "ko-KR,ko;q=0.9,en;q=0.8",
 }
 
-TIMEOUT = 15
+TIMEOUT = 8  # (연결+읽기) 응답 없는 사이트에서 빨리 실패하도록 짧게 둔다
 
 
-def get(url, params=None, headers=None, retries=2):
+def get(url, params=None, headers=None, retries=1):
     last_err = None
     merged = dict(DEFAULT_HEADERS)
     if headers:
@@ -34,7 +34,7 @@ def get(url, params=None, headers=None, retries=2):
         except requests.RequestException as e:  # noqa: PERF203
             last_err = e
             if attempt < retries:
-                time.sleep(1.5 * (attempt + 1))
+                time.sleep(0.8 * (attempt + 1))
     raise last_err
 
 

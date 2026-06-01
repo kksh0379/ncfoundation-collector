@@ -13,6 +13,8 @@
 로컬 실행 시 실제 응답으로 검증/보정이 필요하다. (이 컨테이너는 네이버 접근 차단)
 """
 import re
+import time
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 
 from bs4 import BeautifulSoup
@@ -148,16 +150,26 @@ def _passes_filters(item):
     return True
 
 
-def crawl(max_pages=5):
+def crawl(max_pages=2, max_workers=6):
     """뉴스 수집 실행. 파싱된 기사 리스트를 반환(중복 판단/저장은 호출측에서)."""
-    items = []
+    t0 = time.time()
     seen_urls = set()
+    links = []
     for kw in KEYWORDS:
-        for url in _collect_article_links(kw, max_pages=max_pages):
-            if url in seen_urls:
-                continue
-            seen_urls.add(url)
-            item = _parse_article(url)
-            if item and _passes_filters(item):
-                items.append(item)
+        kw_links = _collect_article_links(kw, max_pages=max_pages)
+        print(f"[naver] '{kw}' 검색 결과 링크 {len(kw_links)}개", flush=True)
+        for url in kw_links:
+            if url not in seen_urls:
+                seen_urls.add(url)
+                links.append(url)
+
+    print(f"[naver] 기사 {len(links)}개 본문 파싱 시작 (병렬 {max_workers})", flush=True)
+    items = []
+    if links:
+        with ThreadPoolExecutor(max_workers=max_workers) as pool:
+            for item in pool.map(_parse_article, links):
+                if item and _passes_filters(item):
+                    items.append(item)
+
+    print(f"[naver] 완료: 수집 {len(items)}건 / 소요 {time.time() - t0:.1f}s", flush=True)
     return items
