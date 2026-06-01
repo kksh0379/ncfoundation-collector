@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>엔씨문화재단 콜렉터</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
+</head>
+<body>
+  <header class="app-header">
+    <h1>엔씨문화재단 콜렉터</h1>
+  </header>
+
+  <nav class="tabs">
+    <button class="tab active" data-tab="news">뉴스 · 기사</button>
+    <button class="tab" data-tab="boards">서비스 게시판</button>
+  </nav>
+
+  <!-- 탭1: 뉴스 -->
+  <section class="panel active" id="panel-news">
+    <div class="toolbar">
+      <span class="hint">네이버 뉴스 · 엔씨문화재단/NC문화재단 · 2026.01.01~</span>
+      <button class="btn-collect" id="collect-news">수집 실행</button>
+    </div>
+    <div class="result-msg" id="msg-news"></div>
+    <ul class="list" id="list-news"></ul>
+  </section>
+
+  <!-- 탭2: 게시판 -->
+  <section class="panel" id="panel-boards">
+    <div class="toolbar">
+      <select id="filter-service">
+        <option value="all">전체 서비스</option>
+        {% for s in services %}
+        <option value="{{ s }}">{{ s }}</option>
+        {% endfor %}
+      </select>
+      <button class="btn-collect" id="collect-boards">수집 실행</button>
+    </div>
+    <div class="result-msg" id="msg-boards"></div>
+    <ul class="list" id="list-boards"></ul>
+  </section>
+
+  <div class="loading" id="loading" hidden>
+    <div class="spinner"></div>
+    <span>수집 중…</span>
+  </div>
+
+  <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>
