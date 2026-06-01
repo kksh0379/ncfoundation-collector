@@ -159,6 +159,8 @@ def crawl(max_workers=5, max_items=15, progress=None):
         progress(f"요약 처리 중… ({len(entries)}건)")
         with ThreadPoolExecutor(max_workers=max_workers) as pool:
             processed = list(pool.map(_summary_from_article, entries))
+        with_body = sum(1 for e in processed if e.get("content"))
+        print(f"[google] 본문(요약) 추출 성공 {with_body}/{len(processed)}건", flush=True)
         items = [
             {k: e.get(k) for k in ("title", "published_at", "author", "content", "url")}
             for e in processed if _passes_filters(e)

@@ -77,7 +77,8 @@ def meta():
 @app.route("/")
 def index():
     services = sorted({s["service"] for s in boards.SOURCES})
-    return render_template("index.html", services=services)
+    channels = sorted({s["channel"] for s in social.SOURCES})
+    return render_template("index.html", services=services, channels=channels)
 
 
 # ---------------------------- 조회 API ----------------------------

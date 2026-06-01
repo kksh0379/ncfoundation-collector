@@ -56,8 +56,15 @@ def _youtube_channel_id(url):
     except Exception as e:  # noqa: BLE001
         print(f"[social] 유튜브 채널 조회 실패: {url} ({e})", flush=True)
         return None
-    for pat in (r'"channelId":"(UC[\w-]+)"', r'"externalId":"(UC[\w-]+)"', r"channel_id=(UC[\w-]+)"):
-        m = re.search(pat, resp.text)
+    html = resp.text
+    for pat in (
+        r'<link rel="canonical" href="https://www\.youtube\.com/channel/(UC[\w-]+)"',
+        r'"channelId":"(UC[\w-]+)"',
+        r'"externalId":"(UC[\w-]+)"',
+        r"youtube\.com/channel/(UC[\w-]+)",
+        r"channel_id=(UC[\w-]+)",
+    ):
+        m = re.search(pat, html)
         if m:
             return m.group(1)
     return None

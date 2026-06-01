@@ -51,25 +51,22 @@ SOURCES = [
         "service": "프로젝토리", "category": "공지",
         "list_url": "https://www.projectory.or.kr/news/notice-list",
         "base_url": "https://www.projectory.or.kr",
-        "item_link_sel": "a.info__title-link",
-        "title_sel": "dt.info__title",
-        "desc_sel": "dd.info__desc",
+        "item_link_sel": "a[href*=news-view], a[href*=boardIdx]",
+        "desc_sel": "dd.info__desc, .desc",
     },
     {
         "service": "프로젝토리", "category": "프로젝토리 이야기",
         "list_url": "https://www.projectory.or.kr/news/projectory-story-list",
         "base_url": "https://www.projectory.or.kr",
-        "item_link_sel": "a.info__title-link",
-        "title_sel": "dt.info__title",
-        "desc_sel": "dd.info__desc",
+        "item_link_sel": "a[href*=news-view], a[href*=boardIdx]",
+        "desc_sel": "dd.info__desc, .desc",
     },
     {
         "service": "프로젝토리", "category": "갤러리",
         "list_url": "https://www.projectory.or.kr/news/gallery-list",
         "base_url": "https://www.projectory.or.kr",
-        "item_link_sel": "a.info__title-link",
-        "title_sel": "dt.info__title",
-        "desc_sel": "dd.info__desc",
+        "item_link_sel": "a[href*=news-view], a[href*=boardIdx]",
+        "desc_sel": "dd.info__desc, .desc",
     },
     {
         "service": "FAIR AI", "category": "공지사항",
@@ -162,10 +159,10 @@ def crawl_source(cfg, max_items=8, max_workers=3):
         return []
 
     soup = BeautifulSoup(resp.text, "lxml")
-    # 헤더/푸터/내비를 먼저 제거 (오시는 길·운영시간·문의 같은 푸터 링크가 같은 클래스를
-    # 써서 글로 잘못 잡히는 것을 방지)
-    for chrome in soup.select("header, footer, nav, aside, .footer, .header, .gnb, .lnb, "
-                              ".sticky-menu, .util, [class*=footer], [class*=header]"):
+    # 푸터/내비만 제거 (오시는 길·문의 등 푸터 링크가 글로 잘못 잡히는 것 방지).
+    # 본문 영역을 지우지 않도록 header/aside 등 광범위 제거는 하지 않는다.
+    for chrome in soup.select("footer, .footer, [class*=footer], .gnb, .lnb, "
+                              ".sticky-menu, .sticky-menu__item, nav.gnb"):
         chrome.decompose()
 
     anchors = _select_any(soup, cfg["item_link_sel"])

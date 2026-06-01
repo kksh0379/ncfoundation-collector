@@ -68,7 +68,8 @@ async function loadBoards() {
 }
 
 async function loadSocial() {
-  const res = await fetch("/api/social");
+  const channel = document.getElementById("filter-channel").value;
+  const res = await fetch("/api/social?channel=" + encodeURIComponent(channel));
   const items = await res.json();
   renderList(document.getElementById("list-social"), items, {
     badgeFn: (it) => `${it.channel} · ${it.account}`,
@@ -160,6 +161,7 @@ document.getElementById("collect-social").addEventListener("click", (e) =>
   runCrawl(e.currentTarget, "social", document.getElementById("msg-social"), loadSocial)
 );
 document.getElementById("filter-service").addEventListener("change", loadBoards);
+document.getElementById("filter-channel").addEventListener("change", loadSocial);
 
 // ----------------------------- 관리자 로그인 -----------------------------
 const loginModal = document.getElementById("login-modal");

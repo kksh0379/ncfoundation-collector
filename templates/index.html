@@ -4,11 +4,11 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>엔씨문화재단 콜렉터</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css', v='11') }}" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css', v='12') }}" />
 </head>
 <body>
   <header class="app-header">
-    <h1>엔씨문화재단 콜렉터 <span class="ver">v11</span></h1>
+    <h1>엔씨문화재단 콜렉터 <span class="ver">v12</span></h1>
     <button class="auth-btn guest-only" id="login-btn">관리자 로그인</button>
     <button class="auth-btn admin-only" id="logout-btn">로그아웃</button>
   </header>
@@ -51,7 +51,12 @@
   <!-- 탭3: 소셜 채널 -->
   <section class="panel" id="panel-social">
     <div class="toolbar">
-      <span class="hint">인스타그램(재단·프로젝토리) · 유튜브</span>
+      <select id="filter-channel">
+        <option value="all">전체 채널</option>
+        {% for ch in channels %}
+        <option value="{{ ch }}">{{ ch }}</option>
+        {% endfor %}
+      </select>
       <button class="btn-status admin-only" id="status-social-btn">상태 확인</button>
       <button class="btn-collect admin-only" id="collect-social">수집 실행</button>
     </div>
@@ -89,6 +94,6 @@
     </div>
   </div>
 
-  <script src="{{ url_for('static', filename='js/app.js', v='11') }}"></script>
+  <script src="{{ url_for('static', filename='js/app.js', v='12') }}"></script>
 </body>
 </html>
