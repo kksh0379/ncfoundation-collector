@@ -1,0 +1,12 @@
+# Render(render.com) 자동 배포 설정 (Blueprint).
+# Render 대시보드에서 "New +" → "Blueprint" → 이 GitHub 저장소 선택 시 자동 인식된다.
+services:
+  - type: web
+    name: ncfoundation-collector
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT --workers 1 --threads 4 --timeout 300
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11.9"

@@ -5,11 +5,16 @@
 
 수동 실행 방식: 화면의 "수집 실행" 버튼을 누르면 해당 탭의 크롤러가 동작한다.
 """
+import os
+
 from flask import Flask, jsonify, render_template, request
 
 from collector import boards, db, dedup, naver_news
 
 app = Flask(__name__)
+
+# gunicorn 등으로 띄울 때도 테이블이 준비되도록 import 시점에 초기화한다.
+db.init_db()
 
 
 @app.route("/")
@@ -83,6 +88,6 @@ def crawl_boards():
 
 
 if __name__ == "__main__":
-    db.init_db()
-    # 모바일 기기에서 같은 네트워크로 접속 가능하도록 0.0.0.0 바인딩
-    app.run(host="0.0.0.0", port=5000, debug=True)
+    # 로컬 실행. 호스팅 환경은 gunicorn이 app 객체를 직접 띄운다(Procfile 참고).
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port, debug=True)

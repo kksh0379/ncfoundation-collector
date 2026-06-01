@@ -4,3 +4,4 @@ beautifulsoup4>=4.12
 lxml>=5.0
 scikit-learn>=1.4
 kiwipiepy>=0.17
+gunicorn>=21.2

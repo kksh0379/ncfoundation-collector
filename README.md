@@ -37,6 +37,11 @@ python app.py
 
 브라우저(또는 같은 네트워크의 모바일)에서 `http://localhost:5000` 접속.
 
+## 배포 (URL 공유)
+
+파이썬 설치 없이 브라우저 클릭만으로 배포해 공개 URL을 만드는 방법은 [`DEPLOY.md`](DEPLOY.md) 참고.
+(Render/Railway 무료 플랜, GitHub 연동)
+
 ## 구조
 
 ```
