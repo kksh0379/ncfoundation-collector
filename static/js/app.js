@@ -79,16 +79,21 @@ async function loadBoards() {
 }
 
 // ----------------------------- 수집 실행 -----------------------------
-async function runCrawl(url, msgEl, reload) {
-  const btn = event.currentTarget;
+async function runCrawl(btn, url, msgEl, reload) {
   btn.disabled = true;
   showLoading(true);
+  msgEl.style.color = "";
   msgEl.textContent = "";
+
+  // 서버가 응답 없이 멈춰도 스피너가 무한정 돌지 않도록 타임아웃을 건다.
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 150000); // 150초
   try {
     const res = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({}),
+      signal: controller.signal,
     });
     if (!res.ok) throw new Error("HTTP " + res.status);
     const data = await res.json();
@@ -96,18 +101,22 @@ async function runCrawl(url, msgEl, reload) {
     await reload();
   } catch (e) {
     msgEl.style.color = "#dc2626";
-    msgEl.textContent = "수집 실패: " + e.message;
+    msgEl.textContent =
+      e.name === "AbortError"
+        ? "시간 초과(150초): 서버 응답이 없습니다. Logs 탭을 확인하세요."
+        : "수집 실패: " + e.message;
   } finally {
+    clearTimeout(timer);
     btn.disabled = false;
     showLoading(false);
   }
 }
 
-document.getElementById("collect-news").addEventListener("click", () =>
-  runCrawl("/api/crawl/news", document.getElementById("msg-news"), loadNews)
+document.getElementById("collect-news").addEventListener("click", (e) =>
+  runCrawl(e.currentTarget, "/api/crawl/news", document.getElementById("msg-news"), loadNews)
 );
-document.getElementById("collect-boards").addEventListener("click", () =>
-  runCrawl("/api/crawl/boards", document.getElementById("msg-boards"), loadBoards)
+document.getElementById("collect-boards").addEventListener("click", (e) =>
+  runCrawl(e.currentTarget, "/api/crawl/boards", document.getElementById("msg-boards"), loadBoards)
 );
 document.getElementById("filter-service").addEventListener("change", loadBoards);
 
