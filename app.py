@@ -106,16 +106,11 @@ def inspect():
         return jsonify(list(pool.map(inspector.inspect_url, urls)))
 
 
-# ---------------------------- 수집 API (백그라운드 작업) ----------------------------
-# 수집은 시간이 걸리므로 백그라운드 스레드에서 실행하고, UI는 /api/crawl/status 를
-# 폴링해 진행상황을 본다. (gunicorn workers=1 이라 작업 상태를 공유 메모리로 관리)
-import threading  # noqa: E402
-
-_jobs = {
-    "news": {"running": False, "log": [], "result": None},
-    "boards": {"running": False, "log": [], "result": None},
-}
-_jobs_lock = threading.Lock()
+# ---------------------------- 수집 API (동기 방식) ----------------------------
+# 수집은 요청 한 번에 끝까지 처리하고 결과를 바로 반환한다. (구조가 단순해 어떤
+# 버전의 프론트엔드 JS가 캐시돼 있어도 호환되며, 무료 호스팅 재시작에도 안전)
+# 마지막 결과는 /api/crawl/status 폴링형 프론트와의 호환을 위해 보관한다.
+_last_result = {"news": None, "boards": None}
 
 
 def _save_news(items):
@@ -156,53 +151,36 @@ def _save_boards(items):
     return saved, dup
 
 
-def _run_job(group, crawl_fn, save_fn):
-    job = _jobs[group]
-
-    def progress(msg):
-        job["log"].append(msg)
-
+def _run_crawl(group, crawl_fn, save_fn):
     try:
-        items = crawl_fn(progress=progress)
-        progress("중복 판단·저장 중…")
+        items = crawl_fn()
         saved, dup = save_fn(items)
-        job["result"] = {"crawled": len(items), "saved": saved, "duplicates": dup}
-        progress(f"완료: 신규 {saved}건 저장 · 중복 {dup}건 제외")
+        result = {"crawled": len(items), "saved": saved, "duplicates": dup}
     except Exception as e:  # noqa: BLE001
-        job["result"] = {"error": str(e)}
-        job["log"].append("오류: " + str(e))
-        print(f"[crawl] {group} 작업 오류: {e}", flush=True)
-    finally:
-        job["running"] = False
-
-
-def _start_job(group, crawl_fn, save_fn):
-    job = _jobs[group]
-    with _jobs_lock:
-        if job["running"]:
-            return jsonify({"started": False, "running": True, "log": job["log"][-12:]})
-        job.update(running=True, log=["수집 시작…"], result=None)
-    threading.Thread(target=_run_job, args=(group, crawl_fn, save_fn), daemon=True).start()
-    return jsonify({"started": True, "running": True})
+        print(f"[crawl] {group} 오류: {e}", flush=True)
+        result = {"crawled": 0, "saved": 0, "duplicates": 0, "error": str(e)}
+    _last_result[group] = result
+    return jsonify(result)
 
 
 @app.post("/api/crawl/news")
 def crawl_news():
     print("[crawl] /api/crawl/news 시작 (구글 뉴스 RSS)", flush=True)
-    return _start_job("news", google_news.crawl, _save_news)
+    return _run_crawl("news", google_news.crawl, _save_news)
 
 
 @app.post("/api/crawl/boards")
 def crawl_boards():
     print("[crawl] /api/crawl/boards 시작", flush=True)
-    return _start_job("boards", boards.crawl_all, _save_boards)
+    return _run_crawl("boards", boards.crawl_all, _save_boards)
 
 
 @app.get("/api/crawl/status")
 def crawl_status():
+    # 폴링형(구버전) 프론트 호환용. 동기 방식이라 항상 미실행 상태이며,
+    # 마지막 수집 결과를 함께 돌려준다.
     group = request.args.get("group", "news")
-    job = _jobs.get(group, _jobs["news"])
-    return jsonify({"running": job["running"], "log": job["log"][-12:], "result": job["result"]})
+    return jsonify({"running": False, "log": [], "result": _last_result.get(group)})
 
 
 if __name__ == "__main__":

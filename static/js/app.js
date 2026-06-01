@@ -1,16 +1,5 @@
 "use strict";
 
-const loading = document.getElementById("loading");
-const loadingText = document.getElementById("loading-text");
-
-function showLoading(on) {
-  loading.hidden = !on;
-}
-
-function setLoadingText(msg) {
-  if (loadingText) loadingText.textContent = msg;
-}
-
 function escapeHtml(s) {
   if (!s) return "";
   return s.replace(/[&<>"']/g, (c) => ({
@@ -126,51 +115,28 @@ document.getElementById("status-boards-btn").addEventListener("click", (e) =>
 );
 
 // ----------------------------- 수집 실행 -----------------------------
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-
-// 수집은 백그라운드로 실행되고, 상태를 폴링해 진행상황을 보여준다.
+// 수집은 동기 방식: 요청 한 번으로 끝까지 처리하고 결과를 받는다.
 async function runCrawl(btn, group, msgEl, reload) {
   btn.disabled = true;
-  setLoadingText("수집 시작…");
-  showLoading(true);
   msgEl.style.color = "";
-  msgEl.textContent = "수집 시작…";
+  msgEl.innerHTML = '<span class="mini-spin"></span> 수집 중… (최대 1~2분 걸릴 수 있어요)';
   try {
-    await fetch("/api/crawl/" + group, { method: "POST" });
-
-    const deadline = Date.now() + 5 * 60 * 1000; // 최대 5분 폴링
-    while (Date.now() < deadline) {
-      await sleep(1500);
-      const res = await fetch("/api/crawl/status?group=" + group);
-      if (!res.ok) throw new Error("status HTTP " + res.status);
-      const st = await res.json();
-      if (st.log && st.log.length) {
-        const last = "진행: " + st.log[st.log.length - 1];
-        setLoadingText(last);   // 스피너 안에 진행상황 표시(가려지지 않게)
-        msgEl.textContent = last;
-      }
-
-      if (!st.running) {
-        const r = st.result || {};
-        if (r.error) {
-          msgEl.style.color = "#dc2626";
-          msgEl.textContent = "수집 실패: " + r.error;
-        } else {
-          msgEl.style.color = "#16a34a";
-          msgEl.textContent = `수집 ${r.crawled ?? 0}건 · 신규 ${r.saved ?? 0}건 저장 · 중복 ${r.duplicates ?? 0}건 제외`;
-        }
-        await reload();
-        return;
-      }
+    const res = await fetch("/api/crawl/" + group, { method: "POST" });
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    const d = await res.json();
+    if (d.error) {
+      msgEl.style.color = "#dc2626";
+      msgEl.textContent = `수집 실패: ${d.error}`;
+    } else {
+      msgEl.style.color = "#16a34a";
+      msgEl.textContent = `수집 ${d.crawled}건 · 신규 ${d.saved}건 저장 · 중복 ${d.duplicates}건 제외`;
     }
-    msgEl.style.color = "#b45309";
-    msgEl.textContent = "시간 초과(5분): Logs 탭을 확인하세요. (작업은 계속될 수 있음)";
+    await reload();
   } catch (e) {
     msgEl.style.color = "#dc2626";
     msgEl.textContent = "수집 실패: " + e.message;
   } finally {
     btn.disabled = false;
-    showLoading(false);
   }
 }
 

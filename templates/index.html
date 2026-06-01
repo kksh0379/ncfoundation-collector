@@ -4,11 +4,11 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>엔씨문화재단 콜렉터</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css', v='4') }}" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css', v='5') }}" />
 </head>
 <body>
   <header class="app-header">
-    <h1>엔씨문화재단 콜렉터</h1>
+    <h1>엔씨문화재단 콜렉터 <span class="ver">v5</span></h1>
   </header>
 
   <nav class="tabs">
@@ -45,11 +45,6 @@
     <ul class="list" id="list-boards"></ul>
   </section>
 
-  <div class="loading" id="loading" hidden>
-    <div class="spinner"></div>
-    <span id="loading-text">수집 진행 중…</span>
-  </div>
-
-  <script src="{{ url_for('static', filename='js/app.js', v='4') }}"></script>
+  <script src="{{ url_for('static', filename='js/app.js', v='5') }}"></script>
 </body>
 </html>
