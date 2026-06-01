@@ -31,6 +31,18 @@ def clean_text(s):
     return re.sub(r"\s+", " ", s).strip()
 
 
+def summarize(text, max_len=220):
+    """본문을 카드에 보여줄 요약으로 자른다(공백 경계에서 자르고 말줄임 추가)."""
+    text = clean_text(text)
+    if not text or len(text) <= max_len:
+        return text
+    cut = text[:max_len]
+    sp = cut.rfind(" ")
+    if sp > max_len * 0.6:
+        cut = cut[:sp]
+    return cut.rstrip() + "…"
+
+
 def parse_date(text):
     """문자열에서 YYYY.MM.DD 형태를 찾아 ISO 문자열로. 실패 시 None."""
     if not text:
@@ -56,13 +68,21 @@ def extract_main_text(soup):
             txt = c.get_text("\n", strip=True)
             if len(txt) > best_len:
                 best, best_len = txt, len(txt)
-    if best_len >= 150:
+    if best_len >= 120:
         return best
 
-    # 폴백: 본문이 안 잡히면 <p> 텍스트를 모은다
+    # 폴백1: <p> 텍스트를 모은다
     ps = [p.get_text(strip=True) for p in soup.select("p")]
     joined = "\n".join(p for p in ps if p)
-    return joined or best
+    if len(joined) >= 80:
+        return joined
+
+    # 폴백2: 노이즈 제거 후 남은 블록 중 가장 텍스트가 많은 것 (사이트별 클래스를 몰라도 동작)
+    for c in soup.select("article, section, td, div, li"):
+        txt = c.get_text("\n", strip=True)
+        if len(txt) > best_len:
+            best, best_len = txt, len(txt)
+    return best or joined
 
 
 def _meta(soup, *names):

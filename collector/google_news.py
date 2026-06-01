@@ -27,7 +27,7 @@ KEYWORDS = ["엔씨문화재단", "NC문화재단"]
 START_DATE = datetime(2026, 1, 1)
 # 원문 본문 추출 시도 여부. 구글 링크는 리다이렉트라 대부분 실패하면서 느려지므로
 # 기본은 끄고 RSS 요약을 본문으로 쓴다. (속도·안정성 우선)
-FETCH_FULL_BODY = False
+FETCH_FULL_BODY = True  # 원문 기사로 풀리면 요약 추출 시도(실패 시 RSS 요약 사용)
 
 
 def _feed_params(query):
@@ -83,19 +83,21 @@ def _collect_items(query):
     return out
 
 
-def _fetch_body(entry):
-    """원문 본문 추출 시도. 실패하면 RSS 요약을 본문으로 사용."""
-    content = entry.get("snippet") or ""
+def _summary_from_article(entry):
+    """구글 링크가 실제 기사로 리다이렉트되면 원문에서 요약을 뽑는다.
+    구글 인터스티셜에 머물면(News.google.com) 건너뛰고 RSS 요약을 쓴다."""
+    summary = extractor.summarize(entry.get("snippet") or "")
     if FETCH_FULL_BODY and entry.get("url"):
         try:
             resp = fetcher.get(entry["url"])
-            art = extractor.extract_article(BeautifulSoup(resp.text, "lxml"), resp.url)
-            if art.get("content") and len(art["content"]) > 150:
-                content = art["content"]
-            entry["published_at"] = entry.get("published_at") or art.get("published_at")
+            if "news.google." not in (resp.url or ""):  # 실제 기사로 풀린 경우만
+                art = extractor.extract_article(BeautifulSoup(resp.text, "lxml"), resp.url)
+                if art.get("content") and len(art["content"]) > 150:
+                    summary = extractor.summarize(art["content"])
+                    entry["published_at"] = entry.get("published_at") or art.get("published_at")
         except Exception:  # noqa: BLE001
             pass
-    entry["content"] = content
+    entry["content"] = summary
     return entry
 
 
@@ -113,7 +115,7 @@ def _passes_filters(item):
     return True
 
 
-def crawl(max_workers=6, max_items=30, progress=None):
+def crawl(max_workers=5, max_items=15, progress=None):
     """뉴스 수집 실행. 파싱된 기사 리스트 반환(중복 판단/저장은 호출측).
     progress(msg): 진행상황 콜백(선택).
     """
@@ -133,14 +135,9 @@ def crawl(max_workers=6, max_items=30, progress=None):
 
     items = []
     if entries:
-        if FETCH_FULL_BODY:
-            progress(f"원문 본문 추출 중… ({len(entries)}건)")
-            with ThreadPoolExecutor(max_workers=max_workers) as pool:
-                processed = list(pool.map(_fetch_body, entries))
-        else:
-            for e in entries:
-                e["content"] = extractor.clean_text(e.get("snippet") or "")
-            processed = entries
+        progress(f"요약 처리 중… ({len(entries)}건)")
+        with ThreadPoolExecutor(max_workers=max_workers) as pool:
+            processed = list(pool.map(_summary_from_article, entries))
         items = [
             {k: e.get(k) for k in ("title", "published_at", "author", "content", "url")}
             for e in processed if _passes_filters(e)

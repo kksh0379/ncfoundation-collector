@@ -34,17 +34,10 @@ function renderCard(item, opts) {
   li.innerHTML = `
     <h3 class="card-title">${escapeHtml(item.title || "(제목 없음)")}</h3>
     <div class="card-meta">${meta.join(" · ")}</div>
-    <div class="card-body">${escapeHtml(item.content || "본문 없음")}</div>
+    <p class="card-summary">${escapeHtml(item.content || "요약 없음")}</p>
     <div class="card-actions">
-      <button class="toggle">본문 보기</button>
       ${item.url ? `<a href="${escapeHtml(item.url)}" target="_blank" rel="noopener">원문 보기 ↗</a>` : ""}
     </div>`;
-  const body = li.querySelector(".card-body");
-  const toggle = li.querySelector(".toggle");
-  toggle.addEventListener("click", () => {
-    li.classList.toggle("open");
-    toggle.textContent = li.classList.contains("open") ? "접기" : "본문 보기";
-  });
   return li;
 }
 
@@ -71,6 +64,14 @@ async function loadBoards() {
   const items = await res.json();
   renderList(document.getElementById("list-boards"), items, {
     badgeFn: (it) => `${it.service} · ${it.category}`,
+  });
+}
+
+async function loadSocial() {
+  const res = await fetch("/api/social");
+  const items = await res.json();
+  renderList(document.getElementById("list-social"), items, {
+    badgeFn: (it) => `${it.channel} · ${it.account}`,
   });
 }
 
@@ -115,6 +116,9 @@ document.getElementById("status-news-btn").addEventListener("click", (e) =>
 document.getElementById("status-boards-btn").addEventListener("click", (e) =>
   runStatus(e.currentTarget, "boards", document.getElementById("status-boards"))
 );
+document.getElementById("status-social-btn").addEventListener("click", (e) =>
+  runStatus(e.currentTarget, "social", document.getElementById("status-social"))
+);
 
 // ----------------------------- 수집 실행 -----------------------------
 // 수집은 동기 방식: 요청 한 번으로 끝까지 처리하고 결과를 받는다.
@@ -148,8 +152,12 @@ document.getElementById("collect-news").addEventListener("click", (e) =>
 document.getElementById("collect-boards").addEventListener("click", (e) =>
   runCrawl(e.currentTarget, "boards", document.getElementById("msg-boards"), loadBoards)
 );
+document.getElementById("collect-social").addEventListener("click", (e) =>
+  runCrawl(e.currentTarget, "social", document.getElementById("msg-social"), loadSocial)
+);
 document.getElementById("filter-service").addEventListener("change", loadBoards);
 
 // ----------------------------- 초기 로드 -----------------------------
 loadNews();
 loadBoards();
+loadSocial();

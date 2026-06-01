@@ -51,8 +51,20 @@ def init_db():
                 collected_at TEXT
             );
 
+            CREATE TABLE IF NOT EXISTS social (
+                id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                channel      TEXT,          -- 인스타그램 / 유튜브
+                account      TEXT,          -- 재단 / 프로젝토리 / NC문화재단
+                title        TEXT,
+                published_at TEXT,
+                content      TEXT,
+                url          TEXT UNIQUE,
+                collected_at TEXT
+            );
+
             CREATE INDEX IF NOT EXISTS idx_news_hash ON news(content_hash);
             CREATE INDEX IF NOT EXISTS idx_boards_title ON boards(service, title);
+            CREATE INDEX IF NOT EXISTS idx_social_url ON social(url);
             """
         )
 
@@ -101,6 +113,27 @@ def insert_board(item):
             return None
 
 
+def insert_social(item):
+    with get_conn() as conn:
+        try:
+            cur = conn.execute(
+                """INSERT INTO social (channel, account, title, published_at, content, url, collected_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                (
+                    item.get("channel"),
+                    item.get("account"),
+                    item.get("title"),
+                    item.get("published_at"),
+                    item.get("content"),
+                    item.get("url"),
+                    datetime.now().isoformat(timespec="seconds"),
+                ),
+            )
+            return cur.lastrowid
+        except sqlite3.IntegrityError:
+            return None
+
+
 def all_news_fingerprints():
     """중복 비교용으로 기존 뉴스의 (id, content_hash, content)만 가볍게 로드."""
     with get_conn() as conn:
@@ -115,6 +148,20 @@ def existing_board_titles(service):
             "SELECT title FROM boards WHERE service = ?", (service,)
         ).fetchall()
         return {r["title"] for r in rows}
+
+
+def list_social(channel=None, limit=200):
+    with get_conn() as conn:
+        if channel and channel != "all":
+            rows = conn.execute(
+                "SELECT * FROM social WHERE channel = ? ORDER BY published_at DESC, id DESC LIMIT ?",
+                (channel, limit),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT * FROM social ORDER BY published_at DESC, id DESC LIMIT ?", (limit,)
+            ).fetchall()
+        return [dict(r) for r in rows]
 
 
 def list_news(limit=200):

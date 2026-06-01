@@ -4,16 +4,17 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>엔씨문화재단 콜렉터</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css', v='7') }}" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css', v='8') }}" />
 </head>
 <body>
   <header class="app-header">
-    <h1>엔씨문화재단 콜렉터 <span class="ver">v7</span></h1>
+    <h1>엔씨문화재단 콜렉터 <span class="ver">v8</span></h1>
   </header>
 
   <nav class="tabs">
     <button class="tab active" data-tab="news">뉴스 · 기사</button>
     <button class="tab" data-tab="boards">서비스 게시판</button>
+    <button class="tab" data-tab="social">소셜 채널</button>
   </nav>
 
   <!-- 탭1: 뉴스 -->
@@ -45,6 +46,18 @@
     <ul class="list" id="list-boards"></ul>
   </section>
 
-  <script src="{{ url_for('static', filename='js/app.js', v='7') }}"></script>
+  <!-- 탭3: 소셜 채널 -->
+  <section class="panel" id="panel-social">
+    <div class="toolbar">
+      <span class="hint">인스타그램(재단·프로젝토리) · 유튜브</span>
+      <button class="btn-status" id="status-social-btn">상태 확인</button>
+      <button class="btn-collect" id="collect-social">수집 실행</button>
+    </div>
+    <div class="status-panel" id="status-social" hidden></div>
+    <div class="result-msg" id="msg-social"></div>
+    <ul class="list" id="list-social"></ul>
+  </section>
+
+  <script src="{{ url_for('static', filename='js/app.js', v='8') }}"></script>
 </body>
 </html>

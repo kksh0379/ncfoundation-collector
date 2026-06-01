@@ -16,6 +16,7 @@
 정적 HTML에 목록이 없어 현재 방식으로는 수집되지 않으며, 추후 사이트 내부 API 또는
 헤드리스 브라우저(Playwright) 도입이 필요하다(spa=True로 표시).
 """
+import re
 import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
@@ -35,6 +36,7 @@ SOURCES = [
         "item_link_sel": "a.notice_title_wrap, a.board_title_wrap",
         "title_sel": "b.notice_title, strong.board_title",
         "desc_sel": "p.notice_desc, p.board_desc",
+        "detail_url": "https://www.myaac.or.kr/info/announcementDetail.do?seq={seq}",
     },
     {
         "service": "나의AAC", "category": "커뮤니티",
@@ -43,6 +45,7 @@ SOURCES = [
         "item_link_sel": "a.board_title_wrap, a.notice_title_wrap",
         "title_sel": "strong.board_title, b.notice_title",
         "desc_sel": "p.board_desc, p.notice_desc",
+        "detail_url": "https://www.myaac.or.kr/info/communityDetail.do?seq={seq}",
     },
     {
         "service": "프로젝토리", "category": "공지",
@@ -123,6 +126,22 @@ def _parse_detail(url):
     return extractor.extract_article(BeautifulSoup(resp.text, "lxml"), url)
 
 
+def _resolve_url(a, cfg):
+    """글 링크를 실제 http URL로 해석. javascript: 링크면 seq를 찾아 상세 URL을 만든다."""
+    href = a.get("href") or ""
+    if href and not href.startswith(("javascript", "#")):
+        url = urljoin(cfg["base_url"], href)
+        if url.startswith("http"):
+            return url
+    # javascript 링크: onclick/href/data-* 에서 글 번호(seq)를 찾아 상세 URL 구성
+    if cfg.get("detail_url"):
+        blob = " ".join([href, a.get("onclick") or "", " ".join(str(v) for v in a.attrs.values())])
+        m = re.search(r"seq['\"=:\s]*?(\d{1,9})", blob) or re.search(r"\((\d{1,9})\)", blob)
+        if m:
+            return cfg["detail_url"].format(seq=m.group(1))
+    return None
+
+
 def crawl_source(cfg, max_items=8, max_workers=3):
     """게시판 1개 크롤링 → 글 dict 리스트.
 
@@ -149,26 +168,27 @@ def crawl_source(cfg, max_items=8, max_workers=3):
         return []
 
     # 1) 목록에서 항목 메타 수집
+    # 제목은 '행 전체'가 아니라 '링크 자체'에서 뽑는다. (행에서 뽑으면 여러 글이 같은
+    # 제목으로 잡혀 과도하게 중복 제거되던 버그 → 링크 단위로 추출해 해결)
     entries, seen = [], set()
     for a in anchors:
-        href = a.get("href")
-        if not href:
-            continue
-        url = urljoin(cfg["base_url"], href)
-        if url in seen:
-            continue
-        seen.add(url)
-
-        container = a.find_parent(["li", "dd", "tr", "article", "div"]) or a
         title = None
         if cfg.get("title_sel"):
-            t = _first(container, cfg["title_sel"]) or _first(a, cfg["title_sel"])
+            t = _first(a, cfg["title_sel"])
             title = t.get_text(strip=True) if t else None
-        title = extractor.clean_text(title or a.get_text(strip=True))
+        title = extractor.clean_text(title or a.get_text(" ", strip=True))
         if not title:
             continue
 
-        published = extractor.parse_date(container.get_text(" ", strip=True))
+        url = _resolve_url(a, cfg)
+        key = url or title
+        if key in seen:
+            continue
+        seen.add(key)
+
+        # 날짜/요약은 행(li/dd/tr/article) 범위에서만 찾는다(전체 목록 X)
+        row = a.find_parent(["li", "dd", "tr", "article"]) or a
+        published = extractor.parse_date(row.get_text(" ", strip=True))
         if published:
             try:
                 if datetime.fromisoformat(published.replace(" ", "T")) < START_DATE:
@@ -176,10 +196,9 @@ def crawl_source(cfg, max_items=8, max_workers=3):
             except ValueError:
                 pass
 
-        desc_el = _first(container, cfg.get("desc_sel", "")) if cfg.get("desc_sel") else None
+        desc_el = _first(row, cfg.get("desc_sel", "")) if cfg.get("desc_sel") else None
         entries.append({
             "url": url,
-            "valid": url.startswith("http"),  # javascript:/# 링크 구분
             "title": title,
             "published_at": published,
             "desc": extractor.clean_text(desc_el.get_text(" ", strip=True)) if desc_el else None,
@@ -187,15 +206,15 @@ def crawl_source(cfg, max_items=8, max_workers=3):
         if len(entries) >= max_items:
             break
 
-    # 2) http 링크는 상세 페이지로 본문 보강
+    # 2) 링크가 정상 http면 상세 페이지에서 요약을 보강한다
     def build(e):
         content = e["desc"]
         published = e["published_at"]
         author = None
-        link = e["url"] if e["valid"] else cfg["list_url"]  # JS 링크는 목록으로 폴백
-        if e["valid"]:
+        link = e["url"] or cfg["list_url"]  # 링크 못 만들면 목록으로 폴백
+        if e["url"]:
             detail = _parse_detail(e["url"])
-            if detail.get("content") and len(detail["content"]) > 80:
+            if detail.get("content") and len(detail["content"]) > 60:
                 content = detail["content"]
             published = published or detail.get("published_at")
             author = detail.get("author")
@@ -205,7 +224,7 @@ def crawl_source(cfg, max_items=8, max_workers=3):
             "title": e["title"],
             "published_at": published,
             "author": author,
-            "content": content,
+            "content": extractor.summarize(content),  # 카드용 요약
             "url": link,
         }
 

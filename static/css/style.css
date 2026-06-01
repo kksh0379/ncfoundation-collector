@@ -186,17 +186,19 @@ select {
   font-size: 11px;
   font-weight: 600;
 }
-.card-body {
+.card-summary {
   font-size: 13px;
   color: #374151;
   line-height: 1.55;
-  max-height: 0;
+  margin: 0;
+  /* 모든 카드의 요약을 3줄로 고정해 같은 크기로 정렬 */
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
   overflow: hidden;
-  transition: max-height 0.25s ease;
-  white-space: pre-line;
+  min-height: calc(1.55em * 3);
 }
-.card.open .card-body { max-height: 1200px; margin-top: 8px; }
-.card-actions { margin-top: 8px; display: flex; gap: 12px; }
+.card-actions { margin-top: 10px; display: flex; gap: 12px; }
 .card-actions a, .card-actions button {
   font-size: 12px;
   color: var(--primary);

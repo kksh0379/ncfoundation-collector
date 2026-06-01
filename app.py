@@ -9,7 +9,7 @@ import os
 
 from flask import Flask, jsonify, render_template, request
 
-from collector import boards, db, dedup, fetcher, google_news
+from collector import boards, db, dedup, fetcher, google_news, social
 
 app = Flask(__name__)
 # 초안 단계: 브라우저가 옛 JS/CSS를 캐시해 혼란을 주지 않도록 정적파일 캐시를 끈다.
@@ -37,6 +37,12 @@ def get_boards():
     return jsonify(db.list_boards(service=service))
 
 
+@app.get("/api/social")
+def get_social():
+    channel = request.args.get("channel", "all")
+    return jsonify(db.list_social(channel=channel))
+
+
 # ---------------------------- 진단 API ----------------------------
 @app.get("/api/diag")
 def diag():
@@ -58,6 +64,10 @@ def diag():
             if s["list_url"] not in seen:
                 seen.add(s["list_url"])
                 targets.append((f"{s['service']} · {s['category']}", s["list_url"]))
+    if group in ("all", "social"):
+        for s in social.SOURCES:
+            if s.get("url"):
+                targets.append((f"{s['channel']} · {s['account']}", s["url"]))
 
     def check(item):
         name, url = item
@@ -110,7 +120,7 @@ def inspect():
 # 수집은 요청 한 번에 끝까지 처리하고 결과를 바로 반환한다. (구조가 단순해 어떤
 # 버전의 프론트엔드 JS가 캐시돼 있어도 호환되며, 무료 호스팅 재시작에도 안전)
 # 마지막 결과는 /api/crawl/status 폴링형 프론트와의 호환을 위해 보관한다.
-_last_result = {"news": None, "boards": None}
+_last_result = {"news": None, "boards": None, "social": None}
 
 
 def _save_news(items):
@@ -147,6 +157,17 @@ def _save_boards(items):
     return saved, dup
 
 
+def _save_social(items):
+    saved = dup = 0
+    for item in items:
+        rid = db.insert_social(item)  # URL UNIQUE 제약으로 중복 차단
+        if rid:
+            saved += 1
+        else:
+            dup += 1
+    return saved, dup
+
+
 def _run_crawl(group, crawl_fn, save_fn):
     try:
         items = crawl_fn()
@@ -169,6 +190,12 @@ def crawl_news():
 def crawl_boards():
     print("[crawl] /api/crawl/boards 시작", flush=True)
     return _run_crawl("boards", boards.crawl_all, _save_boards)
+
+
+@app.post("/api/crawl/social")
+def crawl_social():
+    print("[crawl] /api/crawl/social 시작", flush=True)
+    return _run_crawl("social", social.crawl_all, _save_social)
 
 
 @app.get("/api/crawl/status")
