@@ -77,6 +77,29 @@ def diag():
     return jsonify(results)
 
 
+@app.get("/api/inspect")
+def inspect():
+    """사이트 구조 분석.
+    /api/inspect            → 모든 게시판 목록 페이지를 분석
+    /api/inspect?url=...     → 지정한 한 페이지만 분석 (뉴스 소스 점검 등)
+    """
+    from concurrent.futures import ThreadPoolExecutor
+
+    from collector import inspect as inspector
+
+    url = request.args.get("url")
+    if url:
+        return jsonify(inspector.inspect_url(url))
+
+    seen, urls = set(), []
+    for s in boards.SOURCES:
+        if s["list_url"] not in seen:
+            seen.add(s["list_url"])
+            urls.append(s["list_url"])
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        return jsonify(list(pool.map(inspector.inspect_url, urls)))
+
+
 # ---------------------------- 수집 API ----------------------------
 @app.post("/api/crawl/news")
 def crawl_news():
