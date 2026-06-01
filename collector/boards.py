@@ -17,7 +17,6 @@
 헤드리스 브라우저(Playwright) 도입이 필요하다(spa=True로 표시).
 """
 import time
-from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from urllib.parse import urljoin
 
@@ -114,19 +113,18 @@ def _select_any(soup, selector):
     return []
 
 
-def _parse_detail(url):
-    try:
-        resp = fetcher.get(url)
-    except Exception as e:  # noqa: BLE001
-        print(f"[board] 상세 요청 실패: {url} ({e})", flush=True)
-        return {}
-    soup = BeautifulSoup(resp.text, "lxml")
-    return extractor.extract_article(soup, url)
+def crawl_source(cfg, max_items=10):
+    """게시판 1개 크롤링 → 글 dict 리스트.
 
-
-def crawl_source(cfg, max_items=10, max_workers=5):
-    """게시판 1개 크롤링 → 글 dict 리스트."""
+    무료 호스팅(메모리/시간 제한)에서 안전하도록 목록 페이지 한 번만 받아
+    제목·날짜·요약을 추출한다(상세 페이지는 받지 않음). 본문은 목록 요약을 사용한다.
+    SPA 사이트는 정적 목록이 없으므로 아예 건너뛴다.
+    """
     label = f"{cfg['service']} · {cfg['category']}"
+    if cfg.get("spa"):
+        print(f"[board] {label}: SPA라 건너뜀 (API/Playwright 필요)", flush=True)
+        return []
+
     t0 = time.time()
     try:
         resp = fetcher.get(cfg["list_url"])
@@ -137,12 +135,10 @@ def crawl_source(cfg, max_items=10, max_workers=5):
     soup = BeautifulSoup(resp.text, "lxml")
     anchors = _select_any(soup, cfg["item_link_sel"])
     if not anchors:
-        hint = " (SPA로 정적 HTML에 목록 없음 → API/Playwright 필요)" if cfg.get("spa") else ""
-        print(f"[board] {label}: 글 링크 0개{hint}", flush=True)
+        print(f"[board] {label}: 글 링크 0개", flush=True)
         return []
 
-    # 목록에서 링크/제목/날짜/요약 수집 (href 중복 제거)
-    entries, seen = [], set()
+    items, seen = [], set()
     for a in anchors:
         href = a.get("href")
         if not href:
@@ -151,49 +147,38 @@ def crawl_source(cfg, max_items=10, max_workers=5):
         if url in seen:
             continue
         seen.add(url)
+
         container = a.find_parent(["li", "dd", "tr", "article", "div"]) or a
         title = None
         if cfg.get("title_sel"):
             t = _first(container, cfg["title_sel"]) or _first(a, cfg["title_sel"])
             title = t.get_text(strip=True) if t else None
         title = title or a.get_text(strip=True)
-        desc_el = _first(container, cfg.get("desc_sel", "")) if cfg.get("desc_sel") else None
-        entries.append({
-            "url": url,
-            "title": title,
-            "date": extractor.parse_date(container.get_text(" ", strip=True)),
-            "desc": desc_el.get_text(strip=True) if desc_el else None,
-        })
-        if len(entries) >= max_items:
-            break
-
-    def build(entry):
-        detail = _parse_detail(entry["url"])
-        title = entry["title"] or detail.get("title")
         if not title:
-            return None
-        published = entry["date"] or detail.get("published_at")
+            continue
+
+        published = extractor.parse_date(container.get_text(" ", strip=True))
         if published:
             try:
                 if datetime.fromisoformat(published.replace(" ", "T")) < START_DATE:
-                    return None
+                    continue  # 2026-01-01 이전 제외
             except ValueError:
                 pass
-        content = detail.get("content") or entry["desc"]
-        return {
+
+        desc_el = _first(container, cfg.get("desc_sel", "")) if cfg.get("desc_sel") else None
+        items.append({
             "service": cfg["service"],
             "category": cfg["category"],
             "title": title,
             "published_at": published,
-            "author": detail.get("author"),
-            "content": content,
-            "url": entry["url"],
-        }
+            "author": None,
+            "content": desc_el.get_text(strip=True) if desc_el else None,
+            "url": url,
+        })
+        if len(items) >= max_items:
+            break
 
-    with ThreadPoolExecutor(max_workers=max_workers) as pool:
-        items = [r for r in pool.map(build, entries) if r]
-
-    print(f"[board] {label}: 링크 {len(entries)}건 → 수집 {len(items)}건 / {time.time() - t0:.1f}s", flush=True)
+    print(f"[board] {label}: 수집 {len(items)}건 / {time.time() - t0:.1f}s", flush=True)
     return items
 
 
