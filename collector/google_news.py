@@ -118,7 +118,9 @@ def _summary_from_article(entry):
                 entry["url"] = final  # 원문 URL을 알면 원문보기를 그쪽으로
     except Exception:  # noqa: BLE001
         pass
-    entry["content"] = summary
+    # 원문 추출에 실패하면(구글 리다이렉트라 대부분 실패) RSS 요약(snippet)을
+    # 본문으로 사용한다. 그래야 본문이 비어 키워드 필터에서 탈락하는 일이 없다.
+    entry["content"] = summary or entry.get("snippet") or ""
     return entry
 
 
