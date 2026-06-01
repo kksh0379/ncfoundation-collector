@@ -197,11 +197,18 @@ def crawl_source(cfg, max_items=10, max_workers=5):
     return items
 
 
-def crawl_all(max_items=10):
-    """모든 게시판 크롤링. 호출측에서 제목 기반 중복 판단 후 저장."""
+def crawl_all(max_items=10, progress=None):
+    """모든 게시판 크롤링. 호출측에서 제목 기반 중복 판단 후 저장.
+    progress(msg): 진행상황 콜백(선택).
+    """
+    progress = progress or (lambda m: None)
     t0 = time.time()
     results = []
     for cfg in SOURCES:
-        results.extend(crawl_source(cfg, max_items=max_items))
-    print(f"[board] 전체 완료: 총 {len(results)}건 / {time.time() - t0:.1f}s", flush=True)
+        items = crawl_source(cfg, max_items=max_items)
+        results.extend(items)
+        progress(f"{cfg['service']} · {cfg['category']}: {len(items)}건")
+    msg = f"게시판 전체 {len(results)}건 / {time.time() - t0:.1f}s"
+    print("[board] " + msg, flush=True)
+    progress(msg)
     return results

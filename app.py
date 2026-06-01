@@ -104,15 +104,21 @@ def inspect():
         return jsonify(list(pool.map(inspector.inspect_url, urls)))
 
 
-# ---------------------------- 수집 API ----------------------------
-@app.post("/api/crawl/news")
-def crawl_news():
-    """탭1 수집. 본문 유사도로 중복을 제거하며 신규만 저장."""
-    print("[crawl] /api/crawl/news 시작 (구글 뉴스 RSS)", flush=True)
-    items = google_news.crawl()
+# ---------------------------- 수집 API (백그라운드 작업) ----------------------------
+# 수집은 시간이 걸리므로 백그라운드 스레드에서 실행하고, UI는 /api/crawl/status 를
+# 폴링해 진행상황을 본다. (gunicorn workers=1 이라 작업 상태를 공유 메모리로 관리)
+import threading  # noqa: E402
 
-    saved, dup = 0, 0
-    existing = db.all_news_fingerprints()  # 비교 기준 (실행 중 누적 갱신)
+_jobs = {
+    "news": {"running": False, "log": [], "result": None},
+    "boards": {"running": False, "log": [], "result": None},
+}
+_jobs_lock = threading.Lock()
+
+
+def _save_news(items):
+    saved = dup = 0
+    existing = db.all_news_fingerprints()
     for item in items:
         if dedup.is_duplicate_news(item.get("content", ""), existing):
             dup += 1
@@ -121,29 +127,21 @@ def crawl_news():
         rid = db.insert_news(item)
         if rid:
             saved += 1
-            # 같은 실행 내에서의 중복도 잡도록 비교 목록에 추가
             existing.append(
                 {"id": rid, "content_hash": item["content_hash"], "content": item.get("content")}
             )
         else:
-            dup += 1  # URL 중복
+            dup += 1
+    return saved, dup
 
-    return jsonify({"crawled": len(items), "saved": saved, "duplicates": dup})
 
-
-@app.post("/api/crawl/boards")
-def crawl_boards():
-    """탭2 수집. 제목 기반으로 중복을 제거하며 신규만 저장."""
-    print("[crawl] /api/crawl/boards 시작", flush=True)
-    items = boards.crawl_all()
-
-    saved, dup = 0, 0
-    title_cache = {}  # service -> set(titles), 실행 중 누적
+def _save_boards(items):
+    saved = dup = 0
+    title_cache = {}
     for item in items:
         service = item["service"]
         if service not in title_cache:
             title_cache[service] = db.existing_board_titles(service)
-
         if dedup.is_duplicate_title(item["title"], title_cache[service]):
             dup += 1
             continue
@@ -152,9 +150,57 @@ def crawl_boards():
             saved += 1
             title_cache[service].add(item["title"])
         else:
-            dup += 1  # URL 중복
+            dup += 1
+    return saved, dup
 
-    return jsonify({"crawled": len(items), "saved": saved, "duplicates": dup})
+
+def _run_job(group, crawl_fn, save_fn):
+    job = _jobs[group]
+
+    def progress(msg):
+        job["log"].append(msg)
+
+    try:
+        items = crawl_fn(progress=progress)
+        progress("중복 판단·저장 중…")
+        saved, dup = save_fn(items)
+        job["result"] = {"crawled": len(items), "saved": saved, "duplicates": dup}
+        progress(f"완료: 신규 {saved}건 저장 · 중복 {dup}건 제외")
+    except Exception as e:  # noqa: BLE001
+        job["result"] = {"error": str(e)}
+        job["log"].append("오류: " + str(e))
+        print(f"[crawl] {group} 작업 오류: {e}", flush=True)
+    finally:
+        job["running"] = False
+
+
+def _start_job(group, crawl_fn, save_fn):
+    job = _jobs[group]
+    with _jobs_lock:
+        if job["running"]:
+            return jsonify({"started": False, "running": True, "log": job["log"][-12:]})
+        job.update(running=True, log=["수집 시작…"], result=None)
+    threading.Thread(target=_run_job, args=(group, crawl_fn, save_fn), daemon=True).start()
+    return jsonify({"started": True, "running": True})
+
+
+@app.post("/api/crawl/news")
+def crawl_news():
+    print("[crawl] /api/crawl/news 시작 (구글 뉴스 RSS)", flush=True)
+    return _start_job("news", google_news.crawl, _save_news)
+
+
+@app.post("/api/crawl/boards")
+def crawl_boards():
+    print("[crawl] /api/crawl/boards 시작", flush=True)
+    return _start_job("boards", boards.crawl_all, _save_boards)
+
+
+@app.get("/api/crawl/status")
+def crawl_status():
+    group = request.args.get("group", "news")
+    job = _jobs.get(group, _jobs["news"])
+    return jsonify({"running": job["running"], "log": job["log"][-12:], "result": job["result"]})
 
 
 if __name__ == "__main__":

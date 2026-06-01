@@ -121,44 +121,54 @@ document.getElementById("status-boards-btn").addEventListener("click", (e) =>
 );
 
 // ----------------------------- 수집 실행 -----------------------------
-async function runCrawl(btn, url, msgEl, reload) {
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// 수집은 백그라운드로 실행되고, 상태를 폴링해 진행상황을 보여준다.
+async function runCrawl(btn, group, msgEl, reload) {
   btn.disabled = true;
   showLoading(true);
   msgEl.style.color = "";
-  msgEl.textContent = "";
-
-  // 서버가 응답 없이 멈춰도 스피너가 무한정 돌지 않도록 타임아웃을 건다.
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 150000); // 150초
+  msgEl.textContent = "수집 시작…";
   try {
-    const res = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({}),
-      signal: controller.signal,
-    });
-    if (!res.ok) throw new Error("HTTP " + res.status);
-    const data = await res.json();
-    msgEl.textContent = `수집 ${data.crawled}건 · 신규 ${data.saved}건 저장 · 중복 ${data.duplicates}건 제외`;
-    await reload();
+    await fetch("/api/crawl/" + group, { method: "POST" });
+
+    const deadline = Date.now() + 5 * 60 * 1000; // 최대 5분 폴링
+    while (Date.now() < deadline) {
+      await sleep(1500);
+      const res = await fetch("/api/crawl/status?group=" + group);
+      if (!res.ok) throw new Error("status HTTP " + res.status);
+      const st = await res.json();
+      if (st.log && st.log.length) msgEl.textContent = "진행: " + st.log[st.log.length - 1];
+
+      if (!st.running) {
+        const r = st.result || {};
+        if (r.error) {
+          msgEl.style.color = "#dc2626";
+          msgEl.textContent = "수집 실패: " + r.error;
+        } else {
+          msgEl.style.color = "#16a34a";
+          msgEl.textContent = `수집 ${r.crawled ?? 0}건 · 신규 ${r.saved ?? 0}건 저장 · 중복 ${r.duplicates ?? 0}건 제외`;
+        }
+        await reload();
+        return;
+      }
+    }
+    msgEl.style.color = "#b45309";
+    msgEl.textContent = "시간 초과(5분): Logs 탭을 확인하세요. (작업은 계속될 수 있음)";
   } catch (e) {
     msgEl.style.color = "#dc2626";
-    msgEl.textContent =
-      e.name === "AbortError"
-        ? "시간 초과(150초): 서버 응답이 없습니다. Logs 탭을 확인하세요."
-        : "수집 실패: " + e.message;
+    msgEl.textContent = "수집 실패: " + e.message;
   } finally {
-    clearTimeout(timer);
     btn.disabled = false;
     showLoading(false);
   }
 }
 
 document.getElementById("collect-news").addEventListener("click", (e) =>
-  runCrawl(e.currentTarget, "/api/crawl/news", document.getElementById("msg-news"), loadNews)
+  runCrawl(e.currentTarget, "news", document.getElementById("msg-news"), loadNews)
 );
 document.getElementById("collect-boards").addEventListener("click", (e) =>
-  runCrawl(e.currentTarget, "/api/crawl/boards", document.getElementById("msg-boards"), loadBoards)
+  runCrawl(e.currentTarget, "boards", document.getElementById("msg-boards"), loadBoards)
 );
 document.getElementById("filter-service").addEventListener("change", loadBoards);
 

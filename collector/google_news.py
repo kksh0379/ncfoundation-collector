@@ -25,7 +25,9 @@ from . import extractor, fetcher
 RSS_URL = "https://news.google.com/rss/search"
 KEYWORDS = ["엔씨문화재단", "NC문화재단"]
 START_DATE = datetime(2026, 1, 1)
-FETCH_FULL_BODY = True  # 원문 본문 추출 시도 (실패 시 RSS 요약 사용)
+# 원문 본문 추출 시도 여부. 구글 링크는 리다이렉트라 대부분 실패하면서 느려지므로
+# 기본은 끄고 RSS 요약을 본문으로 쓴다. (속도·안정성 우선)
+FETCH_FULL_BODY = False
 
 
 def _feed_params(query):
@@ -111,26 +113,40 @@ def _passes_filters(item):
     return True
 
 
-def crawl(max_workers=6, max_items=40):
-    """뉴스 수집 실행. 파싱된 기사 리스트 반환(중복 판단/저장은 호출측)."""
+def crawl(max_workers=6, max_items=40, progress=None):
+    """뉴스 수집 실행. 파싱된 기사 리스트 반환(중복 판단/저장은 호출측).
+    progress(msg): 진행상황 콜백(선택).
+    """
+    progress = progress or (lambda m: None)
     t0 = time.time()
     seen, entries = set(), []
     for kw in KEYWORDS:
         rows = _collect_items(kw)
-        print(f"[google] '{kw}' RSS 항목 {len(rows)}개", flush=True)
+        msg = f"구글뉴스 '{kw}' RSS 항목 {len(rows)}개"
+        print("[google] " + msg, flush=True)
+        progress(msg)
         for e in rows:
             if e["url"] not in seen:
                 seen.add(e["url"])
                 entries.append(e)
     entries = entries[:max_items]
 
-    print(f"[google] 기사 {len(entries)}개 본문 처리 시작 (병렬 {max_workers})", flush=True)
     items = []
     if entries:
-        with ThreadPoolExecutor(max_workers=max_workers) as pool:
-            for e in pool.map(_fetch_body, entries):
-                if _passes_filters(e):
-                    items.append({k: e.get(k) for k in ("title", "published_at", "author", "content", "url")})
+        if FETCH_FULL_BODY:
+            progress(f"원문 본문 추출 중… ({len(entries)}건)")
+            with ThreadPoolExecutor(max_workers=max_workers) as pool:
+                processed = list(pool.map(_fetch_body, entries))
+        else:
+            for e in entries:
+                e["content"] = e.get("snippet") or ""
+            processed = entries
+        items = [
+            {k: e.get(k) for k in ("title", "published_at", "author", "content", "url")}
+            for e in processed if _passes_filters(e)
+        ]
 
-    print(f"[google] 완료: 수집 {len(items)}건 / 소요 {time.time() - t0:.1f}s", flush=True)
+    msg = f"구글뉴스 수집 {len(items)}건 / {time.time() - t0:.1f}s"
+    print("[google] " + msg, flush=True)
+    progress(msg)
     return items
