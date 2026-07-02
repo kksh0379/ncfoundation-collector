@@ -7,12 +7,14 @@
 유튜브는 채널 RSS 피드로 최신 영상을 수집한다.
   https://www.youtube.com/feeds/videos.xml?channel_id=<CHANNEL_ID>
 
-인스타그램은 공개 스크래핑이 차단(로그인 월/봇 차단)되어 있어, 공식 Graph API
-(비즈니스 계정 + 액세스 토큰) 없이는 수집할 수 없다. 핸들/토큰이 설정되기 전까지는
-건너뛴다(unsupported=True). 수집 항목·중복 기준은 게시판과 동일하게 맞춘다.
+인스타그램은 로그인 없이 쓸 수 있는 공개 프로필 JSON 엔드포인트
+(web_profile_info)로 베스트-에포트 수집한다. 인스타가 데이터센터 IP(무료 호스팅)
+요청을 차단하면 0건이 될 수 있는데, 그 경우 사유를 로그로 남기고 건너뛴다.
+확실한 수집이 필요하면 공식 Graph API(비즈니스 계정 + 토큰)로 교체한다.
 """
 import re
 import time
+from datetime import datetime
 
 from bs4 import BeautifulSoup
 
@@ -23,13 +25,11 @@ SOURCES = [
         "channel": "인스타그램", "account": "재단",
         "type": "instagram",
         "url": "https://www.instagram.com/nccf.official/",
-        "unsupported": True,  # 공식 Graph API 토큰 없이는 수집 불가(스크래핑 차단)
     },
     {
         "channel": "인스타그램", "account": "프로젝토리",
         "type": "instagram",
         "url": "https://www.instagram.com/projectory_official/",
-        "unsupported": True,
     },
     {
         "channel": "유튜브", "account": "NC문화재단",
@@ -39,6 +39,9 @@ SOURCES = [
 ]
 
 YT_FEED = "https://www.youtube.com/feeds/videos.xml"
+# 인스타 공개 웹앱 app id(로그인 없는 web_profile_info 호출에 필요).
+IG_APP_ID = "936619743392459"
+IG_PROFILE_API = "https://www.instagram.com/api/v1/users/web_profile_info/"
 
 
 def _youtube_channel_id(url):
@@ -109,14 +112,69 @@ def _crawl_youtube(cfg, max_items=15):
     return items
 
 
+def _instagram_username(url):
+    m = re.search(r"instagram\.com/([^/?#]+)", url or "")
+    return m.group(1) if m else None
+
+
+def _crawl_instagram(cfg, max_items=12):
+    """로그인 없이 공개 프로필 JSON(web_profile_info)으로 최근 게시물을 수집한다.
+    인스타가 차단(401/로그인 리다이렉트)하면 0건을 돌려준다(사유 로그)."""
+    user = _instagram_username(cfg["url"])
+    if not user:
+        print(f"[social] 인스타 사용자명 파싱 실패: {cfg['url']}", flush=True)
+        return []
+    try:
+        resp = fetcher.get(
+            IG_PROFILE_API,
+            params={"username": user},
+            headers={
+                "x-ig-app-id": IG_APP_ID,
+                "Accept": "application/json",
+                "X-Requested-With": "XMLHttpRequest",
+                "Referer": f"https://www.instagram.com/{user}/",
+            },
+        )
+        data = resp.json()
+    except Exception as e:  # noqa: BLE001
+        print(f"[social] 인스타 차단/실패({user}): {type(e).__name__}: {str(e)[:120]}", flush=True)
+        return []
+
+    edges = (((data or {}).get("data") or {}).get("user") or {}) \
+        .get("edge_owner_to_timeline_media", {}).get("edges", [])
+    print(f"[social] 인스타 {user} 게시물 {len(edges)}개", flush=True)
+    items = []
+    for edge in edges[:max_items]:
+        node = edge.get("node", {})
+        shortcode = node.get("shortcode")
+        if not shortcode:
+            continue
+        cap = node.get("edge_media_to_caption", {}).get("edges", [])
+        caption = cap[0]["node"]["text"] if cap else ""
+        ts = node.get("taken_at_timestamp")
+        published = datetime.fromtimestamp(ts).strftime("%Y-%m-%d %H:%M") if ts else None
+        first_line = caption.splitlines()[0] if caption.strip() else "(이미지 게시물)"
+        items.append({
+            "channel": cfg["channel"],
+            "account": cfg["account"],
+            "title": extractor.clean_text(first_line)[:80],
+            "published_at": published,
+            "content": extractor.summarize(caption),
+            "url": f"https://www.instagram.com/p/{shortcode}/",
+        })
+    return items
+
+
 def crawl_source(cfg, max_items=10):
     label = f"{cfg['channel']} · {cfg['account']}"
-    if cfg.get("unsupported") or not cfg.get("url"):
-        print(f"[social] {label}: 수집 불가(공식 API/핸들 필요)", flush=True)
+    if not cfg.get("url"):
+        print(f"[social] {label}: URL 없음, 건너뜀", flush=True)
         return []
     t0 = time.time()
     if cfg["type"] == "youtube":
         items = _crawl_youtube(cfg, max_items=max_items)
+    elif cfg["type"] == "instagram":
+        items = _crawl_instagram(cfg, max_items=max_items)
     else:
         items = []
     print(f"[social] {label}: 수집 {len(items)}건 / {time.time() - t0:.1f}s", flush=True)

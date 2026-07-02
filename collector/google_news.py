@@ -5,7 +5,7 @@ RSS 검색 피드를 사용한다 — 제목/링크/작성일/언론사/요약�
   https://news.google.com/rss/search?q=<키워드>&hl=ko&gl=KR&ceid=KR:ko
 
 규칙
-- 2026-01-01 이후 기사만 (START_DATE)
+- 날짜 제한 없음(전체 기간 수집)
 - 재단 키워드(엔씨문화재단/NC문화재단) 포함만 → 본사(엔씨소프트) 단독 기사 제외
 - 수집 항목: 제목, 작성일, 작성자(언론사), 본문, 원문 URL
 - 중복: 본문(요약) 유사도 (dedup.is_duplicate_news)
