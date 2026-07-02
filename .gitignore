@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+data/*.db
+.DS_Store
+
+# 미리보기 생성물(대용량/바이너리)
+preview/*.pdf
+preview/*.png
+preview/snapshot.html

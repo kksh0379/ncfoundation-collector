@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>엔씨문화재단 콜렉터</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css', v='12') }}" />
+</head>
+<body>
+  <header class="app-header">
+    <h1>엔씨문화재단 콜렉터 <span class="ver">v12</span></h1>
+    <button class="auth-btn guest-only" id="login-btn">관리자 로그인</button>
+    <button class="auth-btn admin-only" id="logout-btn">로그아웃</button>
+  </header>
+
+  <nav class="tabs">
+    <button class="tab active" data-tab="news">뉴스 · 기사</button>
+    <button class="tab" data-tab="boards">서비스 게시판</button>
+    <button class="tab" data-tab="social">소셜 채널</button>
+  </nav>
+
+  <!-- 탭1: 뉴스 -->
+  <section class="panel active" id="panel-news">
+    <div class="toolbar">
+      <span class="hint">구글 뉴스(RSS) · 엔씨문화재단/NC문화재단</span>
+      <button class="btn-status admin-only" id="status-news-btn">상태 확인</button>
+      <button class="btn-collect admin-only" id="collect-news">수집 실행</button>
+    </div>
+    <div class="last-crawl" id="last-news"></div>
+    <div class="result-msg" id="msg-news"></div>
+    <ul class="list" id="list-news"></ul>
+  </section>
+
+  <!-- 탭2: 게시판 -->
+  <section class="panel" id="panel-boards">
+    <div class="toolbar">
+      <select id="filter-service">
+        <option value="all">전체 서비스</option>
+        {% for s in services %}
+        <option value="{{ s }}">{{ s }}</option>
+        {% endfor %}
+      </select>
+      <button class="btn-status admin-only" id="status-boards-btn">상태 확인</button>
+      <button class="btn-collect admin-only" id="collect-boards">수집 실행</button>
+    </div>
+    <div class="last-crawl" id="last-boards"></div>
+    <div class="result-msg" id="msg-boards"></div>
+    <ul class="list" id="list-boards"></ul>
+  </section>
+
+  <!-- 탭3: 소셜 채널 -->
+  <section class="panel" id="panel-social">
+    <div class="toolbar">
+      <select id="filter-channel">
+        <option value="all">전체 채널</option>
+        {% for ch in channels %}
+        <option value="{{ ch }}">{{ ch }}</option>
+        {% endfor %}
+      </select>
+      <button class="btn-status admin-only" id="status-social-btn">상태 확인</button>
+      <button class="btn-collect admin-only" id="collect-social">수집 실행</button>
+    </div>
+    <div class="last-crawl" id="last-social"></div>
+    <div class="result-msg" id="msg-social"></div>
+    <ul class="list" id="list-social"></ul>
+  </section>
+
+  <!-- 상태 확인 팝업 -->
+  <div class="modal" id="status-modal" hidden>
+    <div class="modal-box">
+      <div class="modal-head">
+        <span>연결 상태 확인</span>
+        <button class="modal-close" id="status-close" aria-label="닫기">✕</button>
+      </div>
+      <div class="modal-body" id="status-modal-body"></div>
+    </div>
+  </div>
+
+  <!-- 관리자 로그인 팝업 -->
+  <div class="modal" id="login-modal" hidden>
+    <div class="modal-box">
+      <div class="modal-head">
+        <span>관리자 로그인</span>
+        <button class="modal-close" id="login-close" aria-label="닫기">✕</button>
+      </div>
+      <div class="modal-body">
+        <form id="login-form" class="login-form">
+          <input type="text" id="login-id" placeholder="아이디" autocomplete="username" />
+          <input type="password" id="login-pw" placeholder="비밀번호" autocomplete="current-password" />
+          <div class="login-err" id="login-err"></div>
+          <button type="submit" class="btn-collect" id="login-submit">로그인</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <script src="{{ url_for('static', filename='js/app.js', v='12') }}"></script>
+</body>
+</html>
