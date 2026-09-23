@@ -27,12 +27,14 @@ from . import extractor, fetcher
 
 RSS_URL = "https://news.google.com/rss/search"
 BATCH_URL = "https://news.google.com/_/DotsSplashUi/data/batchexecute"
-# 뉴스 카테고리별 검색 키워드. (재단=엔씨문화재단, 본사=엔씨소프트)
-# 본사는 회사명(엔씨소프트/NCSOFT)만 사용한다. 'NC'/'엔씨'는 NC다이노스(야구) 등
-# 무관 기사가 대량 유입되고, 중요한 이슈는 어차피 회사명을 달고 보도되므로 제외.
+# 뉴스 카테고리별 검색 키워드. (재단=엔씨문화재단, 본사=엔씨소프트=NC/엔씨)
 CATEGORIES = {
     "재단": ["엔씨문화재단", "NC문화재단"],
-    "본사": ["엔씨소프트", "NCSOFT"],
+    "본사": ["엔씨소프트", "NCSOFT", "NC", "엔씨"],
+}
+# 본사에서 걸러낼 노이즈(주로 NC 다이노스 야구 기사). 제목/본문에 있으면 제외.
+EXCLUDE = {
+    "본사": ["다이노스", "프로야구", "야구", "kbo", "구단", "선발", "타자", "투수"],
 }
 # 진단 등 호환용 평면 키워드 목록
 KEYWORDS = [kw for kws in CATEGORIES.values() for kw in kws]
@@ -184,13 +186,26 @@ def _summary_from_article(entry):
     return entry
 
 
+def _kw_match(haystack, kw):
+    """키워드 매칭. 영문/숫자 키워드(NC, NCSOFT)는 '단어 단위'로만 일치시킨다
+    (안 그러면 announce·finance 같은 단어 속 'nc'까지 걸림). 한글은 부분 일치."""
+    k = kw.lower()
+    if re.fullmatch(r"[a-z0-9]+", k):
+        return re.search(r"(?<![a-z0-9])" + re.escape(k) + r"(?![a-z0-9])", haystack) is not None
+    return k in haystack
+
+
 def _passes_filters(item):
-    # (1) 해당 카테고리 키워드가 제목/본문에 있어야 통과
-    kws = CATEGORIES.get(item.get("category"), KEYWORDS)
+    cat = item.get("category")
+    kws = CATEGORIES.get(cat, KEYWORDS)
     haystack = f"{item.get('title', '')}\n{item.get('content', '')}".lower()
-    if not any(k.lower() in haystack for k in kws):
+    # (1) 카테고리 키워드가 있어야 통과
+    if not any(_kw_match(haystack, k) for k in kws):
         return False
-    # (2) 최근 2년만. 날짜를 아는 경우에만 필터(모르면 통과).
+    # (2) 노이즈(야구 등) 제외어가 있으면 탈락
+    if any(ex.lower() in haystack for ex in EXCLUDE.get(cat, [])):
+        return False
+    # (3) 최근 2년만. 날짜를 아는 경우에만 필터(모르면 통과).
     pub = item.get("published_at")
     if pub:
         try:
