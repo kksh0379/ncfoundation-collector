@@ -60,7 +60,8 @@ _AUTO_PK = "SERIAL PRIMARY KEY" if _PG else "INTEGER PRIMARY KEY AUTOINCREMENT"
 _DDL = [
     f"""CREATE TABLE IF NOT EXISTS news (
         id {_AUTO_PK}, title TEXT, published_at TEXT, author TEXT, content TEXT,
-        url TEXT UNIQUE, content_hash TEXT, group_key TEXT, source_url TEXT, collected_at TEXT
+        url TEXT UNIQUE, content_hash TEXT, group_key TEXT, source_url TEXT,
+        category TEXT, collected_at TEXT
     )""",
     f"""CREATE TABLE IF NOT EXISTS boards (
         id {_AUTO_PK}, service TEXT, category TEXT, title TEXT, published_at TEXT,
@@ -86,12 +87,15 @@ def init_db():
         if _PG:
             conn.execute("ALTER TABLE news ADD COLUMN IF NOT EXISTS group_key TEXT")
             conn.execute("ALTER TABLE news ADD COLUMN IF NOT EXISTS source_url TEXT")
+            conn.execute("ALTER TABLE news ADD COLUMN IF NOT EXISTS category TEXT")
         else:
             cols = {r["name"] for r in conn.execute("PRAGMA table_info(news)").fetchall()}
             if "group_key" not in cols:
                 conn.execute("ALTER TABLE news ADD COLUMN group_key TEXT")
             if "source_url" not in cols:
                 conn.execute("ALTER TABLE news ADD COLUMN source_url TEXT")
+            if "category" not in cols:
+                conn.execute("ALTER TABLE news ADD COLUMN category TEXT")
 
 
 def set_meta(key, value):
@@ -115,7 +119,7 @@ def _now():
 
 # ---- 배치 upsert (키=url, ON CONFLICT로 한 번에 처리 → 원격 DB에서도 빠름) ----
 _NEWS_COLS = ("title", "published_at", "author", "content", "url",
-              "content_hash", "group_key", "source_url", "collected_at")
+              "content_hash", "group_key", "source_url", "category", "collected_at")
 _BOARD_COLS = ("service", "category", "title", "published_at", "author",
                "content", "url", "collected_at")
 _SOCIAL_COLS = ("channel", "account", "title", "published_at", "content", "url", "collected_at")
@@ -183,11 +187,17 @@ def existing_board_titles(service):
         return {r["title"] for r in rows}
 
 
-def list_news(limit=200):
+def list_news(limit=200, category=None):
     with get_conn() as conn:
-        rows = conn.execute(
-            _q("SELECT * FROM news ORDER BY published_at DESC, id DESC LIMIT ?"), (limit,)
-        ).fetchall()
+        if category and category != "all":
+            rows = conn.execute(
+                _q("SELECT * FROM news WHERE category = ? ORDER BY published_at DESC, id DESC LIMIT ?"),
+                (category, limit),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                _q("SELECT * FROM news ORDER BY published_at DESC, id DESC LIMIT ?"), (limit,)
+            ).fetchall()
         return [dict(r) for r in rows]
 
 

@@ -52,16 +52,19 @@ def index():
     channels = sorted({s["channel"] for s in social.SOURCES})
     board_status = [{"name": n, "status": BOARD_STATUS.get(n, "완료")} for n in services]
     social_status = [{"name": n, "status": SOCIAL_STATUS.get(n, "완료")} for n in channels]
+    news_categories = list(google_news.CATEGORIES.keys())  # 재단 / 본사
     return render_template(
         "index.html", services=services, channels=channels,
         board_status=board_status, social_status=social_status,
+        news_categories=news_categories,
     )
 
 
 # ---------------------------- 조회 API ----------------------------
 @app.get("/api/news")
 def get_news():
-    return jsonify(db.list_news())
+    category = request.args.get("category", "all")
+    return jsonify(db.list_news(category=category))
 
 
 @app.get("/api/boards")

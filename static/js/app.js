@@ -54,7 +54,8 @@ function renderList(el, items, opts) {
 
 // ----------------------------- 데이터 로드 -----------------------------
 async function loadNews() {
-  const res = await fetch("/api/news");
+  const category = ddValue("dd-news-category");
+  const res = await fetch("/api/news?category=" + encodeURIComponent(category));
   renderNewsGroups(document.getElementById("list-news"), await res.json());
 }
 
@@ -269,6 +270,7 @@ function setupDropdown(id, onChange) {
 document.addEventListener("click", () =>
   document.querySelectorAll(".dropdown-menu").forEach((m) => (m.hidden = true))
 );
+setupDropdown("dd-news-category", loadNews);
 setupDropdown("dd-service", loadBoards);
 setupDropdown("dd-channel", loadSocial);
 

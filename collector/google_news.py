@@ -27,16 +27,22 @@ from . import extractor, fetcher
 
 RSS_URL = "https://news.google.com/rss/search"
 BATCH_URL = "https://news.google.com/_/DotsSplashUi/data/batchexecute"
-KEYWORDS = ["엔씨문화재단", "NC문화재단"]
-RECENT_DAYS = 365  # 최근 1년 기사만 수집
+# 뉴스 카테고리별 검색 키워드. (재단=엔씨문화재단, 본사=엔씨소프트)
+CATEGORIES = {
+    "재단": ["엔씨문화재단", "NC문화재단"],
+    "본사": ["엔씨소프트", "NCSOFT", "NC", "엔씨"],
+}
+# 진단 등 호환용 평면 키워드 목록
+KEYWORDS = [kw for kws in CATEGORIES.values() for kw in kws]
+RECENT_DAYS = 730  # 최근 2년 기사만 수집
 # 원문 본문 추출 시도 여부. 구글 링크는 리다이렉트라 대부분 실패하면서 느려지므로
 # 기본은 끄고 RSS 요약을 본문으로 쓴다. (속도·안정성 우선)
 FETCH_FULL_BODY = True  # 원문 기사로 풀리면 요약 추출 시도(실패 시 RSS 요약 사용)
 
 
 def _feed_params(query):
-    # when:1y → 구글 뉴스에 최근 1년으로 검색 범위를 준다(클라이언트에서도 재확인).
-    return {"q": f"{query} when:1y", "hl": "ko", "gl": "KR", "ceid": "KR:ko"}
+    # 재단/본사 각 카테고리의 키워드로 RSS 수집. URL 기준 dedup(재단 우선).
+    return {"q": f"{query} when:2y", "hl": "ko", "gl": "KR", "ceid": "KR:ko"}
 
 
 def _parse_pubdate(text):
@@ -177,11 +183,12 @@ def _summary_from_article(entry):
 
 
 def _passes_filters(item):
-    # (1) 재단 키워드 포함만 통과(본사 단독 기사 제외)
+    # (1) 해당 카테고리 키워드가 제목/본문에 있어야 통과
+    kws = CATEGORIES.get(item.get("category"), KEYWORDS)
     haystack = f"{item.get('title', '')}\n{item.get('content', '')}".lower()
-    if not any(k.lower() in haystack for k in KEYWORDS):
+    if not any(k.lower() in haystack for k in kws):
         return False
-    # (2) 최근 1년만. 날짜를 아는 경우에만 필터(모르면 통과).
+    # (2) 최근 2년만. 날짜를 아는 경우에만 필터(모르면 통과).
     pub = item.get("published_at")
     if pub:
         try:
@@ -195,7 +202,8 @@ def _passes_filters(item):
 
 def crawl(max_workers=8, max_items=100, progress=None, known_urls=None):
     """뉴스 수집 실행. 파싱된 기사 리스트 반환(그룹화/저장은 호출측).
-    동일 기사가 여러 매체에 배포된 것도 전부 수집한다(중복 제거 X, 저장측에서 그룹화).
+    재단/본사 카테고리별로 수집하고 각 기사에 category를 태그한다. 동일 기사가 여러
+    매체에 배포된 것도 전부 수집한다(중복 제거 X, 저장측에서 그룹화).
 
     증분 수집: known_urls(이미 저장된 URL 집합)에 있는 기사는 원문 해석(느린
     batchexecute)을 건너뛴다. 첫 수집만 오래 걸리고, 재수집은 '새 기사'만 처리해 빠르다.
@@ -205,15 +213,17 @@ def crawl(max_workers=8, max_items=100, progress=None, known_urls=None):
     known_urls = known_urls or set()
     t0 = time.time()
     seen, entries = set(), []
-    for kw in KEYWORDS:
-        rows = _collect_items(kw)
-        msg = f"구글뉴스 '{kw}' RSS 항목 {len(rows)}개"
-        print("[google] " + msg, flush=True)
-        progress(msg)
-        for e in rows:
-            if e["url"] not in seen:
-                seen.add(e["url"])
-                entries.append(e)
+    for cat, kws in CATEGORIES.items():  # 재단 먼저 → 같은 URL이면 재단 유지
+        for kw in kws:
+            rows = _collect_items(kw)
+            msg = f"[{cat}] '{kw}' RSS 항목 {len(rows)}개"
+            print("[google] " + msg, flush=True)
+            progress(msg)
+            for e in rows:
+                if e["url"] not in seen:
+                    seen.add(e["url"])
+                    e["category"] = cat
+                    entries.append(e)
 
     # 이미 저장된 URL은 재해석하지 않는다(증분). 새 기사만 남긴다.
     total = len(entries)
@@ -237,7 +247,7 @@ def crawl(max_workers=8, max_items=100, progress=None, known_urls=None):
         with_body = sum(1 for e in processed if e.get("content"))
         print(f"[google] 본문(요약) 추출 성공 {with_body}/{len(processed)}건", flush=True)
         items = [
-            {k: e.get(k) for k in ("title", "published_at", "author", "content", "url", "source_url")}
+            {k: e.get(k) for k in ("title", "published_at", "author", "content", "url", "source_url", "category")}
             for e in processed if _passes_filters(e)
         ]
 
