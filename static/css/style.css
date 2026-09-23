@@ -154,22 +154,57 @@ body.is-admin .guest-only { display: none !important; }
 }
 .hint { font-size: 12px; color: var(--muted); flex: 1 1 100%; line-height: 1.4; }
 
-select {
-  /* 셀렉트는 한 줄 전체를 차지하게 해서 옵션 글자가 잘리지 않도록.
-     버튼(상태확인/수집실행)은 자연스럽게 다음 줄로 내려간다. */
-  flex: 1 1 100%;
+/* ---- 커스텀 드롭다운(네이티브 select 대체: 폰트/크기/스타일 완전 제어) ---- */
+.dropdown {
+  position: relative;
+  flex: 1 1 100%;   /* 한 줄 전체 차지, 버튼은 다음 줄로 */
   min-width: 0;
-  padding: 9px 10px;
+}
+.dropdown-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 12px;
   border: 1px solid var(--border);
   border-radius: 8px;
   background: #fff;
   color: var(--text);
-  /* iOS Safari는 폼 컨트롤 글자가 16px 미만이면 자동 축소/확대(줌) 처리 →
-     모바일에서 셀렉트 글자가 작아지던 버그. 16px로 고정해 방지한다. */
   font-size: 16px;
+  font-weight: 500;
+  cursor: pointer;
+  text-align: left;
 }
+.dropdown-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dropdown-caret { color: var(--muted); flex: 0 0 auto; }
+.dropdown-menu {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.14);
+  max-height: 60vh;
+  overflow: auto;
+}
+.dropdown-menu li {
+  padding: 11px 12px;
+  border-radius: 6px;
+  font-size: 16px;
+  color: var(--text);
+  cursor: pointer;
+}
+.dropdown-menu li:active { background: #eef2ff; }
+.dropdown-menu li.selected { background: var(--primary); color: #fff; font-weight: 600; }
 
-/* 셀렉트가 한 줄을 차지하면 버튼들은 다음 줄에서 폭을 나눠 채운다 */
+/* 드롭다운이 한 줄을 차지하면 버튼들은 다음 줄에서 폭을 나눠 채운다 */
 .toolbar .btn-status, .toolbar .btn-collect { flex: 1 1 auto; }
 
 .btn-collect {

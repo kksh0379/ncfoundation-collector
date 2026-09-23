@@ -4,11 +4,11 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>엔씨문화재단 콜렉터</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css', v='16') }}" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css', v='17') }}" />
 </head>
 <body>
   <header class="app-header">
-    <h1>엔씨문화재단 콜렉터 <span class="ver">v16</span></h1>
+    <h1>엔씨문화재단 콜렉터 <span class="ver">v17</span></h1>
   </header>
 
   <nav class="tabs">
@@ -32,12 +32,17 @@
   <!-- 탭2: 게시판 -->
   <section class="panel" id="panel-boards">
     <div class="toolbar">
-      <select id="filter-service">
-        <option value="all">전체 서비스</option>
-        {% for s in services %}
-        <option value="{{ s }}">{{ s }}</option>
-        {% endfor %}
-      </select>
+      <div class="dropdown" id="dd-service" data-value="all">
+        <button type="button" class="dropdown-btn" aria-haspopup="listbox" aria-expanded="false">
+          <span class="dropdown-label">전체 서비스</span><span class="dropdown-caret">▾</span>
+        </button>
+        <ul class="dropdown-menu" role="listbox" hidden>
+          <li role="option" data-value="all" class="selected">전체 서비스</li>
+          {% for s in services %}
+          <li role="option" data-value="{{ s }}">{{ s }}</li>
+          {% endfor %}
+        </ul>
+      </div>
       <button class="btn-status" id="status-boards-btn">상태 확인</button>
       <button class="btn-collect" id="collect-boards">수집 실행</button>
     </div>
@@ -54,12 +59,17 @@
   <!-- 탭3: 소셜 채널 -->
   <section class="panel" id="panel-social">
     <div class="toolbar">
-      <select id="filter-channel">
-        <option value="all">전체 채널</option>
-        {% for ch in channels %}
-        <option value="{{ ch }}">{{ ch }}</option>
-        {% endfor %}
-      </select>
+      <div class="dropdown" id="dd-channel" data-value="all">
+        <button type="button" class="dropdown-btn" aria-haspopup="listbox" aria-expanded="false">
+          <span class="dropdown-label">전체 채널</span><span class="dropdown-caret">▾</span>
+        </button>
+        <ul class="dropdown-menu" role="listbox" hidden>
+          <li role="option" data-value="all" class="selected">전체 채널</li>
+          {% for ch in channels %}
+          <li role="option" data-value="{{ ch }}">{{ ch }}</li>
+          {% endfor %}
+        </ul>
+      </div>
       <button class="btn-status" id="status-social-btn">상태 확인</button>
       <button class="btn-collect" id="collect-social">수집 실행</button>
     </div>
@@ -84,6 +94,6 @@
     </div>
   </div>
 
-  <script src="{{ url_for('static', filename='js/app.js', v='16') }}"></script>
+  <script src="{{ url_for('static', filename='js/app.js', v='17') }}"></script>
 </body>
 </html>

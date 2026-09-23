@@ -109,8 +109,14 @@ function renderNewsGroups(el, items) {
   });
 }
 
+// 커스텀 드롭다운: 현재 선택값 읽기
+function ddValue(id) {
+  const dd = document.getElementById(id);
+  return dd ? (dd.dataset.value || "all") : "all";
+}
+
 async function loadBoards() {
-  const service = document.getElementById("filter-service").value;
+  const service = ddValue("dd-service");
   const res = await fetch("/api/boards?service=" + encodeURIComponent(service));
   const items = await res.json();
   renderList(document.getElementById("list-boards"), items, {
@@ -119,7 +125,7 @@ async function loadBoards() {
 }
 
 async function loadSocial() {
-  const channel = document.getElementById("filter-channel").value;
+  const channel = ddValue("dd-channel");
   const res = await fetch("/api/social?channel=" + encodeURIComponent(channel));
   const items = await res.json();
   renderList(document.getElementById("list-social"), items, {
@@ -216,8 +222,38 @@ document.getElementById("collect-boards").addEventListener("click", (e) =>
 document.getElementById("collect-social").addEventListener("click", (e) =>
   runCrawl(e.currentTarget, "social", document.getElementById("msg-social"), loadSocial)
 );
-document.getElementById("filter-service").addEventListener("change", loadBoards);
-document.getElementById("filter-channel").addEventListener("change", loadSocial);
+// ----------------------------- 커스텀 드롭다운 -----------------------------
+function setupDropdown(id, onChange) {
+  const dd = document.getElementById(id);
+  if (!dd) return;
+  const btn = dd.querySelector(".dropdown-btn");
+  const menu = dd.querySelector(".dropdown-menu");
+  const label = dd.querySelector(".dropdown-label");
+  btn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    const isOpen = !menu.hidden;
+    document.querySelectorAll(".dropdown-menu").forEach((m) => (m.hidden = true));
+    menu.hidden = isOpen;
+    btn.setAttribute("aria-expanded", String(!isOpen));
+  });
+  menu.querySelectorAll("li").forEach((li) => {
+    li.addEventListener("click", () => {
+      dd.dataset.value = li.dataset.value;
+      label.textContent = li.textContent.trim();
+      menu.querySelectorAll("li").forEach((x) => x.classList.remove("selected"));
+      li.classList.add("selected");
+      menu.hidden = true;
+      btn.setAttribute("aria-expanded", "false");
+      onChange();
+    });
+  });
+}
+// 바깥 클릭 시 모든 드롭다운 닫기
+document.addEventListener("click", () =>
+  document.querySelectorAll(".dropdown-menu").forEach((m) => (m.hidden = true))
+);
+setupDropdown("dd-service", loadBoards);
+setupDropdown("dd-channel", loadSocial);
 
 // ----------------------------- 마지막 수집 일시 -----------------------------
 function fmtLast(ts) {
