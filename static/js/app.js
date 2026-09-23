@@ -372,7 +372,7 @@ async function loadMeta() {
         badge.textContent = "☁ 영구저장";
         badge.style.color = "#16a34a";
       } else {
-        badge.textContent = "⚠ 임시저장(재시작 시 초기화)";
+        badge.textContent = "⚠ 임시저장";
         badge.style.color = "#b25e00";
       }
     }

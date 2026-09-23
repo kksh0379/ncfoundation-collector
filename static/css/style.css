@@ -16,7 +16,7 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
   background: var(--bg);
   color: var(--text);
-  padding-bottom: 40px;
+  padding-bottom: calc(46px + env(safe-area-inset-bottom, 0px));
 }
 
 .app-header {
@@ -439,7 +439,7 @@ body.is-admin .dropdown.admin-only { display: block !important; }
 
 /* ---- 맨 위로 플로팅 버튼 ---- */
 #to-top {
-  position: fixed; right: 16px; bottom: 20px; z-index: 150;
+  position: fixed; right: 16px; bottom: calc(50px + env(safe-area-inset-bottom, 0px)); z-index: 150;
   width: 46px; height: 46px; border-radius: 50%;
   border: none; background: var(--primary); color: #fff;
   font-size: 22px; line-height: 46px; text-align: center;
@@ -453,17 +453,25 @@ body.is-admin .dropdown.admin-only { display: block !important; }
 /* 관리자 전용 범례(기사 탭)는 노출 시 flex 유지 */
 body.is-admin .legend.admin-only { display: flex !important; }
 
-/* ---- 푸터 ---- */
+/* ---- 푸터: 항상 보이는 얇은 고정 바 ---- */
 .app-footer {
-  margin-top: 28px;
-  padding: 22px 16px calc(28px + env(safe-area-inset-bottom, 0px));
+  position: fixed;
+  left: 0; right: 0; bottom: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 5px 12px calc(5px + env(safe-area-inset-bottom, 0px));
   border-top: 1px solid var(--border);
-  background: var(--card);
-  text-align: center;
+  background: rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
   color: var(--muted);
+  font-size: 11px;
+  line-height: 1.4;
+  white-space: nowrap;
+  overflow: hidden;
 }
-.app-footer .foot-title { font-size: 14px; font-weight: 700; color: var(--text); }
-.app-footer .foot-sub { font-size: 12px; margin-top: 3px; }
-.app-footer .foot-meta { margin-top: 10px; display: flex; justify-content: center; gap: 8px; flex-wrap: wrap; }
-.app-footer .foot-meta .ver { opacity: 1; }
-.app-footer .foot-copy { font-size: 11px; margin-top: 10px; line-height: 1.5; }
+.app-footer .foot-copy { font-weight: 600; color: var(--text); }
+.app-footer .ver { opacity: 1; }
