@@ -8,6 +8,10 @@
 import time
 
 import requests
+import urllib3
+
+# SSL 검증을 끄고 재시도할 때 나오는 InsecureRequestWarning을 로그에서 억제한다.
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 DEFAULT_HEADERS = {
     "User-Agent": (
@@ -36,15 +40,24 @@ def get(url, params=None, headers=None, retries=1):
     if headers:
         merged.update(headers)
     for attempt in range(retries + 1):
-        try:
-            resp = requests.get(url, params=params, headers=merged, timeout=TIMEOUT)
-            resp.raise_for_status()
-            resp.encoding = resp.apparent_encoding or resp.encoding
-            return resp
-        except requests.RequestException as e:  # noqa: PERF203
-            last_err = e
-            if attempt < retries:
-                time.sleep(0.8 * (attempt + 1))
+        # verify=True로 먼저 시도하고, 인증서 검증 실패(체인 누락 등 국내 사이트에
+        # 흔함) 시에만 verify=False로 재시도한다. 정상 사이트의 검증은 유지된다.
+        for verify in (True, False):
+            try:
+                resp = requests.get(
+                    url, params=params, headers=merged, timeout=TIMEOUT, verify=verify
+                )
+                resp.raise_for_status()
+                resp.encoding = resp.apparent_encoding or resp.encoding
+                return resp
+            except requests.exceptions.SSLError as e:
+                last_err = e
+                continue  # verify=False로 한 번 더
+            except requests.RequestException as e:  # noqa: PERF203
+                last_err = e
+                break  # SSL 외 오류는 verify=False가 의미 없음 → 다음 재시도로
+        if attempt < retries:
+            time.sleep(0.8 * (attempt + 1))
     raise last_err
 
 
