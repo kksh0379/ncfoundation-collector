@@ -85,7 +85,7 @@ SOURCES = [
     },
     {
         "service": "대표 홈페이지", "category": "재단소식",
-        "list_url": "https://www.ncfoundation.or.kr/community/",
+        "list_url": "https://www.ncfoundation.or.kr/community/all",
         "base_url": "https://www.ncfoundation.or.kr",
         "item_link_sel": "a[href*=community], a.post-item",
         "title_sel": ".title",
