@@ -148,13 +148,16 @@ body.is-admin .guest-only { display: none !important; }
 .toolbar {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;          /* 모바일에서 한 줄에 안 들어가면 줄바꿈 */
   gap: 8px;
   margin-bottom: 10px;
 }
-.hint { font-size: 12px; color: var(--muted); flex: 1; line-height: 1.4; }
+.hint { font-size: 12px; color: var(--muted); flex: 1 1 100%; line-height: 1.4; }
 
 select {
-  flex: 1;
+  /* 셀렉트는 한 줄 전체를 차지하게 해서 옵션 글자가 잘리지 않도록.
+     버튼(상태확인/수집실행)은 자연스럽게 다음 줄로 내려간다. */
+  flex: 1 1 100%;
   min-width: 0;
   padding: 9px 10px;
   border: 1px solid var(--border);
@@ -165,6 +168,9 @@ select {
      모바일에서 셀렉트 글자가 작아지던 버그. 16px로 고정해 방지한다. */
   font-size: 16px;
 }
+
+/* 셀렉트가 한 줄을 차지하면 버튼들은 다음 줄에서 폭을 나눠 채운다 */
+.toolbar .btn-status, .toolbar .btn-collect { flex: 1 1 auto; }
 
 .btn-collect {
   padding: 9px 16px;
