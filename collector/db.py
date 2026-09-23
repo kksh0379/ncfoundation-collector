@@ -194,6 +194,19 @@ def all_news_fingerprints():
         return [dict(r) for r in rows]
 
 
+def all_news_urls():
+    """증분 수집용으로 기존 뉴스 URL만 가볍게 로드(본문 미로딩 → 메모리 절약)."""
+    with get_conn() as conn:
+        rows = conn.execute("SELECT url FROM news").fetchall()
+        return {r["url"] for r in rows}
+
+
+def news_count():
+    with get_conn() as conn:
+        row = conn.execute("SELECT COUNT(*) AS n FROM news").fetchone()
+        return int(row["n"]) if row else 0
+
+
 def existing_board_titles(service):
     with get_conn() as conn:
         rows = conn.execute(_q("SELECT title FROM boards WHERE service = ?"), (service,)).fetchall()

@@ -433,3 +433,6 @@ body.is-admin .admin-only { display: inline-flex !important; }
   border-radius: 8px; padding: 12px; max-height: 62vh; overflow: auto; margin: 0;
   font-family: "SFMono-Regular", ui-monospace, Menlo, Consolas, monospace;
 }
+
+/* 관리자 전용 드롭다운(수집 기간)은 노출 시 전체 폭 블록으로 */
+body.is-admin .dropdown.admin-only { display: block !important; }

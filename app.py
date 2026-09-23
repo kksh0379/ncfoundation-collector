@@ -9,6 +9,7 @@ import json
 import os
 import queue
 import threading
+import time
 from datetime import datetime, timedelta, timezone
 
 from flask import Flask, jsonify, render_template, request, session
@@ -253,8 +254,10 @@ def _do_crawl(group, progress=None, days=None):
     crawl_fn, save_fn = _CRAWLERS[group]
     try:
         if group == "news":
-            # 증분 수집: 이미 저장된 URL은 재해석(느린 원문 복원)하지 않고 새 기사만 처리
-            known = {r.get("url") for r in db.all_news_fingerprints()}
+            # 증분 수집: 이미 저장된 URL은 재해석(느린 원문 복원)하지 않고 새 기사만 처리.
+            # URL만 가볍게 로드(본문 미로딩 → 메모리 절약, 대량 누적 시 지연/OOM 방지).
+            progress("기존 데이터 확인 중…")
+            known = db.all_news_urls()
             items = crawl_fn(known_urls=known, progress=progress, days=days)
         else:
             items = crawl_fn(progress=progress)
@@ -295,12 +298,17 @@ def _job_run(group, days=None):
         st["running"] = False
 
 
+_JOB_STALE_SEC = 1800  # 30분 넘게 '실행 중'이면 멈춘 것으로 간주(재시작 허용/UI 해제)
+
+
 def _start_job(group, days=None):
-    """백그라운드 수집 작업 시작. 이미 진행 중이면 False."""
+    """백그라운드 수집 작업 시작. 이미 진행 중이면 False.
+    단, 30분 넘게 진행 중(멈춘 것으로 추정)이면 새로 시작한다."""
     st = _JOBS.get(group)
-    if st and st.get("running"):
+    if st and st.get("running") and (time.time() - st.get("started_ts", 0) < _JOB_STALE_SEC):
         return False
-    _JOBS[group] = {"running": True, "progress": "수집 대기…", "result": None, "started_at": _now_kst()}
+    _JOBS[group] = {"running": True, "progress": "수집 대기…", "result": None,
+                    "started_at": _now_kst(), "started_ts": time.time()}
     threading.Thread(target=_job_run, args=(group, days), daemon=True).start()
     print(f"[crawl] {group} 백그라운드 수집 시작 (days={days})", flush=True)
     return True
@@ -324,6 +332,10 @@ def crawl_job_status(group):
     if not st:
         # 이번 세션에 실행 이력이 없으면 마지막 저장 결과만 참고로 반환
         return jsonify({"running": False, "progress": None, "result": _last_result.get(group)})
+    # 30분 넘게 '실행 중'이면 멈춘 것으로 간주 → UI가 풀리도록 완료 처리
+    if st.get("running") and (time.time() - st.get("started_ts", 0) > _JOB_STALE_SEC):
+        st["running"] = False
+        st["progress"] = "중단됨(시간 초과) — 다시 시도해 주세요"
     return jsonify(st)
 
 
@@ -404,7 +416,7 @@ def _auto_backfill():
     if os.environ.get("AUTO_BACKFILL", "1") != "1":
         return
     try:
-        has_news = len(db.all_news_fingerprints()) > 0
+        has_news = db.news_count() > 0
     except Exception as e:  # noqa: BLE001
         print(f"[backfill] DB 확인 실패, 건너뜀: {e}", flush=True)
         return
