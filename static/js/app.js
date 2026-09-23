@@ -73,6 +73,7 @@ function renderNewsGroups(el, items) {
   });
   groups.forEach((arr) => {
     const rep = arr[0];  // 그룹 내 최신(작성일 내림차순 정렬 기준 첫 항목)
+    const repLink = rep.source_url || rep.url;  // 원문 보기: 실제 기사 URL 우선
     const meta = [escapeHtml(fmtDate(rep.published_at))];
     if (rep.author) meta.push(escapeHtml(rep.author));
     if (arr.length > 1) meta.push(`<span class="badge">${arr.length}개 매체</span>`);
@@ -84,16 +85,19 @@ function renderNewsGroups(el, items) {
       <div class="card-meta">${meta.join(" · ")}</div>
       <p class="card-summary">${escapeHtml(rep.content || "요약 없음")}</p>
       <div class="card-actions">
-        ${rep.url ? `<a href="${escapeHtml(rep.url)}" target="_blank" rel="noopener">원문 보기 ↗</a>` : ""}
+        ${repLink ? `<a href="${escapeHtml(repLink)}" target="_blank" rel="noopener">원문 보기 ↗</a>` : ""}
       </div>`;
     if (arr.length > 1) {
       html += `<button class="accordion-toggle" type="button">같은 기사 ${arr.length}건 매체별 보기 ▾</button>
         <ul class="accordion-body" hidden>` +
-        arr.map((a) => `<li>
+        arr.map((a) => {
+          const link = a.source_url || a.url;
+          return `<li>
             <span class="src-name">${escapeHtml(a.author || "매체 미상")}</span>
-            ${a.url ? `<a href="${escapeHtml(a.url)}" target="_blank" rel="noopener">${escapeHtml(a.title || "원문")} ↗</a>` : escapeHtml(a.title || "")}
+            ${link ? `<a href="${escapeHtml(link)}" target="_blank" rel="noopener">${escapeHtml(a.title || "원문")} ↗</a>` : escapeHtml(a.title || "")}
             <span class="src-date">${escapeHtml(fmtDate(a.published_at))}</span>
-          </li>`).join("") +
+          </li>`;
+        }).join("") +
         `</ul>`;
     }
     li.innerHTML = html;

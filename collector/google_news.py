@@ -160,12 +160,14 @@ def _summary_from_article(entry):
         resp = fetcher.get(real or entry["url"])  # requests가 리다이렉트를 따라감
         final = resp.url or ""
         if "news.google." not in final and "consent.google" not in final:
+            # 저장 키(url)는 RSS의 '구글 링크'로 고정(증분 수집이 되게).
+            # 복원/리다이렉트로 얻은 실제 기사 URL은 표시(원문 보기)용으로만 보관.
+            if final:
+                entry["source_url"] = final
             art = extractor.extract_article(BeautifulSoup(resp.text, "lxml"), final)
             if art.get("content") and len(art["content"]) > 120:
                 summary = extractor.summarize(art["content"])
                 entry["published_at"] = entry.get("published_at") or art.get("published_at")
-            if real:
-                entry["url"] = final  # 원문 URL을 알면 원문보기를 그쪽으로
     except Exception:  # noqa: BLE001
         pass
     # 원문 추출에 실패하면(구글 리다이렉트라 대부분 실패) RSS 요약(snippet)을
@@ -235,7 +237,7 @@ def crawl(max_workers=8, max_items=100, progress=None, known_urls=None):
         with_body = sum(1 for e in processed if e.get("content"))
         print(f"[google] 본문(요약) 추출 성공 {with_body}/{len(processed)}건", flush=True)
         items = [
-            {k: e.get(k) for k in ("title", "published_at", "author", "content", "url")}
+            {k: e.get(k) for k in ("title", "published_at", "author", "content", "url", "source_url")}
             for e in processed if _passes_filters(e)
         ]
 

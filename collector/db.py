@@ -37,6 +37,7 @@ def init_db():
                 url          TEXT UNIQUE,   -- 원문 URL
                 content_hash TEXT,          -- 본문 정규화 해시 (완전 동일 중복 차단)
                 group_key    TEXT,          -- 같은 기사(여러 매체) 묶음 키
+                source_url   TEXT,           -- 복원한 실제 기사 URL(원문 보기용). 키(url)는 구글 링크
                 collected_at TEXT
             );
 
@@ -73,10 +74,12 @@ def init_db():
             );
             """
         )
-        # 기존 DB(구버전) 마이그레이션: group_key 컬럼이 없으면 추가한다.
+        # 기존 DB(구버전) 마이그레이션: 없는 컬럼을 추가한다.
         cols = {r["name"] for r in conn.execute("PRAGMA table_info(news)").fetchall()}
         if "group_key" not in cols:
             conn.execute("ALTER TABLE news ADD COLUMN group_key TEXT")
+        if "source_url" not in cols:
+            conn.execute("ALTER TABLE news ADD COLUMN source_url TEXT")
 
 
 def set_meta(key, value):
@@ -104,17 +107,19 @@ def upsert_news(item):
         row = conn.execute("SELECT id FROM news WHERE url = ?", (item.get("url"),)).fetchone()
         if row:
             conn.execute(
-                """UPDATE news SET title=?, published_at=?, author=?, content=?, content_hash=?, group_key=?, collected_at=?
+                """UPDATE news SET title=?, published_at=?, author=?, content=?, content_hash=?, group_key=?, source_url=?, collected_at=?
                    WHERE url=?""",
                 (item.get("title"), item.get("published_at"), item.get("author"),
-                 item.get("content"), item.get("content_hash"), item.get("group_key"), now, item.get("url")),
+                 item.get("content"), item.get("content_hash"), item.get("group_key"),
+                 item.get("source_url"), now, item.get("url")),
             )
             return "updated"
         conn.execute(
-            """INSERT INTO news (title, published_at, author, content, url, content_hash, group_key, collected_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+            """INSERT INTO news (title, published_at, author, content, url, content_hash, group_key, source_url, collected_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (item.get("title"), item.get("published_at"), item.get("author"),
-             item.get("content"), item.get("url"), item.get("content_hash"), item.get("group_key"), now),
+             item.get("content"), item.get("url"), item.get("content_hash"),
+             item.get("group_key"), item.get("source_url"), now),
         )
         return "inserted"
 
