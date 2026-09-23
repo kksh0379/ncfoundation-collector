@@ -199,16 +199,16 @@ _CRAWLERS = {
 }
 
 
-def _do_crawl(group, progress=None):
+def _do_crawl(group, progress=None, days=None):
     """수집 1회 실행(수동 버튼·배치 공용). 결과 dict 반환.
-    progress(msg): 진행상황 콜백(선택). SSE 스트리밍에 연결된다."""
+    progress(msg): 진행상황 콜백(선택). days: 뉴스 수집 기간(최근 N일)."""
     progress = progress or (lambda m: None)
     crawl_fn, save_fn = _CRAWLERS[group]
     try:
         if group == "news":
             # 증분 수집: 이미 저장된 URL은 재해석(느린 원문 복원)하지 않고 새 기사만 처리
             known = {r.get("url") for r in db.all_news_fingerprints()}
-            items = crawl_fn(known_urls=known, progress=progress)
+            items = crawl_fn(known_urls=known, progress=progress, days=days)
         else:
             items = crawl_fn(progress=progress)
         progress("저장·그룹화 중…")
@@ -232,14 +232,14 @@ def _do_crawl(group, progress=None):
 _JOBS = {}  # group -> {running, progress, result, started_at}
 
 
-def _job_run(group):
+def _job_run(group, days=None):
     st = _JOBS[group]
 
     def cb(msg):
         st["progress"] = msg
 
     try:
-        st["result"] = _do_crawl(group, progress=cb)
+        st["result"] = _do_crawl(group, progress=cb, days=days)
         st["progress"] = st["result"].get("error") and f"오류: {st['result']['error']}" or "완료"
     except Exception as e:  # noqa: BLE001
         st["result"] = {"error": str(e), "crawled": 0}
@@ -252,12 +252,13 @@ def _job_run(group):
 def crawl_start(group):
     if group not in _CRAWLERS:
         return jsonify({"error": "unknown group"}), 404
+    days = request.args.get("days", type=int)  # 뉴스 수집 기간(최근 N일)
     st = _JOBS.get(group)
     if st and st.get("running"):
         return jsonify({"running": True, "already": True})  # 이미 진행 중이면 중복 실행 안 함
     _JOBS[group] = {"running": True, "progress": "수집 대기…", "result": None, "started_at": _now_kst()}
-    threading.Thread(target=_job_run, args=(group,), daemon=True).start()
-    print(f"[crawl] {group} 백그라운드 수집 시작", flush=True)
+    threading.Thread(target=_job_run, args=(group, days), daemon=True).start()
+    print(f"[crawl] {group} 백그라운드 수집 시작 (days={days})", flush=True)
     return jsonify({"running": True})
 
 

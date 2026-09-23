@@ -4,11 +4,11 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>엔씨문화재단 콜렉터</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css', v='26') }}" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css', v='27') }}" />
 </head>
 <body>
   <header class="app-header">
-    <h1>엔씨문화재단 콜렉터 <span class="ver">v26</span></h1>
+    <h1>엔씨문화재단 콜렉터 <span class="ver">v27</span></h1>
   </header>
 
   <nav class="tabs">
@@ -31,13 +31,25 @@
           {% endfor %}
         </ul>
       </div>
+      <div class="dropdown" id="dd-news-period" data-value="90">
+        <button type="button" class="dropdown-btn" aria-haspopup="listbox" aria-expanded="false">
+          <span class="dropdown-label">수집 기간: 최근 3개월</span><span class="dropdown-caret">▾</span>
+        </button>
+        <ul class="dropdown-menu" role="listbox" hidden>
+          <li role="option" data-value="30">최근 1개월</li>
+          <li role="option" data-value="90" class="selected">최근 3개월</li>
+          <li role="option" data-value="180">최근 6개월</li>
+          <li role="option" data-value="365">최근 1년</li>
+          <li role="option" data-value="730">최근 2년</li>
+        </ul>
+      </div>
       <button class="btn-status" id="status-news-btn">상태 확인</button>
       <button class="btn-collect" id="collect-news">수집 실행</button>
     </div>
     <div class="legend">
       <span class="chip chip-done">재단 · 엔씨문화재단/NC문화재단</span>
       <span class="chip chip-done">본사 · 엔씨소프트·자회사(NC AI/QA/IDS·게임스튜디오), 야구 제외</span>
-      <span class="chip chip-plan">최근 2년 · 구글 뉴스(RSS)</span>
+      <span class="chip chip-plan">수집 기간 선택 가능 · 구글 뉴스(RSS)</span>
     </div>
     <div class="last-crawl" id="last-news"></div>
     <div class="result-msg" id="msg-news"></div>
@@ -109,6 +121,6 @@
     </div>
   </div>
 
-  <script src="{{ url_for('static', filename='js/app.js', v='26') }}"></script>
+  <script src="{{ url_for('static', filename='js/app.js', v='27') }}"></script>
 </body>
 </html>

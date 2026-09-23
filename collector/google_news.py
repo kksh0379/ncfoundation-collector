@@ -50,9 +50,9 @@ RECENT_DAYS = 730  # 최근 2년 기사만 수집
 FETCH_FULL_BODY = True  # 원문 기사로 풀리면 요약 추출 시도(실패 시 RSS 요약 사용)
 
 
-def _feed_params(query):
-    # 재단/본사 각 카테고리의 키워드로 RSS 수집. URL 기준 dedup(재단 우선).
-    return {"q": f"{query} when:2y", "hl": "ko", "gl": "KR", "ceid": "KR:ko"}
+def _feed_params(query, days=RECENT_DAYS):
+    # 각 카테고리 키워드로 최근 N일(when:Nd) 범위 RSS 수집. URL 기준 dedup(재단 우선).
+    return {"q": f"{query} when:{int(days)}d", "hl": "ko", "gl": "KR", "ceid": "KR:ko"}
 
 
 def _parse_pubdate(text):
@@ -77,9 +77,9 @@ def _snippet(description_html):
     return BeautifulSoup(description_html, "lxml").get_text(" ", strip=True)
 
 
-def _collect_items(query):
+def _collect_items(query, days=RECENT_DAYS):
     try:
-        resp = fetcher.get(RSS_URL, params=_feed_params(query))
+        resp = fetcher.get(RSS_URL, params=_feed_params(query, days))
     except Exception as e:  # noqa: BLE001
         print(f"[google] RSS 요청 실패 ({query}): {e}", flush=True)
         return []
@@ -204,7 +204,7 @@ def _kw_match(haystack, kw):
     return k.replace(" ", "") in haystack.replace(" ", "")
 
 
-def _passes_filters(item):
+def _passes_filters(item, days=RECENT_DAYS):
     cat = item.get("category")
     kws = CATEGORIES.get(cat, KEYWORDS)
     haystack = f"{item.get('title', '')}\n{item.get('content', '')}".lower()
@@ -214,23 +214,24 @@ def _passes_filters(item):
     # (2) 노이즈(야구 등) 제외어가 있으면 탈락
     if any(ex.lower() in haystack for ex in EXCLUDE.get(cat, [])):
         return False
-    # (3) 최근 2년만. 날짜를 아는 경우에만 필터(모르면 통과).
+    # (3) 선택한 기간(최근 N일)만. 날짜를 아는 경우에만 필터(모르면 통과).
     pub = item.get("published_at")
     if pub:
         try:
             when = datetime.fromisoformat(pub.replace(" ", "T"))
-            if when < datetime.now() - timedelta(days=RECENT_DAYS):
+            if when < datetime.now() - timedelta(days=days):
                 return False
         except ValueError:
             pass
     return True
 
 
-def crawl(max_workers=24, max_items=0, progress=None, known_urls=None):
+def crawl(max_workers=24, max_items=0, progress=None, known_urls=None, days=None):
     """뉴스 수집 실행. 파싱된 기사 리스트 반환(그룹화/저장은 호출측).
     재단/본사 카테고리별로 수집하고 각 기사에 category를 태그한다. 동일 기사가 여러
     매체에 배포된 것도 전부 수집한다(중복 제거 X, 저장측에서 그룹화).
 
+    days: 수집 기간(최근 N일). 미지정 시 기본 RECENT_DAYS(2년).
     max_items=0이면 개수 제한 없이 전부 수집. 속도를 위해 원문 해석을 높은 병렬도로
     처리하고(각 요청은 짧은 타임아웃으로 빨리 실패→스냅샷 폴백), 증분 수집으로
     이미 저장된 URL은 재해석하지 않는다(재수집은 새 기사만).
@@ -238,11 +239,12 @@ def crawl(max_workers=24, max_items=0, progress=None, known_urls=None):
     """
     progress = progress or (lambda m: None)
     known_urls = known_urls or set()
+    days = int(days) if days else RECENT_DAYS
     t0 = time.time()
     seen, entries = set(), []
     for cat, kws in CATEGORIES.items():  # 재단 먼저 → 같은 URL이면 재단 유지
         for kw in kws:
-            rows = _collect_items(kw)
+            rows = _collect_items(kw, days)
             msg = f"[{cat}] '{kw}' RSS 항목 {len(rows)}개"
             print("[google] " + msg, flush=True)
             progress(msg)
@@ -277,7 +279,7 @@ def crawl(max_workers=24, max_items=0, progress=None, known_urls=None):
         print(f"[google] 본문(요약) 추출 성공 {with_body}/{len(processed)}건", flush=True)
         items = [
             {k: e.get(k) for k in ("title", "published_at", "author", "content", "url", "source_url", "category")}
-            for e in processed if _passes_filters(e)
+            for e in processed if _passes_filters(e, days)
         ]
 
     msg = f"구글뉴스 수집 {len(items)}건 / {time.time() - t0:.1f}s"

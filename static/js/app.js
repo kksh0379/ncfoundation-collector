@@ -248,7 +248,9 @@ function runCrawl(btn, group, msgEl, reload) {
   btn.disabled = true;
   msgEl.style.color = "";
   msgEl.innerHTML = '<span class="mini-spin"></span> 수집 시작…';
-  fetch("/api/crawl/" + group + "/start", { method: "POST" }).catch(() => {});
+  let url = "/api/crawl/" + group + "/start";
+  if (group === "news") url += "?days=" + encodeURIComponent(ddValue("dd-news-period"));
+  fetch(url, { method: "POST" }).catch(() => {});
   _startPolling(group);
 }
 
@@ -304,6 +306,7 @@ document.addEventListener("click", () =>
   document.querySelectorAll(".dropdown-menu").forEach((m) => (m.hidden = true))
 );
 setupDropdown("dd-news-category", loadNews);
+setupDropdown("dd-news-period", () => {});   // 수집 기간(크롤 파라미터) — 조회 갱신 불필요
 setupDropdown("dd-service", loadBoards);
 setupDropdown("dd-channel", loadSocial);
 
