@@ -16,6 +16,7 @@
 정적 HTML에 목록이 없어 현재 방식으로는 수집되지 않으며, 추후 사이트 내부 API 또는
 헤드리스 브라우저(Playwright) 도입이 필요하다(spa=True로 표시).
 """
+import hashlib
 import re
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -206,13 +207,21 @@ def crawl_source(cfg, max_items=8, max_workers=3):
         content = e["desc"]
         published = e["published_at"]
         author = None
-        link = e["url"] or cfg["list_url"]  # 링크 못 만들면 목록으로 폴백
         if e["url"]:
+            link = e["url"]
             detail = _parse_detail(e["url"])
             if detail.get("content") and len(detail["content"]) > 60:
                 content = detail["content"]
             published = published or detail.get("published_at")
             author = detail.get("author")
+        else:
+            # 원문 링크를 못 풀면 저장 키(url)가 전부 list_url로 겹쳐, 같은 게시판의
+            # 여러 글이 한 행으로 뭉개지던 버그. 목록 URL + 제목 해시로 고유 키를 만든다.
+            # (브라우저는 #fragment를 무시하므로 '원문 보기'는 목록 페이지로 이동)
+            slug = hashlib.md5(
+                f"{cfg['service']}|{cfg['category']}|{e['title']}".encode("utf-8")
+            ).hexdigest()[:12]
+            link = f"{cfg['list_url']}#{slug}"
         return {
             "service": cfg["service"],
             "category": cfg["category"],
