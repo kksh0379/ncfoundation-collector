@@ -449,3 +449,6 @@ body.is-admin .dropdown.admin-only { display: block !important; }
 #to-top[hidden] { display: none; }
 #to-top:active { background: var(--primary-dark); }
 .scroll-sentinel { list-style: none; height: 1px; }
+
+/* 관리자 전용 범례(기사 탭)는 노출 시 flex 유지 */
+body.is-admin .legend.admin-only { display: flex !important; }

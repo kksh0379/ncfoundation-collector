@@ -4,11 +4,22 @@
 function setAdmin(isAdmin) {
   document.body.classList.toggle("is-admin", !!isAdmin);
 }
-async function checkMe() {
+function savedPw() { try { return localStorage.getItem("adminPw") || ""; } catch (e) { return ""; } }
+async function tryLogin(pw) {
   try {
-    const d = await (await fetch("/api/me")).json();
-    setAdmin(d.admin);
-  } catch (e) { setAdmin(false); }
+    const d = await (await fetch("/api/login", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ pw }),
+    })).json();
+    return !!d.ok;
+  } catch (e) { return false; }
+}
+// 세션이 있으면 그대로, 없으면 저장된 비번으로 자동 로그인 시도(매번 입력 안 하게)
+async function initAdmin() {
+  let admin = false;
+  try { admin = (await (await fetch("/api/me")).json()).admin; } catch (e) {}
+  if (!admin && savedPw()) admin = await tryLogin(savedPw());
+  setAdmin(admin);
 }
 
 function escapeHtml(s) {
@@ -374,7 +385,7 @@ const loginModal = document.getElementById("login-modal");
 const loginErr = document.getElementById("login-err");
 document.getElementById("login-btn").addEventListener("click", () => {
   loginErr.textContent = "";
-  document.getElementById("login-pw").value = "";
+  document.getElementById("login-pw").value = savedPw();  // 저장된 비번 미리 채움
   loginModal.hidden = false;
 });
 document.getElementById("login-close").addEventListener("click", () => (loginModal.hidden = true));
@@ -382,24 +393,18 @@ loginModal.addEventListener("click", (e) => { if (e.target === loginModal) login
 document.getElementById("login-form").addEventListener("submit", async (e) => {
   e.preventDefault();
   loginErr.textContent = "";
-  try {
-    const res = await fetch("/api/login", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ pw: document.getElementById("login-pw").value }),
-    });
-    const d = await res.json();
-    if (res.ok && d.ok) {
-      setAdmin(true);
-      loginModal.hidden = true;
-    } else {
-      loginErr.textContent = d.error || "로그인 실패";
-    }
-  } catch (err) {
-    loginErr.textContent = "로그인 요청 실패: " + err.message;
+  const pw = document.getElementById("login-pw").value;
+  const ok = await tryLogin(pw);
+  if (ok) {
+    try { localStorage.setItem("adminPw", pw); } catch (e2) {}  // 비번 저장(자동 로그인용)
+    setAdmin(true);
+    loginModal.hidden = true;
+  } else {
+    loginErr.textContent = "비밀번호가 올바르지 않습니다.";
   }
 });
 document.getElementById("logout-btn").addEventListener("click", async () => {
+  try { localStorage.removeItem("adminPw"); } catch (e) {}  // 저장 비번 제거(자동 재로그인 방지)
   try { await fetch("/api/logout", { method: "POST" }); } catch (e) {}
   setAdmin(false);
 });
@@ -437,7 +442,7 @@ if (toTop) {
 }
 
 // ----------------------------- 초기 로드 -----------------------------
-checkMe();
+initAdmin();
 loadMeta();
 loadNews();
 loadBoards();
