@@ -22,17 +22,29 @@ _PG = bool(DATABASE_URL)
 BACKEND = "postgres" if _PG else "sqlite"  # 현재 저장소 종류(연결 확인용)
 
 if _PG:
+    from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
+
     import psycopg
     from psycopg.rows import dict_row
     from psycopg_pool import ConnectionPool
 
-    # Supabase/Neon 등 호스팅 Postgres는 SSL 필수. 없으면 require를 붙인다.
-    _CONNINFO = DATABASE_URL
-    if "sslmode=" not in _CONNINFO:
-        _CONNINFO += ("&" if "?" in _CONNINFO else "?") + "sslmode=require"
-    # 연결 재사용(매 쿼리마다 새 TLS 핸드셰이크 방지). 스레드(SSE 워커/스케줄러) 안전.
-    _pool = ConnectionPool(_CONNINFO, min_size=1, max_size=5,
-                           kwargs={"row_factory": dict_row}, open=True)
+    # 연결 문자열 정리:
+    #  - channel_binding 파라미터 제거(Neon 등 pooler/PgBouncer 조합에서 연결 실패 유발)
+    #  - sslmode=require 보장(호스팅 Postgres는 SSL 필수)
+    _p = urlsplit(DATABASE_URL)
+    _qs = [(k, v) for k, v in parse_qsl(_p.query) if k.lower() != "channel_binding"]
+    if not any(k.lower() == "sslmode" for k, _ in _qs):
+        _qs.append(("sslmode", "require"))
+    _CONNINFO = urlunsplit((_p.scheme, _p.netloc, _p.path, urlencode(_qs), _p.fragment))
+
+    # 연결 풀: Neon 무료는 유휴 시 컴퓨트가 잠들어(cold start) 첫 연결이 느리고, 유휴
+    # 연결이 끊길 수 있다. → min_size=0(유휴 연결 미보유), 사용 시 유효성 검사(check),
+    # 연결 타임아웃 여유(connect_timeout). 스레드(수집 워커/스케줄러) 안전.
+    _pool = ConnectionPool(
+        _CONNINFO, min_size=0, max_size=5, timeout=30,
+        kwargs={"row_factory": dict_row, "connect_timeout": 15},
+        check=ConnectionPool.check_connection, open=True,
+    )
 
 
 def _q(sql):
