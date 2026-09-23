@@ -410,8 +410,31 @@ document.getElementById("logout-btn").addEventListener("click", async () => {
 // ----------------------------- 개발노트/패치내역 -----------------------------
 const notesModal = document.getElementById("notes-modal");
 let _notesData = { devnote: "", changelog: "" };
+
+// 아주 가벼운 마크다운 → HTML (제목/굵게/코드/목록/인용/구분선)
+function mdToHtml(md) {
+  const esc = (s) => s.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
+  const inline = (s) => esc(s)
+    .replace(/`([^`]+)`/g, "<code>$1</code>")
+    .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+  let html = "", inList = false;
+  const closeList = () => { if (inList) { html += "</ul>"; inList = false; } };
+  (md || "").split(/\r?\n/).forEach((raw) => {
+    const line = raw.replace(/\s+$/, "");
+    const t = line.replace(/^\s+/, "");
+    if (!t) { closeList(); return; }
+    if (/^#{1,6}\s/.test(t)) { closeList(); const lv = Math.min(t.match(/^#+/)[0].length + 1, 6); html += `<h${lv}>${inline(t.replace(/^#+\s/, ""))}</h${lv}>`; return; }
+    if (/^---+$/.test(t)) { closeList(); html += "<hr>"; return; }
+    if (/^>\s?/.test(t)) { closeList(); html += `<blockquote>${inline(t.replace(/^>\s?/, ""))}</blockquote>`; return; }
+    if (/^([-*]|\d+\.)\s/.test(t)) { if (!inList) { html += "<ul>"; inList = true; } html += `<li>${inline(t.replace(/^([-*]|\d+\.)\s/, ""))}</li>`; return; }
+    closeList(); html += `<p>${inline(t)}</p>`;
+  });
+  closeList();
+  return html;
+}
+
 function showNotes(which) {
-  document.getElementById("notes-content").textContent = _notesData[which] || "(내용 없음)";
+  document.getElementById("notes-content").innerHTML = mdToHtml(_notesData[which] || "(내용 없음)");
   document.querySelectorAll(".notes-tab").forEach((b) =>
     b.classList.toggle("active", b.dataset.notes === which));
 }

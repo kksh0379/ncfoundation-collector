@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>엔씨문화재단 콜렉터</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css', v='38') }}" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css', v='39') }}" />
 </head>
 <body>
   <header class="app-header">
@@ -154,19 +154,19 @@
           <button class="notes-tab active" data-notes="devnote">📓 개발노트</button>
           <button class="notes-tab" data-notes="changelog">📅 패치내역</button>
         </div>
-        <pre class="notes-pre" id="notes-content"></pre>
+        <div class="notes-md" id="notes-content"></div>
       </div>
     </div>
   </div>
 
   <footer class="app-footer">
-    <span class="foot-copy">© 2026 kksh0379</span>
-    <span class="ver">v38</span>
+    <span class="foot-copy">© 2026 김상화</span>
+    <span class="ver">v39</span>
     <span class="ver" id="storage-badge"></span>
   </footer>
 
   <button id="to-top" aria-label="맨 위로" hidden>↑</button>
 
-  <script src="{{ url_for('static', filename='js/app.js', v='38') }}"></script>
+  <script src="{{ url_for('static', filename='js/app.js', v='39') }}"></script>
 </body>
 </html>
