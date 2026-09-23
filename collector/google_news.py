@@ -191,12 +191,16 @@ def _passes_filters(item):
     return True
 
 
-def crawl(max_workers=8, max_items=100, progress=None):
+def crawl(max_workers=8, max_items=100, progress=None, known_urls=None):
     """뉴스 수집 실행. 파싱된 기사 리스트 반환(그룹화/저장은 호출측).
     동일 기사가 여러 매체에 배포된 것도 전부 수집한다(중복 제거 X, 저장측에서 그룹화).
+
+    증분 수집: known_urls(이미 저장된 URL 집합)에 있는 기사는 원문 해석(느린
+    batchexecute)을 건너뛴다. 첫 수집만 오래 걸리고, 재수집은 '새 기사'만 처리해 빠르다.
     progress(msg): 진행상황 콜백(선택).
     """
     progress = progress or (lambda m: None)
+    known_urls = known_urls or set()
     t0 = time.time()
     seen, entries = set(), []
     for kw in KEYWORDS:
@@ -208,11 +212,15 @@ def crawl(max_workers=8, max_items=100, progress=None):
             if e["url"] not in seen:
                 seen.add(e["url"])
                 entries.append(e)
-    entries = entries[:max_items]
+
+    # 이미 저장된 URL은 재해석하지 않는다(증분). 새 기사만 남긴다.
+    total = len(entries)
+    entries = [e for e in entries if e["url"] not in known_urls][:max_items]
+    print(f"[google] RSS {total}개 중 신규 {len(entries)}개 처리(기존 {total - len(entries)}개 건너뜀)", flush=True)
 
     items = []
     if entries:
-        progress(f"요약 처리 중… ({len(entries)}건)")
+        progress(f"새 기사 요약 처리 중… ({len(entries)}건)")
         with ThreadPoolExecutor(max_workers=max_workers) as pool:
             processed = list(pool.map(_summary_from_article, entries))
         with_body = sum(1 for e in processed if e.get("content"))

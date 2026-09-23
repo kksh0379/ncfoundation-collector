@@ -186,31 +186,44 @@ document.getElementById("status-boards-btn").addEventListener("click", () => run
 document.getElementById("status-social-btn").addEventListener("click", () => runStatus("social"));
 
 // ----------------------------- 수집 실행 -----------------------------
-// 수집은 동기 방식: 요청 한 번으로 끝까지 처리하고 결과를 받는다.
-async function runCrawl(btn, group, msgEl, reload) {
+// 수집은 SSE 스트리밍: 서버가 단계별 진행상황을 흘려보내고, 화면에 실시간 표시한다.
+function runCrawl(btn, group, msgEl, reload) {
   btn.disabled = true;
   msgEl.style.color = "";
-  msgEl.innerHTML = '<span class="mini-spin"></span> 수집 중… (최대 1~2분 걸릴 수 있어요)';
-  try {
-    const res = await fetch("/api/crawl/" + group, { method: "POST" });
-    if (!res.ok) throw new Error("HTTP " + res.status);
-    const d = await res.json();
-    if (d.error) {
-      msgEl.style.color = "#dc2626";
-      msgEl.textContent = `수집 실패: ${d.error}`;
-    } else {
-      msgEl.style.color = "#16a34a";
-      const dupTxt = d.duplicates ? ` · 중복 ${d.duplicates}건 제외` : "";
-      msgEl.textContent = `수집 ${d.crawled}건 · 신규 ${d.new ?? 0}건 · 갱신 ${d.updated ?? 0}건${dupTxt}`;
+  msgEl.innerHTML = '<span class="mini-spin"></span> 수집 시작…';
+  let finished = false;
+
+  const es = new EventSource("/api/crawl/" + group + "/stream");
+  es.onmessage = (ev) => {
+    let d;
+    try { d = JSON.parse(ev.data); } catch (_) { return; }
+    if (d.type === "progress") {
+      msgEl.style.color = "";
+      msgEl.innerHTML = '<span class="mini-spin"></span> ' + escapeHtml(d.msg);
+    } else if (d.type === "done") {
+      finished = true;
+      es.close();
+      const r = d.result || {};
+      if (r.error) {
+        msgEl.style.color = "#dc2626";
+        msgEl.textContent = "수집 실패: " + r.error;
+      } else {
+        msgEl.style.color = "#16a34a";
+        const grpTxt = r.groups ? ` · 그룹 ${r.groups}개` : "";
+        msgEl.textContent = `수집 완료 · 신규 ${r.new ?? 0}건 · 갱신 ${r.updated ?? 0}건${grpTxt}`;
+      }
+      reload();
+      loadMeta();
+      btn.disabled = false;
     }
-    await reload();
-    loadMeta();  // 마지막 수집 일시 갱신
-  } catch (e) {
-    msgEl.style.color = "#dc2626";
-    msgEl.textContent = "수집 실패: " + e.message;
-  } finally {
+  };
+  es.onerror = () => {
+    if (finished) return;      // 정상 종료 후의 close는 무시
+    es.close();
     btn.disabled = false;
-  }
+    msgEl.style.color = "#dc2626";
+    msgEl.textContent = "수집 연결이 끊겼어요. 잠시 후 다시 시도해 주세요.";
+  };
 }
 
 document.getElementById("collect-news").addEventListener("click", (e) =>

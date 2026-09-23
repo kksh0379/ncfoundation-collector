@@ -5,7 +5,10 @@
 
 수동 실행 방식: 화면의 "수집 실행" 버튼을 누르면 해당 탭의 크롤러가 동작한다.
 """
+import json
 import os
+import queue
+import threading
 from datetime import datetime, timedelta, timezone
 
 from flask import Flask, jsonify, render_template, request
@@ -208,20 +211,65 @@ _CRAWLERS = {
 }
 
 
-def _do_crawl(group):
-    """수집 1회 실행(수동 버튼·배치 공용). 결과 dict 반환."""
+def _do_crawl(group, progress=None):
+    """수집 1회 실행(수동 버튼·배치 공용). 결과 dict 반환.
+    progress(msg): 진행상황 콜백(선택). SSE 스트리밍에 연결된다."""
+    progress = progress or (lambda m: None)
     crawl_fn, save_fn = _CRAWLERS[group]
     try:
-        items = crawl_fn()
+        if group == "news":
+            # 증분 수집: 이미 저장된 URL은 재해석(느린 원문 복원)하지 않고 새 기사만 처리
+            known = {r.get("url") for r in db.all_news_fingerprints()}
+            items = crawl_fn(known_urls=known, progress=progress)
+        else:
+            items = crawl_fn(progress=progress)
+        progress("저장·그룹화 중…")
         counts = save_fn(items)
         result = {"crawled": len(items), **counts}
+        progress(f"완료 · 신규 {result.get('new', 0)}건 · 갱신 {result.get('updated', 0)}건")
     except Exception as e:  # noqa: BLE001
         print(f"[crawl] {group} 오류: {e}", flush=True)
         result = {"crawled": 0, "new": 0, "updated": 0, "duplicates": 0, "error": str(e)}
+        progress(f"오류: {e}")
     result["last_crawled_at"] = _now_kst()  # 서버 기준 마지막 수집 일시
     db.set_meta(f"last_crawl_{group}", result["last_crawled_at"])
     _last_result[group] = result
     return result
+
+
+@app.get("/api/crawl/<group>/stream")
+def crawl_stream(group):
+    """수집을 실행하며 진행 상황을 SSE로 실시간 스트리밍한다.
+    (오래 걸리는 수집 중 '로딩만' 보이지 않도록 단계별 메시지를 흘려보낸다.)"""
+    if group not in _CRAWLERS:
+        return jsonify({"error": "unknown group"}), 404
+
+    q = queue.Queue()
+
+    def worker():
+        try:
+            result = _do_crawl(group, progress=lambda m: q.put({"type": "progress", "msg": m}))
+            q.put({"type": "done", "result": result})
+        except Exception as e:  # noqa: BLE001
+            q.put({"type": "done", "result": {"error": str(e), "crawled": 0}})
+        finally:
+            q.put(None)
+
+    threading.Thread(target=worker, daemon=True).start()
+
+    def gen():
+        yield "retry: 10000\n\n"
+        while True:
+            item = q.get()
+            if item is None:
+                break
+            yield f"data: {json.dumps(item, ensure_ascii=False)}\n\n"
+
+    return app.response_class(
+        gen(),
+        mimetype="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 @app.post("/api/crawl/news")
