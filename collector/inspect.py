@@ -35,13 +35,13 @@ def _endpoint_candidates(text):
     return out
 
 
-def _hunt_api(soup, url):
-    """인라인 스크립트 + 동일 출처 외부 JS 번들을 훑어 내부 API 후보 주소를 뽑는다.
+def _gather_js_texts(soup, url):
+    """인라인 스크립트 + 동일 출처 외부 JS 번들의 텍스트를 모은다.
     (배포 서버는 인터넷이 되므로 JS 번들도 실제로 받아 스캔할 수 있다)"""
-    hints = set()
+    texts = []
     for s in soup.select("script"):
         if s.string:
-            hints |= _endpoint_candidates(s.string)
+            texts.append(s.string)
     origin = urlparse(url).netloc
     ext = []
     for s in soup.select("script[src]"):
@@ -50,11 +50,52 @@ def _hunt_api(soup, url):
             ext.append(src)
     for src in ext[:6]:
         try:
-            js = fetcher.get(src, retries=0).text
+            texts.append(fetcher.get(src, retries=0).text)
         except Exception:  # noqa: BLE001
             continue
-        hints |= _endpoint_candidates(js)
+    return texts
+
+
+def _hunt_api(texts):
+    hints = set()
+    for t in texts:
+        hints |= _endpoint_candidates(t)
     return sorted(hints)[:25]
+
+
+# 심층 스캔용 패턴: axios baseURL, .get/.post/fetch 인자 경로, 외부(비-CDN) 절대 URL
+_BASEURL_RE = re.compile(r"""baseURL\s*[:=]\s*["'`]([^"'`]{3,160})["'`]""")
+_CALL_RE = re.compile(
+    r"""(?:axios\.(?:get|post|request)|\.(?:get|post)|fetch|url\s*:)\s*\(?\s*["'`]([^"'`]{3,160})["'`]"""
+)
+_ABSURL_RE = re.compile(r"""["'`](https?://[\w.\-]+(?:/[^"'`\s]{0,140})?)["'`]""")
+_CDN_HOSTS = (
+    "google", "gstatic", "naver", "kakao", "daum", "cloudflare", "jsdelivr",
+    "unpkg", "cdn", "redux.js.org", "fontawesome", "facebook", "youtube",
+    "instagram", "w3.org", "schema.org", "sentry", "gtag", "jquery",
+)
+
+
+def _deep_js_scan(texts):
+    """JS 번들에서 실제 API 단서를 더 깊게 캔다: axios baseURL, 요청 경로,
+    비-CDN 절대 URL(별도 API 호스트 후보)."""
+    base, calls, abs_urls = set(), set(), set()
+    for t in texts:
+        for m in _BASEURL_RE.finditer(t):
+            base.add(m.group(1).strip())
+        for m in _CALL_RE.finditer(t):
+            p = m.group(1).strip()
+            if p.startswith(("/", "http")):
+                calls.add(p)
+        for m in _ABSURL_RE.finditer(t):
+            u = m.group(1).strip()
+            if not any(c in u.lower() for c in _CDN_HOSTS):
+                abs_urls.add(u)
+    return {
+        "base_urls": sorted(base)[:15],
+        "request_paths": sorted(calls)[:30],
+        "other_abs_urls": sorted(abs_urls)[:20],
+    }
 
 
 def _probe_endpoints(hints, page_url):
@@ -68,7 +109,7 @@ def _probe_endpoints(hints, page_url):
         if url in seen:
             continue
         seen.add(url)
-        if len(out) >= 12:
+        if len(out) >= 18:
             break
         try:
             r = fetcher.get(url, retries=0)
@@ -193,9 +234,22 @@ def inspect_url(url):
     spa = out["spa_markers"]
     if spa.get("#root") or spa.get("#__next") or spa.get("#app") or spa.get("__NUXT__"):
         try:
-            out["api_hints"] = _hunt_api(soup, url)
-            if out["api_hints"]:
-                out["api_probe"] = _probe_endpoints(out["api_hints"], url)
+            texts = _gather_js_texts(soup, url)
+            out["api_hints"] = _hunt_api(texts)
+            deep = _deep_js_scan(texts)
+            out["js_api"] = deep
+            # probe 대상: 심층 단서(비-CDN 절대 URL, baseURL×요청경로)를 먼저,
+            # 노이즈일 수 있는 키워드 후보는 뒤에.
+            probe_targets = list(deep["other_abs_urls"])
+            probe_targets += [p for p in deep["request_paths"] if p.startswith("http")]
+            for b in deep["base_urls"]:
+                probe_targets.append(b)
+                for p in deep["request_paths"][:8]:
+                    if p.startswith("/"):
+                        probe_targets.append(b.rstrip("/") + p)
+            probe_targets += list(out["api_hints"])
+            if probe_targets:
+                out["api_probe"] = _probe_endpoints(probe_targets, url)
         except Exception as e:  # noqa: BLE001
             out["api_hints_error"] = str(e)[:120]
         # Nuxt/JSON 페이로드 샘플(목록이 인라인으로 박혀 있을 수 있음)
