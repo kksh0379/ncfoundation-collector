@@ -4,11 +4,12 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>엔씨문화재단 콜렉터</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css', v='32') }}" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css', v='33') }}" />
 </head>
 <body>
   <header class="app-header">
-    <h1>엔씨문화재단 콜렉터 <span class="ver">v32</span> <span class="ver" id="storage-badge"></span></h1>
+    <h1>엔씨문화재단 콜렉터 <span class="ver">v33</span> <span class="ver" id="storage-badge"></span></h1>
+    <button class="auth-btn admin-only" id="notes-btn">📓 노트</button>
     <button class="auth-btn guest-only" id="login-btn">관리자 로그인</button>
     <button class="auth-btn admin-only" id="logout-btn">로그아웃</button>
   </header>
@@ -141,6 +142,23 @@
     </div>
   </div>
 
-  <script src="{{ url_for('static', filename='js/app.js', v='32') }}"></script>
+  <!-- 개발노트 / 패치내역 팝업 (관리자 전용) -->
+  <div class="modal" id="notes-modal" hidden>
+    <div class="modal-box notes-box">
+      <div class="modal-head">
+        <span>개발노트 / 패치내역</span>
+        <button class="modal-close" id="notes-close" aria-label="닫기">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="notes-tabs">
+          <button class="notes-tab active" data-notes="devnote">📓 개발노트</button>
+          <button class="notes-tab" data-notes="changelog">📅 패치내역</button>
+        </div>
+        <pre class="notes-pre" id="notes-content"></pre>
+      </div>
+    </div>
+  </div>
+
+  <script src="{{ url_for('static', filename='js/app.js', v='33') }}"></script>
 </body>
 </html>

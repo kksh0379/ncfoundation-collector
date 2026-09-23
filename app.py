@@ -43,6 +43,23 @@ def me():
     return jsonify({"admin": _admin_ok()})
 
 
+@app.get("/api/notes")
+def notes():
+    """개발노트/패치내역 문서 반환(관리자 전용)."""
+    if not _admin_ok():
+        return jsonify({"error": "unauthorized"}), 401
+    base = os.path.dirname(os.path.abspath(__file__))
+
+    def _read(name):
+        try:
+            with open(os.path.join(base, name), encoding="utf-8") as f:
+                return f.read()
+        except Exception as e:  # noqa: BLE001
+            return f"({name} 읽기 실패: {e})"
+
+    return jsonify({"devnote": _read("DEVNOTE.md"), "changelog": _read("CHANGELOG.md")})
+
+
 @app.post("/api/login")
 def login():
     data = request.get_json(silent=True) or {}

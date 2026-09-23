@@ -380,6 +380,29 @@ document.getElementById("logout-btn").addEventListener("click", async () => {
   setAdmin(false);
 });
 
+// ----------------------------- 개발노트/패치내역 -----------------------------
+const notesModal = document.getElementById("notes-modal");
+let _notesData = { devnote: "", changelog: "" };
+function showNotes(which) {
+  document.getElementById("notes-content").textContent = _notesData[which] || "(내용 없음)";
+  document.querySelectorAll(".notes-tab").forEach((b) =>
+    b.classList.toggle("active", b.dataset.notes === which));
+}
+document.getElementById("notes-btn").addEventListener("click", async () => {
+  notesModal.hidden = false;
+  document.getElementById("notes-content").textContent = "불러오는 중…";
+  try {
+    _notesData = await (await fetch("/api/notes")).json();
+    showNotes("devnote");
+  } catch (e) {
+    document.getElementById("notes-content").textContent = "불러오기 실패: " + e.message;
+  }
+});
+document.getElementById("notes-close").addEventListener("click", () => (notesModal.hidden = true));
+notesModal.addEventListener("click", (e) => { if (e.target === notesModal) notesModal.hidden = true; });
+document.querySelectorAll(".notes-tab").forEach((b) =>
+  b.addEventListener("click", () => showNotes(b.dataset.notes)));
+
 // ----------------------------- 초기 로드 -----------------------------
 checkMe();
 loadMeta();

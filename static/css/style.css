@@ -418,3 +418,18 @@ body.is-admin .guest-only { display: none !important; }
 /* ---- 관리자 전용(뷰어는 조회만) ---- */
 .admin-only { display: none !important; }
 body.is-admin .admin-only { display: inline-flex !important; }
+
+/* ---- 개발노트/패치내역 팝업 ---- */
+.notes-box { max-width: 720px; width: 100%; }
+.notes-tabs { display: flex; gap: 6px; margin-bottom: 10px; }
+.notes-tab {
+  flex: 1; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px;
+  background: #fff; color: var(--muted); font-size: 13px; font-weight: 600; cursor: pointer;
+}
+.notes-tab.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+.notes-pre {
+  white-space: pre-wrap; word-break: break-word; font-size: 12px; line-height: 1.55;
+  color: var(--text); background: #fafbfc; border: 1px solid var(--border);
+  border-radius: 8px; padding: 12px; max-height: 62vh; overflow: auto; margin: 0;
+  font-family: "SFMono-Regular", ui-monospace, Menlo, Consolas, monospace;
+}
