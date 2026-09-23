@@ -17,7 +17,7 @@ import base64
 import json
 import re
 import time
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta
 from email.utils import parsedate_to_datetime
 
@@ -220,9 +220,18 @@ def crawl(max_workers=8, max_items=100, progress=None, known_urls=None):
 
     items = []
     if entries:
-        progress(f"새 기사 요약 처리 중… ({len(entries)}건)")
+        n = len(entries)
+        progress(f"새 기사 요약 처리 0/{n}")
+        processed = []
         with ThreadPoolExecutor(max_workers=max_workers) as pool:
-            processed = list(pool.map(_summary_from_article, entries))
+            futures = [pool.submit(_summary_from_article, e) for e in entries]
+            done = 0
+            for fut in as_completed(futures):
+                processed.append(fut.result())
+                done += 1
+                # 기사 하나 끝날 때마다(과다 전송 방지로 2건 단위) 진행률 갱신
+                if done % 2 == 0 or done == n:
+                    progress(f"새 기사 요약 처리 {done}/{n}")
         with_body = sum(1 for e in processed if e.get("content"))
         print(f"[google] 본문(요약) 추출 성공 {with_body}/{len(processed)}건", flush=True)
         items = [
