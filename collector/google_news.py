@@ -28,9 +28,11 @@ from . import extractor, fetcher
 RSS_URL = "https://news.google.com/rss/search"
 BATCH_URL = "https://news.google.com/_/DotsSplashUi/data/batchexecute"
 # 뉴스 카테고리별 검색 키워드. (재단=엔씨문화재단, 본사=엔씨소프트)
+# 본사는 회사명(엔씨소프트/NCSOFT)만 사용한다. 'NC'/'엔씨'는 NC다이노스(야구) 등
+# 무관 기사가 대량 유입되고, 중요한 이슈는 어차피 회사명을 달고 보도되므로 제외.
 CATEGORIES = {
     "재단": ["엔씨문화재단", "NC문화재단"],
-    "본사": ["엔씨소프트", "NCSOFT", "NC", "엔씨"],
+    "본사": ["엔씨소프트", "NCSOFT"],
 }
 # 진단 등 호환용 평면 키워드 목록
 KEYWORDS = [kw for kws in CATEGORIES.values() for kw in kws]
