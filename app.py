@@ -337,12 +337,18 @@ def crawl_status():
 
 
 # ---------------------------- 배치 스케줄 ----------------------------
+# 정기 배치(스케줄러/크론)는 최근 것만 훑어 새 기사를 보충한다(최초 5년 백필과 별개).
+BATCH_DAYS = int(os.environ.get("BATCH_DAYS", "30"))  # 정기 배치 뉴스 수집 창(최근 N일)
+
+
 def _batch_all():
-    """뉴스/게시판/소셜을 백그라운드 작업으로 시작(비차단). 시작된 그룹 목록 반환."""
-    print("[batch] 수집 배치 시작", flush=True)
+    """뉴스/게시판/소셜을 백그라운드 작업으로 시작(비차단). 시작된 그룹 목록 반환.
+    뉴스는 최근 BATCH_DAYS(기본 30일)만 훑는다(증분이라 겹쳐도 새 기사만 저장)."""
+    print(f"[batch] 수집 배치 시작 (뉴스 최근 {BATCH_DAYS}일)", flush=True)
     started = []
     for group in ("news", "boards", "social"):
-        if _start_job(group):
+        days = BATCH_DAYS if group == "news" else None
+        if _start_job(group, days=days):
             started.append(group)
     return started
 
