@@ -14,11 +14,10 @@ async function tryLogin(pw) {
     return !!d.ok;
   } catch (e) { return false; }
 }
-// 세션이 있으면 그대로, 없으면 저장된 비번으로 자동 로그인 시도(매번 입력 안 하게)
+// 세션이 살아있으면 관리자 유지. (자동 로그인은 하지 않음 — 비번은 입력창 자동채움용으로만 저장)
 async function initAdmin() {
   let admin = false;
   try { admin = (await (await fetch("/api/me")).json()).admin; } catch (e) {}
-  if (!admin && savedPw()) admin = await tryLogin(savedPw());
   setAdmin(admin);
 }
 
@@ -396,7 +395,7 @@ document.getElementById("login-form").addEventListener("submit", async (e) => {
   const pw = document.getElementById("login-pw").value;
   const ok = await tryLogin(pw);
   if (ok) {
-    try { localStorage.setItem("adminPw", pw); } catch (e2) {}  // 비번 저장(자동 로그인용)
+    try { localStorage.setItem("adminPw", pw); } catch (e2) {}  // 비번 저장(다음에 입력창 자동채움용)
     setAdmin(true);
     loginModal.hidden = true;
   } else {
@@ -404,7 +403,6 @@ document.getElementById("login-form").addEventListener("submit", async (e) => {
   }
 });
 document.getElementById("logout-btn").addEventListener("click", async () => {
-  try { localStorage.removeItem("adminPw"); } catch (e) {}  // 저장 비번 제거(자동 재로그인 방지)
   try { await fetch("/api/logout", { method: "POST" }); } catch (e) {}
   setAdmin(false);
 });
