@@ -33,6 +33,31 @@ document.querySelectorAll(".tab").forEach((tab) => {
   });
 });
 
+// ----------------------------- 로딩 표시 / 무한 스크롤 -----------------------------
+function showLoading(el) {
+  el.innerHTML = `<li class="empty"><span class="mini-spin"></span> 불러오는 중…</li>`;
+}
+
+// units 배열을 15개씩 렌더하고, 끝 센티넬이 화면에 들어오면 다음 묶음을 이어붙인다.
+function renderInfinite(el, units, makeNode, emptyMsg) {
+  el.innerHTML = "";
+  if (!units.length) { el.innerHTML = `<li class="empty">${emptyMsg}</li>`; return; }
+  const CHUNK = 15;
+  let i = 0;
+  const sentinel = document.createElement("li");
+  sentinel.className = "scroll-sentinel";
+  el.appendChild(sentinel);
+  function more() {
+    const frag = document.createDocumentFragment();
+    for (let n = 0; n < CHUNK && i < units.length; n++, i++) frag.appendChild(makeNode(units[i]));
+    el.insertBefore(frag, sentinel);
+    if (i >= units.length) { obs.disconnect(); sentinel.remove(); }
+  }
+  const obs = new IntersectionObserver((ents) => { if (ents[0].isIntersecting) more(); }, { rootMargin: "300px" });
+  obs.observe(sentinel);
+  more();
+}
+
 // ----------------------------- 카드 렌더링 -----------------------------
 function renderCard(item, opts) {
   const meta = [];
@@ -53,76 +78,73 @@ function renderCard(item, opts) {
 }
 
 function renderList(el, items, opts) {
-  el.innerHTML = "";
-  if (!items.length) {
-    el.innerHTML = `<li class="empty">수집된 데이터가 없습니다.<br>"수집 실행"을 눌러주세요.</li>`;
-    return;
-  }
-  items.forEach((item) => el.appendChild(renderCard(item, {
-    badge: opts.badgeFn ? opts.badgeFn(item) : null,
-  })));
+  renderInfinite(el, items,
+    (item) => renderCard(item, { badge: opts.badgeFn ? opts.badgeFn(item) : null }),
+    `수집된 데이터가 없습니다.`);
 }
 
 // ----------------------------- 데이터 로드 -----------------------------
 async function loadNews() {
+  const el = document.getElementById("list-news");
+  showLoading(el);
   const category = ddValue("dd-news-category");
-  const res = await fetch("/api/news?category=" + encodeURIComponent(category));
-  renderNewsGroups(document.getElementById("list-news"), await res.json());
+  try {
+    const res = await fetch("/api/news?category=" + encodeURIComponent(category));
+    renderNewsGroups(el, await res.json());
+  } catch (e) { el.innerHTML = `<li class="empty">불러오기 실패</li>`; }
 }
 
-// 같은 기사(여러 매체 배포)를 group_key로 묶어 대표 카드 + 아코디언으로 표시
-function renderNewsGroups(el, items) {
-  el.innerHTML = "";
-  if (!items.length) {
-    el.innerHTML = `<li class="empty">수집된 데이터가 없습니다.<br>"수집 실행"을 눌러주세요.</li>`;
-    return;
+// 뉴스 그룹 1개 → 카드 노드(아코디언 핸들러 포함)
+function newsGroupNode(arr) {
+  const rep = arr[0];  // 그룹 내 최신(작성일 내림차순 첫 항목)
+  const repLink = rep.source_url || rep.url;  // 원문 보기: 실제 기사 URL 우선
+  const meta = [escapeHtml(fmtDate(rep.published_at))];
+  if (rep.author) meta.push(escapeHtml(rep.author));
+  if (arr.length > 1) meta.push(`<span class="badge">${arr.length}개 매체</span>`);
+
+  const li = document.createElement("li");
+  li.className = "card";
+  let html = `
+    <h3 class="card-title">${escapeHtml(rep.title || "(제목 없음)")}</h3>
+    <div class="card-meta">${meta.join(" · ")}</div>
+    <p class="card-summary">${escapeHtml(rep.content || "요약 없음")}</p>
+    <div class="card-actions">
+      ${repLink ? `<a href="${escapeHtml(repLink)}" target="_blank" rel="noopener">원문 보기 ↗</a>` : ""}
+    </div>`;
+  if (arr.length > 1) {
+    html += `<button class="accordion-toggle" type="button">같은 기사 ${arr.length}건 매체별 보기 ▾</button>
+      <ul class="accordion-body" hidden>` +
+      arr.map((a) => {
+        const link = a.source_url || a.url;
+        return `<li>
+          <span class="src-name">${escapeHtml(a.author || "매체 미상")}</span>
+          ${link ? `<a href="${escapeHtml(link)}" target="_blank" rel="noopener">${escapeHtml(a.title || "원문")} ↗</a>` : escapeHtml(a.title || "")}
+          <span class="src-date">${escapeHtml(fmtDate(a.published_at))}</span>
+        </li>`;
+      }).join("") +
+      `</ul>`;
   }
-  const groups = new Map();
+  li.innerHTML = html;
+  const btn = li.querySelector(".accordion-toggle");
+  if (btn) btn.addEventListener("click", () => {
+    const body = btn.nextElementSibling;
+    const willOpen = body.hidden;
+    body.hidden = !willOpen;
+    btn.textContent = btn.textContent.replace(/[▾▴]\s*$/, willOpen ? "▴" : "▾");
+  });
+  return li;
+}
+
+// 같은 기사(여러 매체)를 group_key로 묶어 대표 카드 + 아코디언, 무한 스크롤로 표시
+function renderNewsGroups(el, items) {
+  const map = new Map();
   items.forEach((it, i) => {
     const k = it.group_key || it.url || ("row" + i);
-    if (!groups.has(k)) groups.set(k, []);
-    groups.get(k).push(it);
+    if (!map.has(k)) map.set(k, []);
+    map.get(k).push(it);
   });
-  groups.forEach((arr) => {
-    const rep = arr[0];  // 그룹 내 최신(작성일 내림차순 정렬 기준 첫 항목)
-    const repLink = rep.source_url || rep.url;  // 원문 보기: 실제 기사 URL 우선
-    const meta = [escapeHtml(fmtDate(rep.published_at))];
-    if (rep.author) meta.push(escapeHtml(rep.author));
-    if (arr.length > 1) meta.push(`<span class="badge">${arr.length}개 매체</span>`);
-
-    const li = document.createElement("li");
-    li.className = "card";
-    let html = `
-      <h3 class="card-title">${escapeHtml(rep.title || "(제목 없음)")}</h3>
-      <div class="card-meta">${meta.join(" · ")}</div>
-      <p class="card-summary">${escapeHtml(rep.content || "요약 없음")}</p>
-      <div class="card-actions">
-        ${repLink ? `<a href="${escapeHtml(repLink)}" target="_blank" rel="noopener">원문 보기 ↗</a>` : ""}
-      </div>`;
-    if (arr.length > 1) {
-      html += `<button class="accordion-toggle" type="button">같은 기사 ${arr.length}건 매체별 보기 ▾</button>
-        <ul class="accordion-body" hidden>` +
-        arr.map((a) => {
-          const link = a.source_url || a.url;
-          return `<li>
-            <span class="src-name">${escapeHtml(a.author || "매체 미상")}</span>
-            ${link ? `<a href="${escapeHtml(link)}" target="_blank" rel="noopener">${escapeHtml(a.title || "원문")} ↗</a>` : escapeHtml(a.title || "")}
-            <span class="src-date">${escapeHtml(fmtDate(a.published_at))}</span>
-          </li>`;
-        }).join("") +
-        `</ul>`;
-    }
-    li.innerHTML = html;
-    el.appendChild(li);
-  });
-  el.querySelectorAll(".accordion-toggle").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const body = btn.nextElementSibling;
-      const willOpen = body.hidden;
-      body.hidden = !willOpen;
-      btn.textContent = btn.textContent.replace(/[▾▴]\s*$/, willOpen ? "▴" : "▾");
-    });
-  });
+  renderInfinite(el, Array.from(map.values()), newsGroupNode,
+    `수집된 데이터가 없습니다.<br>"수집 실행"을 눌러주세요.`);
 }
 
 // 커스텀 드롭다운: 현재 선택값 읽기
@@ -132,21 +154,23 @@ function ddValue(id) {
 }
 
 async function loadBoards() {
+  const el = document.getElementById("list-boards");
+  showLoading(el);
   const service = ddValue("dd-service");
-  const res = await fetch("/api/boards?service=" + encodeURIComponent(service));
-  const items = await res.json();
-  renderList(document.getElementById("list-boards"), items, {
-    badgeFn: (it) => `${it.service} · ${it.category}`,
-  });
+  try {
+    const res = await fetch("/api/boards?service=" + encodeURIComponent(service));
+    renderList(el, await res.json(), { badgeFn: (it) => `${it.service} · ${it.category}` });
+  } catch (e) { el.innerHTML = `<li class="empty">불러오기 실패</li>`; }
 }
 
 async function loadSocial() {
+  const el = document.getElementById("list-social");
+  showLoading(el);
   const channel = ddValue("dd-channel");
-  const res = await fetch("/api/social?channel=" + encodeURIComponent(channel));
-  const items = await res.json();
-  renderList(document.getElementById("list-social"), items, {
-    badgeFn: (it) => `${it.channel} · ${it.account}`,
-  });
+  try {
+    const res = await fetch("/api/social?channel=" + encodeURIComponent(channel));
+    renderList(el, await res.json(), { badgeFn: (it) => `${it.channel} · ${it.account}` });
+  } catch (e) { el.innerHTML = `<li class="empty">불러오기 실패</li>`; }
 }
 
 // ----------------------------- 상태 확인 -----------------------------
@@ -402,6 +426,15 @@ document.getElementById("notes-close").addEventListener("click", () => (notesMod
 notesModal.addEventListener("click", (e) => { if (e.target === notesModal) notesModal.hidden = true; });
 document.querySelectorAll(".notes-tab").forEach((b) =>
   b.addEventListener("click", () => showNotes(b.dataset.notes)));
+
+// ----------------------------- 맨 위로 플로팅 버튼 -----------------------------
+const toTop = document.getElementById("to-top");
+if (toTop) {
+  window.addEventListener("scroll", () => {
+    toTop.hidden = window.scrollY < 400;
+  }, { passive: true });
+  toTop.addEventListener("click", () => window.scrollTo({ top: 0, behavior: "smooth" }));
+}
 
 // ----------------------------- 초기 로드 -----------------------------
 checkMe();

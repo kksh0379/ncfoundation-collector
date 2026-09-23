@@ -213,7 +213,7 @@ def existing_board_titles(service):
         return {r["title"] for r in rows}
 
 
-def list_news(limit=200, category=None):
+def list_news(limit=1000, category=None):
     with get_conn() as conn:
         if category and category != "all":
             rows = conn.execute(
@@ -227,7 +227,7 @@ def list_news(limit=200, category=None):
         return [dict(r) for r in rows]
 
 
-def list_boards(service=None, limit=200):
+def list_boards(service=None, limit=500):
     with get_conn() as conn:
         if service and service != "all":
             rows = conn.execute(
@@ -241,7 +241,7 @@ def list_boards(service=None, limit=200):
         return [dict(r) for r in rows]
 
 
-def list_social(channel=None, limit=200):
+def list_social(channel=None, limit=500):
     with get_conn() as conn:
         if channel and channel != "all":
             rows = conn.execute(

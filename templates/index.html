@@ -4,11 +4,11 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>엔씨문화재단 콜렉터</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css', v='33') }}" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css', v='34') }}" />
 </head>
 <body>
   <header class="app-header">
-    <h1>엔씨문화재단 콜렉터 <span class="ver">v33</span> <span class="ver" id="storage-badge"></span></h1>
+    <h1>엔씨문화재단 콜렉터 <span class="ver">v34</span> <span class="ver" id="storage-badge"></span></h1>
     <button class="auth-btn admin-only" id="notes-btn">📓 노트</button>
     <button class="auth-btn guest-only" id="login-btn">관리자 로그인</button>
     <button class="auth-btn admin-only" id="logout-btn">로그아웃</button>
@@ -159,6 +159,8 @@
     </div>
   </div>
 
-  <script src="{{ url_for('static', filename='js/app.js', v='33') }}"></script>
+  <button id="to-top" aria-label="맨 위로" hidden>↑</button>
+
+  <script src="{{ url_for('static', filename='js/app.js', v='34') }}"></script>
 </body>
 </html>

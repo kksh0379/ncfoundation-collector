@@ -50,9 +50,27 @@ RECENT_DAYS = 730  # 최근 2년 기사만 수집
 FETCH_FULL_BODY = True  # 원문 기사로 풀리면 요약 추출 시도(실패 시 RSS 요약 사용)
 
 
-def _feed_params(query, days=RECENT_DAYS):
-    # 각 카테고리 키워드로 최근 N일(when:Nd) 범위 RSS 수집. URL 기준 dedup(재단 우선).
-    return {"q": f"{query} when:{int(days)}d", "hl": "ko", "gl": "KR", "ceid": "KR:ko"}
+WINDOW_DAYS = 120  # 구글 뉴스 RSS는 요청당 ~100건 제한 → 기간을 이 간격으로 쪼개 깊게 수집
+
+
+def _feed_params(query, after=None, before=None):
+    # after/before(YYYY-MM-DD) 구간으로 검색해 구글의 100건 제한을 우회(구간별 100건).
+    q = f"{query} after:{after} before:{before}" if (after and before) else query
+    return {"q": q, "hl": "ko", "gl": "KR", "ceid": "KR:ko"}
+
+
+def _date_windows(days, window=WINDOW_DAYS):
+    """오늘부터 days일 전까지를 window일 간격 [(after, before), ...] 로 나눈다(최근→과거)."""
+    from datetime import date
+    today = date.today()
+    limit = today - timedelta(days=int(days))
+    windows, end = [], today
+    while end > limit:
+        start = max(limit, end - timedelta(days=window))
+        # before는 하루 여유를 줘 경계 기사 누락 방지(중복은 URL로 제거)
+        windows.append((start.isoformat(), (end + timedelta(days=1)).isoformat()))
+        end = start
+    return windows or [(limit.isoformat(), (today + timedelta(days=1)).isoformat())]
 
 
 def _parse_pubdate(text):
@@ -77,11 +95,11 @@ def _snippet(description_html):
     return BeautifulSoup(description_html, "lxml").get_text(" ", strip=True)
 
 
-def _collect_items(query, days=RECENT_DAYS):
+def _collect_items(query, after=None, before=None):
     try:
-        resp = fetcher.get(RSS_URL, params=_feed_params(query, days))
+        resp = fetcher.get(RSS_URL, params=_feed_params(query, after, before))
     except Exception as e:  # noqa: BLE001
-        print(f"[google] RSS 요청 실패 ({query}): {e}", flush=True)
+        print(f"[google] RSS 요청 실패 ({query} {after}~{before}): {e}", flush=True)
         return []
     soup = BeautifulSoup(resp.content, "xml")
     out = []
@@ -241,18 +259,37 @@ def crawl(max_workers=24, max_items=0, progress=None, known_urls=None, days=None
     known_urls = known_urls or set()
     days = int(days) if days else RECENT_DAYS
     t0 = time.time()
+
+    # 기간을 구간으로 쪼개 (키워드 × 구간)마다 RSS 수집 → 구글 100건 제한 우회(깊은 과거까지).
+    windows = _date_windows(days)
+    tasks = [(cat, kw, af, bf) for cat, kws in CATEGORIES.items()
+             for kw in kws for (af, bf) in windows]
+    progress(f"RSS 수집 중… (키워드 {sum(len(v) for v in CATEGORIES.values())}개 × 구간 {len(windows)}개)")
+
+    def _fetch(task):
+        cat, kw, af, bf = task
+        return cat, _collect_items(kw, af, bf)
+
     seen, entries = set(), []
-    for cat, kws in CATEGORIES.items():  # 재단 먼저 → 같은 URL이면 재단 유지
-        for kw in kws:
-            rows = _collect_items(kw, days)
-            msg = f"[{cat}] '{kw}' RSS 항목 {len(rows)}개"
-            print("[google] " + msg, flush=True)
-            progress(msg)
+    done_tasks = 0
+    with ThreadPoolExecutor(max_workers=min(max_workers, 12)) as pool:
+        for cat, rows in pool.map(_fetch, tasks):
+            done_tasks += 1
             for e in rows:
-                if e["url"] not in seen:
-                    seen.add(e["url"])
+                u = e["url"]
+                if u not in seen:
+                    seen.add(u)
                     e["category"] = cat
                     entries.append(e)
+                elif cat == "재단":
+                    # 같은 URL이 본사로 먼저 잡혔어도 재단이 우선
+                    for prev in entries:
+                        if prev["url"] == u:
+                            prev["category"] = "재단"
+                            break
+            if done_tasks % 10 == 0 or done_tasks == len(tasks):
+                progress(f"RSS 수집 {done_tasks}/{len(tasks)} 구간 · 누적 {len(entries)}건")
+    print(f"[google] RSS 수집 완료: {len(tasks)}개 요청 → {len(entries)}건", flush=True)
 
     # 이미 저장된 URL은 재해석하지 않는다(증분). 새 기사만 남긴다.
     total = len(entries)
