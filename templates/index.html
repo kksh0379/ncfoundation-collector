@@ -4,11 +4,13 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>엔씨문화재단 콜렉터</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css', v='30') }}" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css', v='31') }}" />
 </head>
 <body>
   <header class="app-header">
-    <h1>엔씨문화재단 콜렉터 <span class="ver">v30</span> <span class="ver" id="storage-badge"></span></h1>
+    <h1>엔씨문화재단 콜렉터 <span class="ver">v31</span> <span class="ver" id="storage-badge"></span></h1>
+    <button class="auth-btn guest-only" id="login-btn">관리자 로그인</button>
+    <button class="auth-btn admin-only" id="logout-btn">로그아웃</button>
   </header>
 
   <nav class="tabs">
@@ -41,6 +43,7 @@
           <li role="option" data-value="180">최근 6개월</li>
           <li role="option" data-value="365">최근 1년</li>
           <li role="option" data-value="730">최근 2년</li>
+          <li role="option" data-value="1825">최근 5년</li>
         </ul>
       </div>
       <button class="btn-status admin-only" id="status-news-btn">상태 확인</button>
@@ -121,6 +124,23 @@
     </div>
   </div>
 
-  <script src="{{ url_for('static', filename='js/app.js', v='30') }}"></script>
+  <!-- 관리자 로그인 팝업 -->
+  <div class="modal" id="login-modal" hidden>
+    <div class="modal-box">
+      <div class="modal-head">
+        <span>관리자 로그인</span>
+        <button class="modal-close" id="login-close" aria-label="닫기">✕</button>
+      </div>
+      <div class="modal-body">
+        <form id="login-form" class="login-form">
+          <input type="password" id="login-pw" placeholder="비밀번호" autocomplete="current-password" />
+          <div class="login-err" id="login-err"></div>
+          <button type="submit" class="btn-collect" id="login-submit">로그인</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <script src="{{ url_for('static', filename='js/app.js', v='31') }}"></script>
 </body>
 </html>

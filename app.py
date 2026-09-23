@@ -11,7 +11,7 @@ import queue
 import threading
 from datetime import datetime, timedelta, timezone
 
-from flask import Flask, jsonify, render_template, request
+from flask import Flask, jsonify, render_template, request, session
 
 from collector import boards, db, dedup, fetcher, google_news, social
 
@@ -22,13 +22,12 @@ app.secret_key = os.environ.get("SECRET_KEY", "ncfoundation-collector-secret-key
 
 KST = timezone(timedelta(hours=9))  # 마지막 수집 일시는 서버에서 KST로 기록
 
-# 관리자 키: 설정 시 상태확인/수집 실행이 이 키를 가진 사람만 가능(뷰어는 조회만).
-# 미설정("")이면 게이트 없음(누구나 가능) — 기존 동작과 호환.
-ADMIN_KEY = os.environ.get("ADMIN_KEY", "").strip()
+# 관리자 로그인: 로그인해야 상태확인/수집 실행이 보이고 동작한다(뷰어는 조회만).
+ADMIN_PW = os.environ.get("ADMIN_PW", "rlatkdghk12#")
 
 
 def _admin_ok():
-    return (not ADMIN_KEY) or (request.args.get("key") == ADMIN_KEY)
+    return bool(session.get("admin"))
 
 
 def _now_kst():
@@ -39,6 +38,26 @@ def _now_kst():
 db.init_db()
 
 
+@app.get("/api/me")
+def me():
+    return jsonify({"admin": _admin_ok()})
+
+
+@app.post("/api/login")
+def login():
+    data = request.get_json(silent=True) or {}
+    if data.get("pw") == ADMIN_PW:
+        session["admin"] = True
+        return jsonify({"ok": True})
+    return jsonify({"ok": False, "error": "비밀번호가 올바르지 않습니다."}), 401
+
+
+@app.post("/api/logout")
+def logout():
+    session.pop("admin", None)
+    return jsonify({"ok": True})
+
+
 @app.get("/api/meta")
 def meta():
     m = db.get_all_meta()
@@ -47,7 +66,6 @@ def meta():
         "boards": m.get("last_crawl_boards"),
         "social": m.get("last_crawl_social"),
         "storage": db.BACKEND,  # postgres(영구) / sqlite(임시)
-        "admin_required": bool(ADMIN_KEY),  # true면 상태확인/수집은 관리자 키 필요
     })
 
 
@@ -356,7 +374,29 @@ def cron():
     return jsonify({"ok": True, "started": started, "at": _now_kst()})
 
 
+def _auto_backfill():
+    """앱 시작 시 뉴스 DB가 비어 있으면 자동으로 대량 수집(백필)한다.
+    → 배포하면 수집 버튼을 누르지 않아도 기사가 채워져 바로 보인다.
+    DB에 이미 데이터가 있으면(영구 저장이라 유지됨) 건너뛴다. AUTO_BACKFILL=0으로 끔."""
+    if os.environ.get("AUTO_BACKFILL", "1") != "1":
+        return
+    try:
+        has_news = len(db.all_news_fingerprints()) > 0
+    except Exception as e:  # noqa: BLE001
+        print(f"[backfill] DB 확인 실패, 건너뜀: {e}", flush=True)
+        return
+    if has_news:
+        print("[backfill] 기존 데이터 있음 → 백필 건너뜀", flush=True)
+        return
+    days = int(os.environ.get("BACKFILL_DAYS", "1825"))  # 기본 5년
+    print(f"[backfill] DB 비어있음 → 자동 백필 시작(뉴스 최근 {days}일 + 게시판/소셜)", flush=True)
+    _start_job("news", days=days)
+    _start_job("boards")
+    _start_job("social")
+
+
 _start_scheduler()
+_auto_backfill()
 
 
 if __name__ == "__main__":
