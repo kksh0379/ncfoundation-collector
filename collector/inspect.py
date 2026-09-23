@@ -57,6 +57,33 @@ def _hunt_api(soup, url):
     return sorted(hints)[:25]
 
 
+def _probe_endpoints(hints, page_url):
+    """API 후보 주소들을 실제로 GET 해보고 JSON을 뱉는지 확인한다.
+    어느 주소가 진짜 목록 API인지 다음 라운드에 확정하기 위함."""
+    origin = urlparse(page_url)
+    base = f"{origin.scheme}://{origin.netloc}"
+    out, seen = [], set()
+    for h in hints:
+        url = h if h.startswith("http") else base + ("" if h.startswith("/") else "/") + h
+        if url in seen:
+            continue
+        seen.add(url)
+        if len(out) >= 12:
+            break
+        try:
+            r = fetcher.get(url, retries=0)
+            ct = (r.headers.get("content-type") or "")[:60]
+            body = (r.text or "").strip()
+            is_json = "json" in ct.lower() or body[:1] in "[{"
+            out.append({
+                "url": url, "status": r.status_code, "content_type": ct,
+                "is_json": is_json, "bytes": len(body), "sample": body[:400],
+            })
+        except Exception as e:  # noqa: BLE001
+            out.append({"url": url, "error": type(e).__name__ + ": " + str(e)[:100]})
+    return out
+
+
 COMMON_ROW_SELECTORS = [
     "table tbody tr", "table tr",
     "ul.board_list li", "ul.list li", "ul li", "ol li",
@@ -167,6 +194,8 @@ def inspect_url(url):
     if spa.get("#root") or spa.get("#__next") or spa.get("#app") or spa.get("__NUXT__"):
         try:
             out["api_hints"] = _hunt_api(soup, url)
+            if out["api_hints"]:
+                out["api_probe"] = _probe_endpoints(out["api_hints"], url)
         except Exception as e:  # noqa: BLE001
             out["api_hints_error"] = str(e)[:120]
         # Nuxt/JSON 페이로드 샘플(목록이 인라인으로 박혀 있을 수 있음)
