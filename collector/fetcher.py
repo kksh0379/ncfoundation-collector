@@ -14,10 +14,20 @@ DEFAULT_HEADERS = {
         "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) "
         "AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1"
     ),
+    "Accept": (
+        "text/html,application/xhtml+xml,application/xml;q=0.9,"
+        "image/avif,image/webp,*/*;q=0.8"
+    ),
     "Accept-Language": "ko-KR,ko;q=0.9,en;q=0.8",
+    "Accept-Encoding": "gzip, deflate",
+    "Connection": "keep-alive",
+    "Upgrade-Insecure-Requests": "1",
 }
 
-TIMEOUT = 8  # (연결+읽기) 응답 없는 사이트에서 빨리 실패하도록 짧게 둔다
+# (연결+읽기) 타임아웃. 국내 기관 사이트는 응답이 느린 편이라 너무 짧으면
+# 상태확인/수집이 ReadTimeout으로 실패한다. 무료 호스팅 gunicorn timeout(300s)
+# 안에서 안전한 선에서 넉넉히 둔다.
+TIMEOUT = 15
 
 
 def get(url, params=None, headers=None, retries=1):

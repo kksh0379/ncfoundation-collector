@@ -163,60 +163,6 @@ document.getElementById("collect-social").addEventListener("click", (e) =>
 document.getElementById("filter-service").addEventListener("change", loadBoards);
 document.getElementById("filter-channel").addEventListener("change", loadSocial);
 
-// ----------------------------- 관리자 로그인 -----------------------------
-const loginModal = document.getElementById("login-modal");
-const loginErr = document.getElementById("login-err");
-
-function setAdmin(isAdmin) {
-  document.body.classList.toggle("is-admin", !!isAdmin);
-}
-
-async function checkMe() {
-  try {
-    const r = await fetch("/api/me");
-    const d = await r.json();
-    setAdmin(d.admin);
-  } catch (e) { setAdmin(false); }
-}
-
-document.getElementById("login-btn").addEventListener("click", () => {
-  loginErr.textContent = "";
-  document.getElementById("login-id").value = "";
-  document.getElementById("login-pw").value = "";
-  loginModal.hidden = false;
-});
-document.getElementById("login-close").addEventListener("click", () => (loginModal.hidden = true));
-loginModal.addEventListener("click", (e) => { if (e.target === loginModal) loginModal.hidden = true; });
-
-document.getElementById("login-form").addEventListener("submit", async (e) => {
-  e.preventDefault();
-  loginErr.textContent = "";
-  try {
-    const res = await fetch("/api/login", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        id: document.getElementById("login-id").value,
-        pw: document.getElementById("login-pw").value,
-      }),
-    });
-    const d = await res.json();
-    if (res.ok && d.ok) {
-      setAdmin(true);
-      loginModal.hidden = true;
-    } else {
-      loginErr.textContent = d.error || "로그인 실패";
-    }
-  } catch (err) {
-    loginErr.textContent = "로그인 요청 실패: " + err.message;
-  }
-});
-
-document.getElementById("logout-btn").addEventListener("click", async () => {
-  try { await fetch("/api/logout", { method: "POST" }); } catch (e) {}
-  setAdmin(false);
-});
-
 // ----------------------------- 마지막 수집 일시 -----------------------------
 function fmtLast(ts) {
   return ts ? `마지막 수집: ${ts} (서버 기준)` : "아직 수집 기록 없음";
@@ -232,7 +178,6 @@ async function loadMeta() {
 }
 
 // ----------------------------- 초기 로드 -----------------------------
-checkMe();
 loadMeta();
 loadNews();
 loadBoards();

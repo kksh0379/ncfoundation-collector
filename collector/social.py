@@ -16,6 +16,7 @@ import re
 import time
 from datetime import datetime
 
+import requests
 from bs4 import BeautifulSoup
 
 from . import extractor, fetcher
@@ -117,27 +118,52 @@ def _instagram_username(url):
     return m.group(1) if m else None
 
 
-def _crawl_instagram(cfg, max_items=12):
-    """로그인 없이 공개 프로필 JSON(web_profile_info)으로 최근 게시물을 수집한다.
-    인스타가 차단(401/로그인 리다이렉트)하면 0건을 돌려준다(사유 로그)."""
-    user = _instagram_username(cfg["url"])
-    if not user:
-        print(f"[social] 인스타 사용자명 파싱 실패: {cfg['url']}", flush=True)
-        return []
+def _fetch_instagram_json(user):
+    """공개 web_profile_info JSON을 받아온다.
+
+    헤더만으로 호출하면 401을 자주 맞으므로, 먼저 인스타 홈/프로필을 한 번 쳐서
+    세션 쿠키(csrftoken)를 확보한 뒤 그 쿠키와 함께 API를 호출한다.
+    그래도 데이터센터 IP(무료 호스팅)는 차단될 수 있으며, 실패 시 None."""
+    s = requests.Session()
+    s.headers.update({
+        "User-Agent": fetcher.DEFAULT_HEADERS["User-Agent"],
+        "Accept-Language": "ko-KR,ko;q=0.9,en;q=0.8",
+    })
     try:
-        resp = fetcher.get(
+        # 1) 쿠키(csrftoken) 확보
+        s.get(f"https://www.instagram.com/{user}/", timeout=fetcher.TIMEOUT)
+        csrf = s.cookies.get("csrftoken", "")
+        # 2) 공개 프로필 API
+        r = s.get(
             IG_PROFILE_API,
             params={"username": user},
             headers={
                 "x-ig-app-id": IG_APP_ID,
+                "x-csrftoken": csrf,
+                "x-requested-with": "XMLHttpRequest",
                 "Accept": "application/json",
-                "X-Requested-With": "XMLHttpRequest",
                 "Referer": f"https://www.instagram.com/{user}/",
             },
+            timeout=fetcher.TIMEOUT,
         )
-        data = resp.json()
+        r.raise_for_status()
+        return r.json()
     except Exception as e:  # noqa: BLE001
-        print(f"[social] 인스타 차단/실패({user}): {type(e).__name__}: {str(e)[:120]}", flush=True)
+        print(f"[social] 인스타 차단/실패({user}): {type(e).__name__}: {str(e)[:140]}", flush=True)
+        return None
+    finally:
+        s.close()
+
+
+def _crawl_instagram(cfg, max_items=12):
+    """공개 프로필 JSON(web_profile_info)으로 최근 게시물을 수집한다.
+    인스타가 차단하면 0건을 돌려준다(사유는 서버 로그에 기록)."""
+    user = _instagram_username(cfg["url"])
+    if not user:
+        print(f"[social] 인스타 사용자명 파싱 실패: {cfg['url']}", flush=True)
+        return []
+    data = _fetch_instagram_json(user)
+    if not data:
         return []
 
     edges = (((data or {}).get("data") or {}).get("user") or {}) \

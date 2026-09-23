@@ -7,9 +7,8 @@
 """
 import os
 from datetime import datetime, timedelta, timezone
-from functools import wraps
 
-from flask import Flask, jsonify, render_template, request, session
+from flask import Flask, jsonify, render_template, request
 
 from collector import boards, db, dedup, fetcher, google_news, social
 
@@ -18,10 +17,6 @@ app = Flask(__name__)
 app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 0
 app.secret_key = os.environ.get("SECRET_KEY", "ncfoundation-collector-secret-key")
 
-# 관리자 계정 (요청에 따라 하드코딩). 운영 시에는 환경변수로 분리 권장.
-ADMIN_ID = os.environ.get("ADMIN_ID", "kksh0378")
-ADMIN_PW = os.environ.get("ADMIN_PW", "Abcde12#")
-
 KST = timezone(timedelta(hours=9))  # 마지막 수집 일시는 서버에서 KST로 기록
 
 
@@ -29,39 +24,8 @@ def _now_kst():
     return datetime.now(KST).strftime("%Y.%m.%d %H:%M:%S")
 
 
-def admin_required(fn):
-    @wraps(fn)
-    def wrapper(*args, **kwargs):
-        if not session.get("admin"):
-            return jsonify({"error": "unauthorized"}), 401
-        return fn(*args, **kwargs)
-
-    return wrapper
-
-
 # gunicorn 등으로 띄울 때도 테이블이 준비되도록 import 시점에 초기화한다.
 db.init_db()
-
-
-# ---------------------------- 인증 API ----------------------------
-@app.get("/api/me")
-def me():
-    return jsonify({"admin": bool(session.get("admin"))})
-
-
-@app.post("/api/login")
-def login():
-    data = request.get_json(silent=True) or {}
-    if data.get("id") == ADMIN_ID and data.get("pw") == ADMIN_PW:
-        session["admin"] = True
-        return jsonify({"ok": True})
-    return jsonify({"ok": False, "error": "아이디 또는 비밀번호가 올바르지 않습니다."}), 401
-
-
-@app.post("/api/logout")
-def logout():
-    session.pop("admin", None)
-    return jsonify({"ok": True})
 
 
 @app.get("/api/meta")
@@ -101,7 +65,6 @@ def get_social():
 
 # ---------------------------- 진단 API ----------------------------
 @app.get("/api/diag")
-@admin_required
 def diag():
     """각 대상 사이트에 이 서버가 실제로 접속되는지 빠르게 점검한다.
     브라우저로 /api/diag 를 열면 사이트별 응답 상태/에러를 즉시 확인할 수 있다.
@@ -252,21 +215,18 @@ def _do_crawl(group):
 
 
 @app.post("/api/crawl/news")
-@admin_required
 def crawl_news():
     print("[crawl] /api/crawl/news 시작 (구글 뉴스 RSS)", flush=True)
     return jsonify(_do_crawl("news"))
 
 
 @app.post("/api/crawl/boards")
-@admin_required
 def crawl_boards():
     print("[crawl] /api/crawl/boards 시작", flush=True)
     return jsonify(_do_crawl("boards"))
 
 
 @app.post("/api/crawl/social")
-@admin_required
 def crawl_social():
     print("[crawl] /api/crawl/social 시작", flush=True)
     return jsonify(_do_crawl("social"))
