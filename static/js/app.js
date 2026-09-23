@@ -321,6 +321,16 @@ async function loadMeta() {
     document.getElementById("last-news").textContent = fmtLast(m.news);
     document.getElementById("last-boards").textContent = fmtLast(m.boards);
     document.getElementById("last-social").textContent = fmtLast(m.social);
+    const badge = document.getElementById("storage-badge");
+    if (badge) {
+      if (m.storage === "postgres") {
+        badge.textContent = "☁ 영구저장";
+        badge.style.color = "#16a34a";
+      } else {
+        badge.textContent = "⚠ 임시저장(재시작 시 초기화)";
+        badge.style.color = "#b25e00";
+      }
+    }
   } catch (e) {}
 }
 

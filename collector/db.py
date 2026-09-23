@@ -19,6 +19,7 @@ DB_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "coll
 
 DATABASE_URL = os.environ.get("DATABASE_URL", "").strip()
 _PG = bool(DATABASE_URL)
+BACKEND = "postgres" if _PG else "sqlite"  # 현재 저장소 종류(연결 확인용)
 
 if _PG:
     import psycopg

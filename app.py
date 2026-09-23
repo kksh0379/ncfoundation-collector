@@ -38,6 +38,7 @@ def meta():
         "news": m.get("last_crawl_news"),
         "boards": m.get("last_crawl_boards"),
         "social": m.get("last_crawl_social"),
+        "storage": db.BACKEND,  # postgres(영구) / sqlite(임시)
     })
 
 
