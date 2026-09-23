@@ -27,15 +27,21 @@ from . import extractor, fetcher
 
 RSS_URL = "https://news.google.com/rss/search"
 BATCH_URL = "https://news.google.com/_/DotsSplashUi/data/batchexecute"
-# 뉴스 카테고리별 검색 키워드. (재단=엔씨문화재단, 본사=엔씨소프트=NC/엔씨)
+# 뉴스 카테고리별 검색 키워드. (재단=엔씨문화재단, 본사=엔씨소프트 및 자회사)
 CATEGORIES = {
     "재단": ["엔씨문화재단", "NC문화재단"],
-    "본사": ["엔씨소프트", "NCSOFT", "NC", "엔씨"],
+    "본사": [
+        "엔씨소프트", "NCSOFT", "NC", "엔씨",
+        # 자회사(2024~2025 분사): AI/QA/IDS + 게임 스튜디오
+        "엔씨에이아이", "NC AI", "엔씨QA", "엔씨IDS",
+        "퍼스트스파크 게임즈", "빅파이어 게임즈", "루디우스 게임즈",
+    ],
 }
 # 본사에서 걸러낼 노이즈(주로 NC 다이노스 야구 기사). 제목/본문에 있으면 제외.
 EXCLUDE = {
     "본사": ["다이노스", "프로야구", "야구", "kbo", "구단", "선발", "타자", "투수"],
 }
+NEWS_TIMEOUT = 6  # 뉴스 원문 해석은 빨리 실패시켜(스냅샷 폴백) 전체 수집을 지연시키지 않음
 # 진단 등 호환용 평면 키워드 목록
 KEYWORDS = [kw for kws in CATEGORIES.values() for kw in kws]
 RECENT_DAYS = 730  # 최근 2년 기사만 수집
@@ -130,7 +136,8 @@ def _decode_via_batchexecute(token):
     기사 페이지에서 서명(data-n-a-sg)/타임스탬프(data-n-a-ts)를 읽어
     내부 RPC(Fbv4je/garturlreq)를 호출한다."""
     try:
-        page = fetcher.get(f"https://news.google.com/rss/articles/{token}")
+        page = fetcher.get(f"https://news.google.com/rss/articles/{token}",
+                           retries=0, timeout=NEWS_TIMEOUT)
         div = BeautifulSoup(page.text, "lxml").select_one("c-wiz > div")
         if not div:
             return None
@@ -149,6 +156,7 @@ def _decode_via_batchexecute(token):
             BATCH_URL,
             data={"f.req": f_req},
             headers={"content-type": "application/x-www-form-urlencoded;charset=UTF-8"},
+            retries=0, timeout=NEWS_TIMEOUT,
         )
         for line in resp.text.splitlines():
             if "wrb.fr" in line and "garturlres" in line:
@@ -167,7 +175,7 @@ def _summary_from_article(entry):
     summary = ""
     try:
         real = _decode_google_url(entry.get("url", ""))
-        resp = fetcher.get(real or entry["url"])  # requests가 리다이렉트를 따라감
+        resp = fetcher.get(real or entry["url"], retries=0, timeout=NEWS_TIMEOUT)  # 리다이렉트 따라감
         final = resp.url or ""
         if "news.google." not in final and "consent.google" not in final:
             # 저장 키(url)는 RSS의 '구글 링크'로 고정(증분 수집이 되게).
@@ -187,12 +195,13 @@ def _summary_from_article(entry):
 
 
 def _kw_match(haystack, kw):
-    """키워드 매칭. 영문/숫자 키워드(NC, NCSOFT)는 '단어 단위'로만 일치시킨다
-    (안 그러면 announce·finance 같은 단어 속 'nc'까지 걸림). 한글은 부분 일치."""
+    """키워드 매칭. 영문/숫자 키워드(NC, NCSOFT, NC AI)는 '단어 단위'로만 일치시킨다
+    (announce·finance 속 'nc' 오탐 방지). 한글 키워드는 공백 무시 부분 일치."""
     k = kw.lower()
-    if re.fullmatch(r"[a-z0-9]+", k):
-        return re.search(r"(?<![a-z0-9])" + re.escape(k) + r"(?![a-z0-9])", haystack) is not None
-    return k in haystack
+    if re.fullmatch(r"[a-z0-9 ]+", k):
+        pat = r"(?<![a-z0-9])" + re.escape(k).replace(r"\ ", r"\s+") + r"(?![a-z0-9])"
+        return re.search(pat, haystack) is not None
+    return k.replace(" ", "") in haystack.replace(" ", "")
 
 
 def _passes_filters(item):
@@ -217,13 +226,14 @@ def _passes_filters(item):
     return True
 
 
-def crawl(max_workers=8, max_items=100, progress=None, known_urls=None):
+def crawl(max_workers=24, max_items=0, progress=None, known_urls=None):
     """뉴스 수집 실행. 파싱된 기사 리스트 반환(그룹화/저장은 호출측).
     재단/본사 카테고리별로 수집하고 각 기사에 category를 태그한다. 동일 기사가 여러
     매체에 배포된 것도 전부 수집한다(중복 제거 X, 저장측에서 그룹화).
 
-    증분 수집: known_urls(이미 저장된 URL 집합)에 있는 기사는 원문 해석(느린
-    batchexecute)을 건너뛴다. 첫 수집만 오래 걸리고, 재수집은 '새 기사'만 처리해 빠르다.
+    max_items=0이면 개수 제한 없이 전부 수집. 속도를 위해 원문 해석을 높은 병렬도로
+    처리하고(각 요청은 짧은 타임아웃으로 빨리 실패→스냅샷 폴백), 증분 수집으로
+    이미 저장된 URL은 재해석하지 않는다(재수집은 새 기사만).
     progress(msg): 진행상황 콜백(선택).
     """
     progress = progress or (lambda m: None)
@@ -244,7 +254,9 @@ def crawl(max_workers=8, max_items=100, progress=None, known_urls=None):
 
     # 이미 저장된 URL은 재해석하지 않는다(증분). 새 기사만 남긴다.
     total = len(entries)
-    entries = [e for e in entries if e["url"] not in known_urls][:max_items]
+    entries = [e for e in entries if e["url"] not in known_urls]
+    if max_items and max_items > 0:
+        entries = entries[:max_items]
     print(f"[google] RSS {total}개 중 신규 {len(entries)}개 처리(기존 {total - len(entries)}개 건너뜀)", flush=True)
 
     items = []

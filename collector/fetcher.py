@@ -34,8 +34,9 @@ DEFAULT_HEADERS = {
 TIMEOUT = 15
 
 
-def get(url, params=None, headers=None, retries=1):
+def get(url, params=None, headers=None, retries=1, timeout=None):
     last_err = None
+    to = timeout or TIMEOUT
     merged = dict(DEFAULT_HEADERS)
     if headers:
         merged.update(headers)
@@ -45,7 +46,7 @@ def get(url, params=None, headers=None, retries=1):
         for verify in (True, False):
             try:
                 resp = requests.get(
-                    url, params=params, headers=merged, timeout=TIMEOUT, verify=verify
+                    url, params=params, headers=merged, timeout=to, verify=verify
                 )
                 resp.raise_for_status()
                 resp.encoding = resp.apparent_encoding or resp.encoding
@@ -65,15 +66,16 @@ def get_json(url, params=None, headers=None, retries=2):
     return get(url, params=params, headers=headers, retries=retries).json()
 
 
-def post(url, data=None, headers=None, retries=1):
+def post(url, data=None, headers=None, retries=1, timeout=None):
     """POST 요청 헬퍼. 구글 뉴스 batchexecute 같은 폼 전송에 쓴다."""
     last_err = None
+    to = timeout or TIMEOUT
     merged = dict(DEFAULT_HEADERS)
     if headers:
         merged.update(headers)
     for attempt in range(retries + 1):
         try:
-            resp = requests.post(url, data=data, headers=merged, timeout=TIMEOUT)
+            resp = requests.post(url, data=data, headers=merged, timeout=to)
             resp.raise_for_status()
             return resp
         except requests.RequestException as e:  # noqa: PERF203

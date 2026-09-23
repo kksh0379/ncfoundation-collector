@@ -4,11 +4,11 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>엔씨문화재단 콜렉터</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css', v='24') }}" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css', v='25') }}" />
 </head>
 <body>
   <header class="app-header">
-    <h1>엔씨문화재단 콜렉터 <span class="ver">v24</span></h1>
+    <h1>엔씨문화재단 콜렉터 <span class="ver">v25</span></h1>
   </header>
 
   <nav class="tabs">
@@ -20,14 +20,14 @@
   <!-- 탭1: 뉴스 -->
   <section class="panel active" id="panel-news">
     <div class="toolbar">
-      <div class="dropdown" id="dd-news-category" data-value="all">
+      <div class="dropdown" id="dd-news-category" data-value="재단">
         <button type="button" class="dropdown-btn" aria-haspopup="listbox" aria-expanded="false">
-          <span class="dropdown-label">전체 (재단+본사)</span><span class="dropdown-caret">▾</span>
+          <span class="dropdown-label">재단</span><span class="dropdown-caret">▾</span>
         </button>
         <ul class="dropdown-menu" role="listbox" hidden>
-          <li role="option" data-value="all" class="selected">전체 (재단+본사)</li>
+          <li role="option" data-value="all">전체 (재단+본사)</li>
           {% for c in news_categories %}
-          <li role="option" data-value="{{ c }}">{{ c }}</li>
+          <li role="option" data-value="{{ c }}"{% if c == '재단' %} class="selected"{% endif %}>{{ c }}</li>
           {% endfor %}
         </ul>
       </div>
@@ -36,7 +36,7 @@
     </div>
     <div class="legend">
       <span class="chip chip-done">재단 · 엔씨문화재단/NC문화재단</span>
-      <span class="chip chip-done">본사 · 엔씨소프트/NCSOFT/NC/엔씨 (야구 제외)</span>
+      <span class="chip chip-done">본사 · 엔씨소프트·자회사(NC AI/QA/IDS·게임스튜디오), 야구 제외</span>
       <span class="chip chip-plan">최근 2년 · 구글 뉴스(RSS)</span>
     </div>
     <div class="last-crawl" id="last-news"></div>
@@ -109,6 +109,6 @@
     </div>
   </div>
 
-  <script src="{{ url_for('static', filename='js/app.js', v='24') }}"></script>
+  <script src="{{ url_for('static', filename='js/app.js', v='25') }}"></script>
 </body>
 </html>
