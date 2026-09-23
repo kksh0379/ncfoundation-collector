@@ -22,6 +22,14 @@ app.secret_key = os.environ.get("SECRET_KEY", "ncfoundation-collector-secret-key
 
 KST = timezone(timedelta(hours=9))  # 마지막 수집 일시는 서버에서 KST로 기록
 
+# 관리자 키: 설정 시 상태확인/수집 실행이 이 키를 가진 사람만 가능(뷰어는 조회만).
+# 미설정("")이면 게이트 없음(누구나 가능) — 기존 동작과 호환.
+ADMIN_KEY = os.environ.get("ADMIN_KEY", "").strip()
+
+
+def _admin_ok():
+    return (not ADMIN_KEY) or (request.args.get("key") == ADMIN_KEY)
+
 
 def _now_kst():
     return datetime.now(KST).strftime("%Y.%m.%d %H:%M:%S")
@@ -39,6 +47,7 @@ def meta():
         "boards": m.get("last_crawl_boards"),
         "social": m.get("last_crawl_social"),
         "storage": db.BACKEND,  # postgres(영구) / sqlite(임시)
+        "admin_required": bool(ADMIN_KEY),  # true면 상태확인/수집은 관리자 키 필요
     })
 
 
@@ -86,6 +95,8 @@ def diag():
     """각 대상 사이트에 이 서버가 실제로 접속되는지 빠르게 점검한다.
     브라우저로 /api/diag 를 열면 사이트별 응답 상태/에러를 즉시 확인할 수 있다.
     """
+    if not _admin_ok():
+        return jsonify({"error": "unauthorized"}), 401
     import time as _t
     from concurrent.futures import ThreadPoolExecutor
 
@@ -249,17 +260,26 @@ def _job_run(group, days=None):
         st["running"] = False
 
 
+def _start_job(group, days=None):
+    """백그라운드 수집 작업 시작. 이미 진행 중이면 False."""
+    st = _JOBS.get(group)
+    if st and st.get("running"):
+        return False
+    _JOBS[group] = {"running": True, "progress": "수집 대기…", "result": None, "started_at": _now_kst()}
+    threading.Thread(target=_job_run, args=(group, days), daemon=True).start()
+    print(f"[crawl] {group} 백그라운드 수집 시작 (days={days})", flush=True)
+    return True
+
+
 @app.post("/api/crawl/<group>/start")
 def crawl_start(group):
     if group not in _CRAWLERS:
         return jsonify({"error": "unknown group"}), 404
+    if not _admin_ok():
+        return jsonify({"error": "unauthorized"}), 401
     days = request.args.get("days", type=int)  # 뉴스 수집 기간(최근 N일)
-    st = _JOBS.get(group)
-    if st and st.get("running"):
+    if not _start_job(group, days):
         return jsonify({"running": True, "already": True})  # 이미 진행 중이면 중복 실행 안 함
-    _JOBS[group] = {"running": True, "progress": "수집 대기…", "result": None, "started_at": _now_kst()}
-    threading.Thread(target=_job_run, args=(group, days), daemon=True).start()
-    print(f"[crawl] {group} 백그라운드 수집 시작 (days={days})", flush=True)
     return jsonify({"running": True})
 
 
@@ -298,15 +318,15 @@ def crawl_status():
     return jsonify({"running": False, "log": [], "result": _last_result.get(group)})
 
 
-# ---------------------------- 배치 스케줄 (4시간) ----------------------------
+# ---------------------------- 배치 스케줄 ----------------------------
 def _batch_all():
-    print("[batch] 4시간 주기 수집 시작", flush=True)
+    """뉴스/게시판/소셜을 백그라운드 작업으로 시작(비차단). 시작된 그룹 목록 반환."""
+    print("[batch] 수집 배치 시작", flush=True)
+    started = []
     for group in ("news", "boards", "social"):
-        try:
-            r = _do_crawl(group)
-            print(f"[batch] {group}: {r}", flush=True)
-        except Exception as e:  # noqa: BLE001
-            print(f"[batch] {group} 오류: {e}", flush=True)
+        if _start_job(group):
+            started.append(group)
+    return started
 
 
 def _start_scheduler():
@@ -324,15 +344,16 @@ def _start_scheduler():
     print("[scheduler] 4시간 주기 수집 배치 시작", flush=True)
 
 
-@app.post("/api/cron")
+@app.route("/api/cron", methods=["GET", "POST"])
 def cron():
     """외부 크론(예: cron-job.org)이 토큰으로 배치를 트리거. 무료 호스팅이 잠들어
-    내부 스케줄러가 멈추는 경우의 대안. CRON_TOKEN 환경변수 미설정 시 비활성."""
+    내부 스케줄러가 멈추는 경우의 대안(앱을 깨우며 백그라운드 수집 시작).
+    CRON_TOKEN 환경변수 미설정 시 비활성. GET/POST 모두 허용(크론 서비스 호환)."""
     token = os.environ.get("CRON_TOKEN")
     if not token or request.args.get("token") != token:
         return jsonify({"error": "unauthorized"}), 401
-    _batch_all()
-    return jsonify({"ok": True, "at": _now_kst()})
+    started = _batch_all()
+    return jsonify({"ok": True, "started": started, "at": _now_kst()})
 
 
 _start_scheduler()

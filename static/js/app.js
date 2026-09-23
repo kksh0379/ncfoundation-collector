@@ -1,5 +1,27 @@
 "use strict";
 
+// ----------------------------- 관리자 키 -----------------------------
+// 주소창에 ?admin=<키> 로 한 번 접속하면 브라우저에 저장되어 이후 관리자 모드.
+// (뷰어는 조회만, 관리자만 상태확인/수집 실행)
+(function initAdminKey() {
+  try {
+    const u = new URL(location.href);
+    if (u.searchParams.has("admin")) {
+      localStorage.setItem("adminKey", u.searchParams.get("admin") || "");
+      u.searchParams.delete("admin");
+      history.replaceState(null, "", u.pathname + (u.searchParams.toString() ? "?" + u.searchParams.toString() : "") + u.hash);
+    }
+  } catch (e) {}
+})();
+function adminKey() {
+  try { return localStorage.getItem("adminKey") || ""; } catch (e) { return ""; }
+}
+function withKey(url) {
+  const k = adminKey();
+  if (!k) return url;
+  return url + (url.includes("?") ? "&" : "?") + "key=" + encodeURIComponent(k);
+}
+
 function escapeHtml(s) {
   if (!s) return "";
   return s.replace(/[&<>"']/g, (c) => ({
@@ -177,7 +199,7 @@ async function runStatus(group) {
   statusModal.hidden = false;
   statusModalBody.innerHTML = '<div class="status-loading">접속 상태 확인 중…</div>';
   try {
-    const res = await fetch("/api/diag?group=" + group);
+    const res = await fetch(withKey("/api/diag?group=" + group));
     if (!res.ok) throw new Error("HTTP " + res.status);
     const data = await res.json();
     statusModalBody.innerHTML = data.map(statusRow).join("");
@@ -250,7 +272,7 @@ function runCrawl(btn, group, msgEl, reload) {
   msgEl.innerHTML = '<span class="mini-spin"></span> 수집 시작…';
   let url = "/api/crawl/" + group + "/start";
   if (group === "news") url += "?days=" + encodeURIComponent(ddValue("dd-news-period"));
-  fetch(url, { method: "POST" }).catch(() => {});
+  fetch(withKey(url), { method: "POST" }).catch(() => {});
   _startPolling(group);
 }
 
@@ -331,6 +353,9 @@ async function loadMeta() {
         badge.style.color = "#b25e00";
       }
     }
+    // 관리자 모드: 키가 필요없거나(admin_required=false) 저장된 관리자 키가 있으면 관리자
+    const isAdmin = !m.admin_required || !!adminKey();
+    document.body.classList.toggle("is-admin", isAdmin);
   } catch (e) {}
 }
 

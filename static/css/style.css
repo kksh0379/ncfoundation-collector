@@ -414,3 +414,7 @@ body.is-admin .guest-only { display: none !important; }
 .accordion-body .src-name { font-weight: 600; color: var(--text); flex: 0 0 auto; }
 .accordion-body a { color: var(--primary); text-decoration: none; flex: 1 1 auto; min-width: 0; }
 .accordion-body .src-date { color: var(--muted); font-size: 11px; flex: 0 0 auto; }
+
+/* ---- 관리자 전용(뷰어는 조회만) ---- */
+.admin-only { display: none !important; }
+body.is-admin .admin-only { display: inline-flex !important; }

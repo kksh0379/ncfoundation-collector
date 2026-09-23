@@ -4,11 +4,11 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>엔씨문화재단 콜렉터</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css', v='28') }}" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css', v='29') }}" />
 </head>
 <body>
   <header class="app-header">
-    <h1>엔씨문화재단 콜렉터 <span class="ver">v28</span> <span class="ver" id="storage-badge"></span></h1>
+    <h1>엔씨문화재단 콜렉터 <span class="ver">v29</span> <span class="ver" id="storage-badge"></span></h1>
   </header>
 
   <nav class="tabs">
@@ -43,8 +43,8 @@
           <li role="option" data-value="730">최근 2년</li>
         </ul>
       </div>
-      <button class="btn-status" id="status-news-btn">상태 확인</button>
-      <button class="btn-collect" id="collect-news">수집 실행</button>
+      <button class="btn-status admin-only" id="status-news-btn">상태 확인</button>
+      <button class="btn-collect admin-only" id="collect-news">수집 실행</button>
     </div>
     <div class="legend">
       <span class="chip chip-done">재단 · 엔씨문화재단/NC문화재단</span>
@@ -70,8 +70,8 @@
           {% endfor %}
         </ul>
       </div>
-      <button class="btn-status" id="status-boards-btn">상태 확인</button>
-      <button class="btn-collect" id="collect-boards">수집 실행</button>
+      <button class="btn-status admin-only" id="status-boards-btn">상태 확인</button>
+      <button class="btn-collect admin-only" id="collect-boards">수집 실행</button>
     </div>
     <div class="legend">
       {% for s in board_status %}
@@ -97,8 +97,8 @@
           {% endfor %}
         </ul>
       </div>
-      <button class="btn-status" id="status-social-btn">상태 확인</button>
-      <button class="btn-collect" id="collect-social">수집 실행</button>
+      <button class="btn-status admin-only" id="status-social-btn">상태 확인</button>
+      <button class="btn-collect admin-only" id="collect-social">수집 실행</button>
     </div>
     <div class="legend">
       {% for s in social_status %}
@@ -121,6 +121,6 @@
     </div>
   </div>
 
-  <script src="{{ url_for('static', filename='js/app.js', v='28') }}"></script>
+  <script src="{{ url_for('static', filename='js/app.js', v='29') }}"></script>
 </body>
 </html>
