@@ -191,45 +191,78 @@ document.getElementById("status-boards-btn").addEventListener("click", () => run
 document.getElementById("status-social-btn").addEventListener("click", () => runStatus("social"));
 
 // ----------------------------- 수집 실행 -----------------------------
-// 수집은 SSE 스트리밍: 서버가 단계별 진행상황을 흘려보내고, 화면에 실시간 표시한다.
+// 수집은 서버 백그라운드 작업으로 돌고, 프론트는 상태를 폴링해 진행률/결과를 보여준다.
+// → 휴대폰 화면이 꺼지거나 브라우저가 백그라운드로 가도 서버 수집은 끊기지 않으며,
+//   돌아오면(또는 새로고침해도) 진행 상태에 자동으로 다시 붙는다.
+const CRAWL_UI = {
+  news: { btn: "collect-news", msg: "msg-news", reload: () => loadNews() },
+  boards: { btn: "collect-boards", msg: "msg-boards", reload: () => loadBoards() },
+  social: { btn: "collect-social", msg: "msg-social", reload: () => loadSocial() },
+};
+const _pollTimers = {};
+
+function _renderCrawlState(group, st) {
+  const ui = CRAWL_UI[group];
+  const msgEl = document.getElementById(ui.msg);
+  const btn = document.getElementById(ui.btn);
+  if (st.running) {
+    if (btn) btn.disabled = true;
+    msgEl.style.color = "";
+    msgEl.innerHTML = '<span class="mini-spin"></span> ' + escapeHtml(st.progress || "수집 중…");
+    return false;
+  }
+  // 완료(또는 미실행)
+  if (btn) btn.disabled = false;
+  const r = st.result || {};
+  if (r.error) {
+    msgEl.style.color = "#dc2626";
+    msgEl.textContent = "수집 실패: " + r.error;
+  } else if (r.new !== undefined || r.crawled !== undefined) {
+    msgEl.style.color = "#16a34a";
+    const g = r.groups ? ` · 그룹 ${r.groups}개` : "";
+    msgEl.textContent = `수집 완료 · 신규 ${r.new ?? 0}건 · 갱신 ${r.updated ?? 0}건${g}`;
+  }
+  return true;  // 종료됨
+}
+
+async function _pollCrawl(group) {
+  try {
+    const st = await (await fetch("/api/crawl/" + group + "/status")).json();
+    const done = _renderCrawlState(group, st);
+    if (done && _pollTimers[group]) {
+      clearInterval(_pollTimers[group]);
+      delete _pollTimers[group];
+      CRAWL_UI[group].reload();
+      loadMeta();
+    }
+  } catch (e) { /* 일시적 네트워크 끊김 — 다음 폴링에서 회복 */ }
+}
+
+function _startPolling(group) {
+  if (_pollTimers[group]) clearInterval(_pollTimers[group]);
+  _pollTimers[group] = setInterval(() => _pollCrawl(group), 1500);
+  _pollCrawl(group);  // 즉시 1회
+}
+
 function runCrawl(btn, group, msgEl, reload) {
   btn.disabled = true;
   msgEl.style.color = "";
   msgEl.innerHTML = '<span class="mini-spin"></span> 수집 시작…';
-  let finished = false;
-
-  const es = new EventSource("/api/crawl/" + group + "/stream");
-  es.onmessage = (ev) => {
-    let d;
-    try { d = JSON.parse(ev.data); } catch (_) { return; }
-    if (d.type === "progress") {
-      msgEl.style.color = "";
-      msgEl.innerHTML = '<span class="mini-spin"></span> ' + escapeHtml(d.msg);
-    } else if (d.type === "done") {
-      finished = true;
-      es.close();
-      const r = d.result || {};
-      if (r.error) {
-        msgEl.style.color = "#dc2626";
-        msgEl.textContent = "수집 실패: " + r.error;
-      } else {
-        msgEl.style.color = "#16a34a";
-        const grpTxt = r.groups ? ` · 그룹 ${r.groups}개` : "";
-        msgEl.textContent = `수집 완료 · 신규 ${r.new ?? 0}건 · 갱신 ${r.updated ?? 0}건${grpTxt}`;
-      }
-      reload();
-      loadMeta();
-      btn.disabled = false;
-    }
-  };
-  es.onerror = () => {
-    if (finished) return;      // 정상 종료 후의 close는 무시
-    es.close();
-    btn.disabled = false;
-    msgEl.style.color = "#dc2626";
-    msgEl.textContent = "수집 연결이 끊겼어요. 잠시 후 다시 시도해 주세요.";
-  };
+  fetch("/api/crawl/" + group + "/start", { method: "POST" }).catch(() => {});
+  _startPolling(group);
 }
+
+// 페이지 로드/복귀 시, 서버에서 진행 중인 수집이 있으면 폴링을 자동 재개한다.
+async function resumeCrawls() {
+  for (const group of Object.keys(CRAWL_UI)) {
+    if (_pollTimers[group]) continue;
+    try {
+      const st = await (await fetch("/api/crawl/" + group + "/status")).json();
+      if (st.running) _startPolling(group);
+    } catch (e) { /* 무시 */ }
+  }
+}
+document.addEventListener("visibilitychange", () => { if (!document.hidden) resumeCrawls(); });
 
 document.getElementById("collect-news").addEventListener("click", (e) =>
   runCrawl(e.currentTarget, "news", document.getElementById("msg-news"), loadNews)
@@ -293,3 +326,4 @@ loadMeta();
 loadNews();
 loadBoards();
 loadSocial();
+resumeCrawls();  // 진행 중이던 수집이 있으면 폴링 재개(화면 껐다 켜도 이어짐)

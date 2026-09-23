@@ -225,39 +225,49 @@ def _do_crawl(group, progress=None):
     return result
 
 
-@app.get("/api/crawl/<group>/stream")
-def crawl_stream(group):
-    """수집을 실행하며 진행 상황을 SSE로 실시간 스트리밍한다.
-    (오래 걸리는 수집 중 '로딩만' 보이지 않도록 단계별 메시지를 흘려보낸다.)"""
+# ---------------------------- 수집 작업(서버 백그라운드) ----------------------------
+# 수집은 브라우저 연결과 분리된 서버 스레드로 돌린다. 그래서 휴대폰 화면이 꺼지거나
+# 브라우저가 백그라운드로 가도 수집은 서버에서 끝까지 진행된다. 프론트는 상태를
+# 폴링해서 진행률/결과를 표시하고, 돌아왔을 때 자동으로 다시 붙는다.
+_JOBS = {}  # group -> {running, progress, result, started_at}
+
+
+def _job_run(group):
+    st = _JOBS[group]
+
+    def cb(msg):
+        st["progress"] = msg
+
+    try:
+        st["result"] = _do_crawl(group, progress=cb)
+        st["progress"] = st["result"].get("error") and f"오류: {st['result']['error']}" or "완료"
+    except Exception as e:  # noqa: BLE001
+        st["result"] = {"error": str(e), "crawled": 0}
+        st["progress"] = f"오류: {e}"
+    finally:
+        st["running"] = False
+
+
+@app.post("/api/crawl/<group>/start")
+def crawl_start(group):
     if group not in _CRAWLERS:
         return jsonify({"error": "unknown group"}), 404
+    st = _JOBS.get(group)
+    if st and st.get("running"):
+        return jsonify({"running": True, "already": True})  # 이미 진행 중이면 중복 실행 안 함
+    _JOBS[group] = {"running": True, "progress": "수집 대기…", "result": None, "started_at": _now_kst()}
+    threading.Thread(target=_job_run, args=(group,), daemon=True).start()
+    print(f"[crawl] {group} 백그라운드 수집 시작", flush=True)
+    return jsonify({"running": True})
 
-    q = queue.Queue()
 
-    def worker():
-        try:
-            result = _do_crawl(group, progress=lambda m: q.put({"type": "progress", "msg": m}))
-            q.put({"type": "done", "result": result})
-        except Exception as e:  # noqa: BLE001
-            q.put({"type": "done", "result": {"error": str(e), "crawled": 0}})
-        finally:
-            q.put(None)
-
-    threading.Thread(target=worker, daemon=True).start()
-
-    def gen():
-        yield "retry: 10000\n\n"
-        while True:
-            item = q.get()
-            if item is None:
-                break
-            yield f"data: {json.dumps(item, ensure_ascii=False)}\n\n"
-
-    return app.response_class(
-        gen(),
-        mimetype="text/event-stream",
-        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
-    )
+@app.get("/api/crawl/<group>/status")
+def crawl_job_status(group):
+    st = _JOBS.get(group)
+    if not st:
+        # 이번 세션에 실행 이력이 없으면 마지막 저장 결과만 참고로 반환
+        return jsonify({"running": False, "progress": None, "result": _last_result.get(group)})
+    return jsonify(st)
 
 
 @app.post("/api/crawl/news")
