@@ -38,11 +38,21 @@ def meta():
     })
 
 
+# 수집 구현 현황(화면 뱃지용). 완료 / 구현 중 / 구현 예정
+BOARD_STATUS = {"나의AAC": "완료", "프로젝토리": "구현 중", "FAIR AI": "구현 예정", "대표 홈페이지": "구현 예정"}
+SOCIAL_STATUS = {"유튜브": "완료", "인스타그램": "구현 예정"}
+
+
 @app.route("/")
 def index():
     services = sorted({s["service"] for s in boards.SOURCES})
     channels = sorted({s["channel"] for s in social.SOURCES})
-    return render_template("index.html", services=services, channels=channels)
+    board_status = [{"name": n, "status": BOARD_STATUS.get(n, "완료")} for n in services]
+    social_status = [{"name": n, "status": SOCIAL_STATUS.get(n, "완료")} for n in channels]
+    return render_template(
+        "index.html", services=services, channels=channels,
+        board_status=board_status, social_status=social_status,
+    )
 
 
 # ---------------------------- 조회 API ----------------------------
@@ -149,32 +159,26 @@ def inspect():
 _last_result = {"news": None, "boards": None, "social": None}
 
 
-# 저장 정책(테스트 단계): 키 = 원문 URL.
-#  - 같은 URL이면 본문 등 전체 필드를 갱신(updated)
-#  - 새 URL이면 신규 저장(new). 뉴스는 '서로 다른 URL의 동일 보도자료'만 본문
-#    유사도로 걸러 한 건만 남긴다.
+# 저장 정책: 키 = 원문 URL.
+#  - 뉴스는 '동일 기사(여러 매체 배포)'도 전부 저장한다(중복 제거 X). 대신 저장 후
+#    전체를 본문/제목 유사도로 클러스터링해 group_key를 부여 → 화면에서 아코디언 묶음.
 def _save_news(items):
-    existing = db.all_news_fingerprints()
-    existing_urls = {it.get("url") for it in existing}
-    existing_contents = [it.get("content") or "" for it in existing]
-
-    new, updated, dup = 0, 0, 0
-    fresh = []  # 새 URL 후보
+    existing_urls = {it.get("url") for it in db.all_news_fingerprints()}
+    new = updated = 0
     for item in items:
-        if item.get("url") in existing_urls:
-            item["content_hash"] = dedup.content_hash(item.get("content", ""))
-            db.upsert_news(item)  # 기존 기사 본문 전체 갱신
+        item["content_hash"] = dedup.content_hash(item.get("content", ""))
+        if db.upsert_news(item) == "updated":
             updated += 1
         else:
-            fresh.append(item)
+            new += 1
 
-    # 새 URL들에 대해서만 보도자료 중복(서로 다른 URL) 제거
-    kept, dup = dedup.dedup_news_items(fresh, existing_contents)
-    for item in kept:
-        item["content_hash"] = dedup.content_hash(item.get("content", ""))
-        db.upsert_news(item)
-        new += 1
-    return {"new": new, "updated": updated, "duplicates": dup}
+    # 저장된 전체 뉴스를 대상으로 '같은 기사' 그룹화(group_key 부여)
+    rows = db.all_news_min()
+    keys = dedup.cluster_items(rows)
+    url_to_key = {r["url"]: k for r, k in zip(rows, keys) if r.get("url")}
+    db.set_news_group_keys(url_to_key)
+    groups = len(set(url_to_key.values()))
+    return {"new": new, "updated": updated, "duplicates": 0, "groups": groups}
 
 
 def _save_boards(items):

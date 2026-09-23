@@ -36,6 +36,7 @@ def init_db():
                 content      TEXT,          -- 본문
                 url          TEXT UNIQUE,   -- 원문 URL
                 content_hash TEXT,          -- 본문 정규화 해시 (완전 동일 중복 차단)
+                group_key    TEXT,          -- 같은 기사(여러 매체) 묶음 키
                 collected_at TEXT
             );
 
@@ -72,6 +73,10 @@ def init_db():
             );
             """
         )
+        # 기존 DB(구버전) 마이그레이션: group_key 컬럼이 없으면 추가한다.
+        cols = {r["name"] for r in conn.execute("PRAGMA table_info(news)").fetchall()}
+        if "group_key" not in cols:
+            conn.execute("ALTER TABLE news ADD COLUMN group_key TEXT")
 
 
 def set_meta(key, value):
@@ -99,19 +104,35 @@ def upsert_news(item):
         row = conn.execute("SELECT id FROM news WHERE url = ?", (item.get("url"),)).fetchone()
         if row:
             conn.execute(
-                """UPDATE news SET title=?, published_at=?, author=?, content=?, content_hash=?, collected_at=?
+                """UPDATE news SET title=?, published_at=?, author=?, content=?, content_hash=?, group_key=?, collected_at=?
                    WHERE url=?""",
                 (item.get("title"), item.get("published_at"), item.get("author"),
-                 item.get("content"), item.get("content_hash"), now, item.get("url")),
+                 item.get("content"), item.get("content_hash"), item.get("group_key"), now, item.get("url")),
             )
             return "updated"
         conn.execute(
-            """INSERT INTO news (title, published_at, author, content, url, content_hash, collected_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            """INSERT INTO news (title, published_at, author, content, url, content_hash, group_key, collected_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
             (item.get("title"), item.get("published_at"), item.get("author"),
-             item.get("content"), item.get("url"), item.get("content_hash"), now),
+             item.get("content"), item.get("url"), item.get("content_hash"), item.get("group_key"), now),
         )
         return "inserted"
+
+
+def all_news_min():
+    """클러스터링용으로 전체 뉴스의 (url, title, content)만 가볍게 로드."""
+    with get_conn() as conn:
+        rows = conn.execute("SELECT url, title, content FROM news").fetchall()
+        return [dict(r) for r in rows]
+
+
+def set_news_group_keys(url_to_key):
+    """url→group_key 매핑으로 group_key를 일괄 갱신."""
+    with get_conn() as conn:
+        conn.executemany(
+            "UPDATE news SET group_key=? WHERE url=?",
+            [(k, u) for u, k in url_to_key.items()],
+        )
 
 
 def upsert_board(item):

@@ -4,11 +4,11 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>엔씨문화재단 콜렉터</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css', v='15') }}" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css', v='16') }}" />
 </head>
 <body>
   <header class="app-header">
-    <h1>엔씨문화재단 콜렉터 <span class="ver">v15</span></h1>
+    <h1>엔씨문화재단 콜렉터 <span class="ver">v16</span></h1>
   </header>
 
   <nav class="tabs">
@@ -41,6 +41,11 @@
       <button class="btn-status" id="status-boards-btn">상태 확인</button>
       <button class="btn-collect" id="collect-boards">수집 실행</button>
     </div>
+    <div class="legend">
+      {% for s in board_status %}
+      <span class="chip chip-{{ 'done' if s.status=='완료' else ('wip' if s.status=='구현 중' else 'plan') }}">{{ s.name }} · {{ s.status }}</span>
+      {% endfor %}
+    </div>
     <div class="last-crawl" id="last-boards"></div>
     <div class="result-msg" id="msg-boards"></div>
     <ul class="list" id="list-boards"></ul>
@@ -58,6 +63,11 @@
       <button class="btn-status" id="status-social-btn">상태 확인</button>
       <button class="btn-collect" id="collect-social">수집 실행</button>
     </div>
+    <div class="legend">
+      {% for s in social_status %}
+      <span class="chip chip-{{ 'done' if s.status=='완료' else ('wip' if s.status=='구현 중' else 'plan') }}">{{ s.name }} · {{ s.status }}</span>
+      {% endfor %}
+    </div>
     <div class="last-crawl" id="last-social"></div>
     <div class="result-msg" id="msg-social"></div>
     <ul class="list" id="list-social"></ul>
@@ -74,6 +84,6 @@
     </div>
   </div>
 
-  <script src="{{ url_for('static', filename='js/app.js', v='15') }}"></script>
+  <script src="{{ url_for('static', filename='js/app.js', v='16') }}"></script>
 </body>
 </html>

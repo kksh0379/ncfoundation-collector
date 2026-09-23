@@ -55,7 +55,58 @@ function renderList(el, items, opts) {
 // ----------------------------- 데이터 로드 -----------------------------
 async function loadNews() {
   const res = await fetch("/api/news");
-  renderList(document.getElementById("list-news"), await res.json(), {});
+  renderNewsGroups(document.getElementById("list-news"), await res.json());
+}
+
+// 같은 기사(여러 매체 배포)를 group_key로 묶어 대표 카드 + 아코디언으로 표시
+function renderNewsGroups(el, items) {
+  el.innerHTML = "";
+  if (!items.length) {
+    el.innerHTML = `<li class="empty">수집된 데이터가 없습니다.<br>"수집 실행"을 눌러주세요.</li>`;
+    return;
+  }
+  const groups = new Map();
+  items.forEach((it, i) => {
+    const k = it.group_key || it.url || ("row" + i);
+    if (!groups.has(k)) groups.set(k, []);
+    groups.get(k).push(it);
+  });
+  groups.forEach((arr) => {
+    const rep = arr[0];  // 그룹 내 최신(작성일 내림차순 정렬 기준 첫 항목)
+    const meta = [escapeHtml(fmtDate(rep.published_at))];
+    if (rep.author) meta.push(escapeHtml(rep.author));
+    if (arr.length > 1) meta.push(`<span class="badge">${arr.length}개 매체</span>`);
+
+    const li = document.createElement("li");
+    li.className = "card";
+    let html = `
+      <h3 class="card-title">${escapeHtml(rep.title || "(제목 없음)")}</h3>
+      <div class="card-meta">${meta.join(" · ")}</div>
+      <p class="card-summary">${escapeHtml(rep.content || "요약 없음")}</p>
+      <div class="card-actions">
+        ${rep.url ? `<a href="${escapeHtml(rep.url)}" target="_blank" rel="noopener">원문 보기 ↗</a>` : ""}
+      </div>`;
+    if (arr.length > 1) {
+      html += `<button class="accordion-toggle" type="button">같은 기사 ${arr.length}건 매체별 보기 ▾</button>
+        <ul class="accordion-body" hidden>` +
+        arr.map((a) => `<li>
+            <span class="src-name">${escapeHtml(a.author || "매체 미상")}</span>
+            ${a.url ? `<a href="${escapeHtml(a.url)}" target="_blank" rel="noopener">${escapeHtml(a.title || "원문")} ↗</a>` : escapeHtml(a.title || "")}
+            <span class="src-date">${escapeHtml(fmtDate(a.published_at))}</span>
+          </li>`).join("") +
+        `</ul>`;
+    }
+    li.innerHTML = html;
+    el.appendChild(li);
+  });
+  el.querySelectorAll(".accordion-toggle").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const body = btn.nextElementSibling;
+      const willOpen = body.hidden;
+      body.hidden = !willOpen;
+      btn.textContent = btn.textContent.replace(/[▾▴]\s*$/, willOpen ? "▴" : "▾");
+    });
+  });
 }
 
 async function loadBoards() {

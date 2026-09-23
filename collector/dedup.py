@@ -109,3 +109,60 @@ def is_duplicate_title(title, existing_titles):
     """게시판 글 제목 기반 중복 판단."""
     norm = normalize_title(title)
     return norm in {normalize_title(t) for t in existing_titles}
+
+
+def cluster_items(items, threshold=SIMILARITY_THRESHOLD):
+    """뉴스 기사들을 '같은 기사'끼리 묶어 각 항목의 group_key를 돌려준다.
+
+    같은 보도자료가 여러 매체에 뿌려진 경우를 하나로 묶기 위함(중복 제거가 아니라
+    '그룹화' — 전부 저장하되 group_key로 아코디언 묶음 표시).
+    기준: (1) 정규화 제목이 같으면 같은 그룹, (2) 본문(요약) 글자 n-gram TF-IDF
+    코사인 유사도가 임계값 이상이면 같은 그룹. group_key = 그룹 대표(가장 앞) 항목의 url.
+    입력 items: [{'url','title','content'}...] / 반환: items와 같은 길이의 group_key 리스트.
+    """
+    n = len(items)
+    if n == 0:
+        return []
+    parent = list(range(n))
+
+    def find(x):
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+
+    def union(a, b):
+        ra, rb = find(a), find(b)
+        if ra != rb:
+            parent[max(ra, rb)] = min(ra, rb)  # 대표는 항상 더 앞선(작은) 인덱스
+
+    # 1) 정규화 제목이 동일하면 같은 그룹 (통신사 배포 기사는 제목이 같은 경우가 많음)
+    buckets = {}
+    for i, it in enumerate(items):
+        t = normalize_text(it.get("title") or "")
+        if t:
+            buckets.setdefault(t, []).append(i)
+    for idxs in buckets.values():
+        for j in idxs[1:]:
+            union(idxs[0], j)
+
+    # 2) 본문(요약) 유사도로 그룹화
+    content_norm = [normalize_text(it.get("content") or "") for it in items]
+    idx = [i for i, c in enumerate(content_norm) if len(c) >= 20]
+    if len(idx) >= 2:
+        try:
+            vec = TfidfVectorizer(analyzer="char", ngram_range=NGRAM_RANGE, min_df=1)
+            m = vec.fit_transform([content_norm[i] for i in idx])
+            sims = cosine_similarity(m)
+            for a in range(len(idx)):
+                for b in range(a + 1, len(idx)):
+                    if sims[a, b] >= threshold:
+                        union(idx[a], idx[b])
+        except ValueError:
+            pass
+
+    keys = []
+    for i in range(n):
+        r = find(i)
+        keys.append(items[r].get("url") or f"grp-{r}")
+    return keys

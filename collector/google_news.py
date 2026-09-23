@@ -18,6 +18,7 @@ import json
 import re
 import time
 from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime, timedelta
 from email.utils import parsedate_to_datetime
 
 from bs4 import BeautifulSoup
@@ -27,13 +28,15 @@ from . import extractor, fetcher
 RSS_URL = "https://news.google.com/rss/search"
 BATCH_URL = "https://news.google.com/_/DotsSplashUi/data/batchexecute"
 KEYWORDS = ["엔씨문화재단", "NC문화재단"]
+RECENT_DAYS = 365  # 최근 1년 기사만 수집
 # 원문 본문 추출 시도 여부. 구글 링크는 리다이렉트라 대부분 실패하면서 느려지므로
 # 기본은 끄고 RSS 요약을 본문으로 쓴다. (속도·안정성 우선)
 FETCH_FULL_BODY = True  # 원문 기사로 풀리면 요약 추출 시도(실패 시 RSS 요약 사용)
 
 
 def _feed_params(query):
-    return {"q": query, "hl": "ko", "gl": "KR", "ceid": "KR:ko"}
+    # when:1y → 구글 뉴스에 최근 1년으로 검색 범위를 준다(클라이언트에서도 재확인).
+    return {"q": f"{query} when:1y", "hl": "ko", "gl": "KR", "ceid": "KR:ko"}
 
 
 def _parse_pubdate(text):
@@ -172,13 +175,25 @@ def _summary_from_article(entry):
 
 
 def _passes_filters(item):
-    # 재단 키워드 포함만 통과(본사 단독 기사 제외). 날짜 제한은 두지 않는다.
+    # (1) 재단 키워드 포함만 통과(본사 단독 기사 제외)
     haystack = f"{item.get('title', '')}\n{item.get('content', '')}".lower()
-    return any(k.lower() in haystack for k in KEYWORDS)
+    if not any(k.lower() in haystack for k in KEYWORDS):
+        return False
+    # (2) 최근 1년만. 날짜를 아는 경우에만 필터(모르면 통과).
+    pub = item.get("published_at")
+    if pub:
+        try:
+            when = datetime.fromisoformat(pub.replace(" ", "T"))
+            if when < datetime.now() - timedelta(days=RECENT_DAYS):
+                return False
+        except ValueError:
+            pass
+    return True
 
 
-def crawl(max_workers=5, max_items=15, progress=None):
-    """뉴스 수집 실행. 파싱된 기사 리스트 반환(중복 판단/저장은 호출측).
+def crawl(max_workers=8, max_items=100, progress=None):
+    """뉴스 수집 실행. 파싱된 기사 리스트 반환(그룹화/저장은 호출측).
+    동일 기사가 여러 매체에 배포된 것도 전부 수집한다(중복 제거 X, 저장측에서 그룹화).
     progress(msg): 진행상황 콜백(선택).
     """
     progress = progress or (lambda m: None)
