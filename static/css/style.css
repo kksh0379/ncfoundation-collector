@@ -155,11 +155,15 @@ body.is-admin .guest-only { display: none !important; }
 
 select {
   flex: 1;
+  min-width: 0;
   padding: 9px 10px;
   border: 1px solid var(--border);
   border-radius: 8px;
   background: #fff;
-  font-size: 14px;
+  color: var(--text);
+  /* iOS Safari는 폼 컨트롤 글자가 16px 미만이면 자동 축소/확대(줌) 처리 →
+     모바일에서 셀렉트 글자가 작아지던 버그. 16px로 고정해 방지한다. */
+  font-size: 16px;
 }
 
 .btn-collect {

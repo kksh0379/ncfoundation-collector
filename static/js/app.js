@@ -84,13 +84,18 @@ function statusRow(t) {
     if (t.looks_html === false) { cls = "warn"; label = "주의"; }
     else { cls = "good"; label = "정상"; }
   }
-  const detail = t.ok
+  // 게시판: 연결은 됐어도 실제 추출 글이 0개면 '주의'(SPA/선택자 불일치로 스크래핑 안 됨)
+  if (t.ok && typeof t.items === "number" && t.items === 0) {
+    cls = "warn"; label = "글 0개";
+  }
+  let detail = t.ok
     ? `${t.status} · ${(t.bytes / 1024).toFixed(0)}KB · ${t.sec}s`
     : (t.error || "오류");
+  if (t.ok && typeof t.items === "number") detail += ` · 글 ${t.items}개 추출`;
   return `<div class="status-row">
       <span class="dot ${cls}"></span>
       <span class="st-name">${escapeHtml(t.name)}</span>
-      <span class="st-badge ${cls}">${label}</span>
+      <span class="st-badge ${cls}">${escapeHtml(label)}</span>
       <span class="st-detail">${escapeHtml(detail)}</span>
     </div>`;
 }

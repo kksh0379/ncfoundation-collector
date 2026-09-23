@@ -76,31 +76,37 @@ def diag():
     targets = []
     if group in ("all", "news"):
         targets.append(
-            ("구글 뉴스(RSS)", google_news.RSS_URL + "?q=NC%EB%AC%B8%ED%99%94%EC%9E%AC%EB%8B%A8&hl=ko&gl=KR&ceid=KR:ko")
+            ("구글 뉴스(RSS)", google_news.RSS_URL + "?q=NC%EB%AC%B8%ED%99%94%EC%9E%AC%EB%8B%A8&hl=ko&gl=KR&ceid=KR:ko", None)
         )
     if group in ("all", "boards"):
         seen = set()
         for s in boards.SOURCES:
             if s["list_url"] not in seen:
                 seen.add(s["list_url"])
-                targets.append((f"{s['service']} · {s['category']}", s["list_url"]))
+                targets.append((f"{s['service']} · {s['category']}", s["list_url"], s.get("item_link_sel")))
     if group in ("all", "social"):
         for s in social.SOURCES:
             if s.get("url"):
-                targets.append((f"{s['channel']} · {s['account']}", s["url"]))
+                targets.append((f"{s['channel']} · {s['account']}", s["url"], None))
 
     def check(item):
-        name, url = item
+        name, url, sel = item
         t0 = _t.time()
         try:
             r = fetcher.get(url, retries=0)
             body = r.text or ""
-            return {
+            res = {
                 "name": name, "url": url, "ok": True,
                 "status": r.status_code, "bytes": len(body),
                 "looks_html": "<html" in body.lower() or "<!doctype" in body.lower(),
                 "sec": round(_t.time() - t0, 1),
             }
+            # 게시판은 '연결됨'만이 아니라 설정된 선택자로 실제 글이 몇 개 잡히는지 센다.
+            # (연결 정상인데 글 0개면 = SPA이거나 선택자 불일치 → 스크래핑 안 되는 원인)
+            if sel:
+                from bs4 import BeautifulSoup
+                res["items"] = len(boards._select_any(BeautifulSoup(body, "lxml"), sel))
+            return res
         except Exception as e:  # noqa: BLE001
             return {
                 "name": name, "url": url, "ok": False,
