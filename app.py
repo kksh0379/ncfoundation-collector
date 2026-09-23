@@ -166,14 +166,9 @@ _last_result = {"news": None, "boards": None, "social": None}
 #  - 뉴스는 '동일 기사(여러 매체 배포)'도 전부 저장한다(중복 제거 X). 대신 저장 후
 #    전체를 본문/제목 유사도로 클러스터링해 group_key를 부여 → 화면에서 아코디언 묶음.
 def _save_news(items):
-    existing_urls = {it.get("url") for it in db.all_news_fingerprints()}
-    new = updated = 0
     for item in items:
         item["content_hash"] = dedup.content_hash(item.get("content", ""))
-        if db.upsert_news(item) == "updated":
-            updated += 1
-        else:
-            new += 1
+    new, updated = db.upsert_news_many(items)
 
     # 저장된 전체 뉴스를 대상으로 '같은 기사' 그룹화(group_key 부여)
     rows = db.all_news_min()
@@ -185,22 +180,12 @@ def _save_news(items):
 
 
 def _save_boards(items):
-    new = updated = 0
-    for item in items:
-        if db.upsert_board(item) == "updated":
-            updated += 1
-        else:
-            new += 1
+    new, updated = db.upsert_board_many(items)
     return {"new": new, "updated": updated, "duplicates": 0}
 
 
 def _save_social(items):
-    new = updated = 0
-    for item in items:
-        if db.upsert_social(item) == "updated":
-            updated += 1
-        else:
-            new += 1
+    new, updated = db.upsert_social_many(items)
     return {"new": new, "updated": updated, "duplicates": 0}
 
 

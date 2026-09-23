@@ -34,13 +34,36 @@
 
 ---
 
+## 수집 데이터 영구 보관 (외부 무료 Postgres 연결)
+
+무료 호스팅은 재시작·재배포 때 로컬 SQLite가 초기화됩니다. **환경변수 `DATABASE_URL`**에
+외부 Postgres 연결 문자열을 넣으면, 그쪽에 저장돼 **재시작에도 데이터가 유지**됩니다.
+(`DATABASE_URL`이 없으면 기존처럼 로컬 SQLite로 동작합니다 — 코드 수정 불필요.)
+
+### 1) 무료 Postgres 만들기 (둘 중 하나)
+- **Supabase**: https://supabase.com → New project → Project Settings → **Database** →
+  **Connection string(URI)** 복사. 형식: `postgresql://postgres:<PW>@db.<ref>.supabase.co:5432/postgres`
+- **Neon**: https://neon.tech → 프로젝트 생성 → **Connection string** 복사.
+  형식: `postgresql://<user>:<PW>@ep-xxx.neon.tech/neondb?sslmode=require`
+
+### 2) Render에 환경변수 등록
+- Render 서비스 → **Environment** → **Add Environment Variable**
+  - Key: `DATABASE_URL`
+  - Value: 위에서 복사한 연결 문자열 (비밀번호 포함)
+- 저장하면 자동 재배포됩니다. 앱이 뜰 때 테이블을 자동 생성(`init_db`)하고, 이후 수집분이
+  Postgres에 쌓입니다. (SSL은 자동으로 `sslmode=require` 처리)
+
+> 연결 문자열에는 **DB 비밀번호가 포함**되니, 코드/깃에 넣지 말고 **환경변수로만** 두세요.
+
+---
+
 ## ⚠️ 무료 호스팅에서 알아둘 점
 
 - **콜드 스타트**: 무료 플랜은 일정 시간 미사용 시 잠들어, 다시 접속할 때 첫 로딩이
   30초~1분 걸릴 수 있습니다. (공유받은 사람이 처음 열 때 느릴 수 있음)
-- **데이터 초기화**: 저장은 SQLite 파일(`data/collector.db`)이라 재배포·재시작 시
-  수집 데이터가 초기화됩니다. (데모/검토용으로는 충분. 영구 보관이 필요하면 추후
-  PostgreSQL 같은 외부 DB로 전환)
+- **데이터 초기화**: 기본은 SQLite 파일(`data/collector.db`)이라 재배포·재시작 시
+  수집 데이터가 초기화됩니다. **`DATABASE_URL`로 외부 Postgres를 연결하면 영구 보관**됩니다
+  (위 섹션 참고).
 - **크롤러 정확도는 별도 작업**: 배포 서버는 인터넷이 열려 있어 실제 수집이 시도되지만,
   각 사이트 CSS 선택자는 아직 추정값입니다. "수집 실행"을 눌러도 결과가 비거나 일부만
   나올 수 있으며, 실제 HTML에 맞춰 `collector/naver_news.py`·`collector/boards.py`를

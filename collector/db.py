@@ -1,8 +1,14 @@
-"""SQLite 저장소.
+"""저장소 (SQLite 또는 Postgres).
 
-두 종류의 데이터를 보관한다.
-- news   : 탭1, 네이버 뉴스 기사 (본문 유사도로 중복 제거)
-- boards : 탭2, 재단 서비스 게시판 글 (제목으로 중복 제거)
+`DATABASE_URL` 환경변수가 있으면 **Postgres**(예: Supabase/Neon 무료)를 쓰고,
+없으면 로컬 **SQLite** 파일을 쓴다. 무료 호스팅은 재시작 시 로컬 디스크가
+초기화되므로, 외부 Postgres를 연결하면 수집 데이터가 영구 보존된다.
+
+보관 테이블
+- news   : 탭1 뉴스 기사 (동일 기사 group_key로 그룹화, source_url=실제 기사 URL)
+- boards : 탭2 게시판 글
+- social : 탭3 소셜 채널
+- meta   : 마지막 수집 일시 등 메타
 """
 import os
 import sqlite3
@@ -11,82 +17,88 @@ from datetime import datetime
 
 DB_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "collector.db")
 
+DATABASE_URL = os.environ.get("DATABASE_URL", "").strip()
+_PG = bool(DATABASE_URL)
+
+if _PG:
+    import psycopg
+    from psycopg.rows import dict_row
+    from psycopg_pool import ConnectionPool
+
+    # Supabase/Neon 등 호스팅 Postgres는 SSL 필수. 없으면 require를 붙인다.
+    _CONNINFO = DATABASE_URL
+    if "sslmode=" not in _CONNINFO:
+        _CONNINFO += ("&" if "?" in _CONNINFO else "?") + "sslmode=require"
+    # 연결 재사용(매 쿼리마다 새 TLS 핸드셰이크 방지). 스레드(SSE 워커/스케줄러) 안전.
+    _pool = ConnectionPool(_CONNINFO, min_size=1, max_size=5,
+                           kwargs={"row_factory": dict_row}, open=True)
+
+
+def _q(sql):
+    """플레이스홀더 방언 변환: SQLite는 '?', Postgres는 '%s'."""
+    return sql.replace("?", "%s") if _PG else sql
+
 
 @contextmanager
 def get_conn():
-    os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    try:
-        yield conn
-        conn.commit()
-    finally:
-        conn.close()
+    if _PG:
+        with _pool.connection() as conn:  # 성공 시 자동 commit, 오류 시 rollback 후 반납
+            yield conn
+    else:
+        os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
+        conn = sqlite3.connect(DB_PATH)
+        conn.row_factory = sqlite3.Row
+        try:
+            yield conn
+            conn.commit()
+        finally:
+            conn.close()
+
+
+_AUTO_PK = "SERIAL PRIMARY KEY" if _PG else "INTEGER PRIMARY KEY AUTOINCREMENT"
+
+_DDL = [
+    f"""CREATE TABLE IF NOT EXISTS news (
+        id {_AUTO_PK}, title TEXT, published_at TEXT, author TEXT, content TEXT,
+        url TEXT UNIQUE, content_hash TEXT, group_key TEXT, source_url TEXT, collected_at TEXT
+    )""",
+    f"""CREATE TABLE IF NOT EXISTS boards (
+        id {_AUTO_PK}, service TEXT, category TEXT, title TEXT, published_at TEXT,
+        author TEXT, content TEXT, url TEXT UNIQUE, collected_at TEXT
+    )""",
+    f"""CREATE TABLE IF NOT EXISTS social (
+        id {_AUTO_PK}, channel TEXT, account TEXT, title TEXT, published_at TEXT,
+        content TEXT, url TEXT UNIQUE, collected_at TEXT
+    )""",
+    "CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT)",
+    "CREATE INDEX IF NOT EXISTS idx_news_hash ON news(content_hash)",
+    "CREATE INDEX IF NOT EXISTS idx_news_group ON news(group_key)",
+    "CREATE INDEX IF NOT EXISTS idx_boards_title ON boards(service, title)",
+    "CREATE INDEX IF NOT EXISTS idx_social_url ON social(url)",
+]
 
 
 def init_db():
     with get_conn() as conn:
-        conn.executescript(
-            """
-            CREATE TABLE IF NOT EXISTS news (
-                id           INTEGER PRIMARY KEY AUTOINCREMENT,
-                title        TEXT,
-                published_at TEXT,          -- 작성일 (ISO 문자열)
-                author       TEXT,          -- 작성자/언론사
-                content      TEXT,          -- 본문
-                url          TEXT UNIQUE,   -- 원문 URL
-                content_hash TEXT,          -- 본문 정규화 해시 (완전 동일 중복 차단)
-                group_key    TEXT,          -- 같은 기사(여러 매체) 묶음 키
-                source_url   TEXT,           -- 복원한 실제 기사 URL(원문 보기용). 키(url)는 구글 링크
-                collected_at TEXT
-            );
-
-            CREATE TABLE IF NOT EXISTS boards (
-                id           INTEGER PRIMARY KEY AUTOINCREMENT,
-                service      TEXT,          -- 서비스명 (나의AAC, FAIR AI, ...)
-                category     TEXT,          -- 게시판명 (소식, 공지사항, ...)
-                title        TEXT,
-                published_at TEXT,
-                author       TEXT,
-                content      TEXT,
-                url          TEXT UNIQUE,
-                collected_at TEXT
-            );
-
-            CREATE TABLE IF NOT EXISTS social (
-                id           INTEGER PRIMARY KEY AUTOINCREMENT,
-                channel      TEXT,          -- 인스타그램 / 유튜브
-                account      TEXT,          -- 재단 / 프로젝토리 / NC문화재단
-                title        TEXT,
-                published_at TEXT,
-                content      TEXT,
-                url          TEXT UNIQUE,
-                collected_at TEXT
-            );
-
-            CREATE INDEX IF NOT EXISTS idx_news_hash ON news(content_hash);
-            CREATE INDEX IF NOT EXISTS idx_boards_title ON boards(service, title);
-            CREATE INDEX IF NOT EXISTS idx_social_url ON social(url);
-
-            CREATE TABLE IF NOT EXISTS meta (
-                key   TEXT PRIMARY KEY,
-                value TEXT
-            );
-            """
-        )
-        # 기존 DB(구버전) 마이그레이션: 없는 컬럼을 추가한다.
-        cols = {r["name"] for r in conn.execute("PRAGMA table_info(news)").fetchall()}
-        if "group_key" not in cols:
-            conn.execute("ALTER TABLE news ADD COLUMN group_key TEXT")
-        if "source_url" not in cols:
-            conn.execute("ALTER TABLE news ADD COLUMN source_url TEXT")
+        for stmt in _DDL:
+            conn.execute(stmt)
+        # 구버전 DB 마이그레이션: news에 없는 컬럼 추가
+        if _PG:
+            conn.execute("ALTER TABLE news ADD COLUMN IF NOT EXISTS group_key TEXT")
+            conn.execute("ALTER TABLE news ADD COLUMN IF NOT EXISTS source_url TEXT")
+        else:
+            cols = {r["name"] for r in conn.execute("PRAGMA table_info(news)").fetchall()}
+            if "group_key" not in cols:
+                conn.execute("ALTER TABLE news ADD COLUMN group_key TEXT")
+            if "source_url" not in cols:
+                conn.execute("ALTER TABLE news ADD COLUMN source_url TEXT")
 
 
 def set_meta(key, value):
     with get_conn() as conn:
         conn.execute(
-            "INSERT INTO meta (key, value) VALUES (?, ?) "
-            "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+            _q("INSERT INTO meta (key, value) VALUES (?, ?) "
+               "ON CONFLICT (key) DO UPDATE SET value = excluded.value"),
             (key, value),
         )
 
@@ -97,31 +109,48 @@ def get_all_meta():
         return {r["key"]: r["value"] for r in rows}
 
 
-# 수집 정보의 고유 키 = 원문 URL.
-# 테스트 단계에서는 본문이 계속 보정되므로, 같은 URL이면 기존 행의 모든 필드를
-# 갱신(upsert)한다. 새 URL이면 신규 삽입한다. 반환: "inserted" | "updated".
+def _now():
+    return datetime.now().isoformat(timespec="seconds")
 
-def upsert_news(item):
-    now = datetime.now().isoformat(timespec="seconds")
+
+# ---- 배치 upsert (키=url, ON CONFLICT로 한 번에 처리 → 원격 DB에서도 빠름) ----
+_NEWS_COLS = ("title", "published_at", "author", "content", "url",
+              "content_hash", "group_key", "source_url", "collected_at")
+_BOARD_COLS = ("service", "category", "title", "published_at", "author",
+               "content", "url", "collected_at")
+_SOCIAL_COLS = ("channel", "account", "title", "published_at", "content", "url", "collected_at")
+
+
+def _upsert_many(table, cols, items):
+    """items를 url 기준으로 일괄 upsert. 반환: (신규수, 갱신수)."""
+    if not items:
+        return (0, 0)
+    now = _now()
+    set_clause = ", ".join(f"{c}=excluded.{c}" for c in cols if c != "url")
+    ph = ", ".join(["?"] * len(cols))
+    sql = _q(f"INSERT INTO {table} ({', '.join(cols)}) VALUES ({ph}) "
+             f"ON CONFLICT (url) DO UPDATE SET {set_clause}")
+    rows = []
+    for it in items:
+        rows.append(tuple(now if c == "collected_at" else it.get(c) for c in cols))
     with get_conn() as conn:
-        row = conn.execute("SELECT id FROM news WHERE url = ?", (item.get("url"),)).fetchone()
-        if row:
-            conn.execute(
-                """UPDATE news SET title=?, published_at=?, author=?, content=?, content_hash=?, group_key=?, source_url=?, collected_at=?
-                   WHERE url=?""",
-                (item.get("title"), item.get("published_at"), item.get("author"),
-                 item.get("content"), item.get("content_hash"), item.get("group_key"),
-                 item.get("source_url"), now, item.get("url")),
-            )
-            return "updated"
-        conn.execute(
-            """INSERT INTO news (title, published_at, author, content, url, content_hash, group_key, source_url, collected_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            (item.get("title"), item.get("published_at"), item.get("author"),
-             item.get("content"), item.get("url"), item.get("content_hash"),
-             item.get("group_key"), item.get("source_url"), now),
-        )
-        return "inserted"
+        existing = {r["url"] for r in conn.execute(f"SELECT url FROM {table}").fetchall()}
+        cur = conn.cursor()
+        cur.executemany(sql, rows)
+    new = sum(1 for it in items if it.get("url") not in existing)
+    return (new, len(items) - new)
+
+
+def upsert_news_many(items):
+    return _upsert_many("news", _NEWS_COLS, items)
+
+
+def upsert_board_many(items):
+    return _upsert_many("boards", _BOARD_COLS, items)
+
+
+def upsert_social_many(items):
+    return _upsert_many("social", _SOCIAL_COLS, items)
 
 
 def all_news_min():
@@ -133,89 +162,31 @@ def all_news_min():
 
 def set_news_group_keys(url_to_key):
     """url→group_key 매핑으로 group_key를 일괄 갱신."""
+    if not url_to_key:
+        return
     with get_conn() as conn:
-        conn.executemany(
-            "UPDATE news SET group_key=? WHERE url=?",
-            [(k, u) for u, k in url_to_key.items()],
-        )
-
-
-def upsert_board(item):
-    now = datetime.now().isoformat(timespec="seconds")
-    with get_conn() as conn:
-        row = conn.execute("SELECT id FROM boards WHERE url = ?", (item.get("url"),)).fetchone()
-        if row:
-            conn.execute(
-                """UPDATE boards SET service=?, category=?, title=?, published_at=?, author=?, content=?, collected_at=?
-                   WHERE url=?""",
-                (item.get("service"), item.get("category"), item.get("title"), item.get("published_at"),
-                 item.get("author"), item.get("content"), now, item.get("url")),
-            )
-            return "updated"
-        conn.execute(
-            """INSERT INTO boards (service, category, title, published_at, author, content, url, collected_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-            (item.get("service"), item.get("category"), item.get("title"), item.get("published_at"),
-             item.get("author"), item.get("content"), item.get("url"), now),
-        )
-        return "inserted"
-
-
-def upsert_social(item):
-    now = datetime.now().isoformat(timespec="seconds")
-    with get_conn() as conn:
-        row = conn.execute("SELECT id FROM social WHERE url = ?", (item.get("url"),)).fetchone()
-        if row:
-            conn.execute(
-                """UPDATE social SET channel=?, account=?, title=?, published_at=?, content=?, collected_at=?
-                   WHERE url=?""",
-                (item.get("channel"), item.get("account"), item.get("title"),
-                 item.get("published_at"), item.get("content"), now, item.get("url")),
-            )
-            return "updated"
-        conn.execute(
-            """INSERT INTO social (channel, account, title, published_at, content, url, collected_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?)""",
-            (item.get("channel"), item.get("account"), item.get("title"),
-             item.get("published_at"), item.get("content"), item.get("url"), now),
-        )
-        return "inserted"
+        cur = conn.cursor()
+        cur.executemany(_q("UPDATE news SET group_key=? WHERE url=?"),
+                        [(k, u) for u, k in url_to_key.items()])
 
 
 def all_news_fingerprints():
-    """중복 비교용으로 기존 뉴스의 (id, url, content_hash, content)만 가볍게 로드."""
+    """증분/중복 비교용으로 기존 뉴스의 (id, url, content_hash, content) 로드."""
     with get_conn() as conn:
         rows = conn.execute("SELECT id, url, content_hash, content FROM news").fetchall()
         return [dict(r) for r in rows]
 
 
 def existing_board_titles(service):
-    """해당 서비스에 이미 저장된 제목 집합 (제목 기반 중복 제거용)."""
     with get_conn() as conn:
-        rows = conn.execute(
-            "SELECT title FROM boards WHERE service = ?", (service,)
-        ).fetchall()
+        rows = conn.execute(_q("SELECT title FROM boards WHERE service = ?"), (service,)).fetchall()
         return {r["title"] for r in rows}
-
-
-def list_social(channel=None, limit=200):
-    with get_conn() as conn:
-        if channel and channel != "all":
-            rows = conn.execute(
-                "SELECT * FROM social WHERE channel = ? ORDER BY published_at DESC, id DESC LIMIT ?",
-                (channel, limit),
-            ).fetchall()
-        else:
-            rows = conn.execute(
-                "SELECT * FROM social ORDER BY published_at DESC, id DESC LIMIT ?", (limit,)
-            ).fetchall()
-        return [dict(r) for r in rows]
 
 
 def list_news(limit=200):
     with get_conn() as conn:
         rows = conn.execute(
-            "SELECT * FROM news ORDER BY published_at DESC, id DESC LIMIT ?", (limit,)
+            _q("SELECT * FROM news ORDER BY published_at DESC, id DESC LIMIT ?"), (limit,)
         ).fetchall()
         return [dict(r) for r in rows]
 
@@ -224,12 +195,25 @@ def list_boards(service=None, limit=200):
     with get_conn() as conn:
         if service and service != "all":
             rows = conn.execute(
-                "SELECT * FROM boards WHERE service = ? ORDER BY published_at DESC, id DESC LIMIT ?",
+                _q("SELECT * FROM boards WHERE service = ? ORDER BY published_at DESC, id DESC LIMIT ?"),
                 (service, limit),
             ).fetchall()
         else:
             rows = conn.execute(
-                "SELECT * FROM boards ORDER BY published_at DESC, id DESC LIMIT ?",
-                (limit,),
+                _q("SELECT * FROM boards ORDER BY published_at DESC, id DESC LIMIT ?"), (limit,)
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+
+def list_social(channel=None, limit=200):
+    with get_conn() as conn:
+        if channel and channel != "all":
+            rows = conn.execute(
+                _q("SELECT * FROM social WHERE channel = ? ORDER BY published_at DESC, id DESC LIMIT ?"),
+                (channel, limit),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                _q("SELECT * FROM social ORDER BY published_at DESC, id DESC LIMIT ?"), (limit,)
             ).fetchall()
         return [dict(r) for r in rows]
