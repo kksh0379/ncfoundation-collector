@@ -5,6 +5,7 @@
 > 예: `v0.39 · build 260924`. (아래 과거 항목의 vNN 은 v0.NN 과 같은 번호예요: v38 = v0.38)
 
 ## 2026-09-24
+- **v0.72 · build 260924** — 대표 홈페이지 "요약 없음" 해결: 새 글은 상세 API에서 본문을 받아 요약 채움(증분 — 이미 요약된 글은 건너뛰고, 빈 글은 다음에 재시도해 자가복구).
 - **v0.71 · build 260924** — 대표 홈페이지 게시판 **수집 완료**: 내부 API(`api.ncfoundation.or.kr/community/all`)를 직접 호출해 전체 목록(제목·작성일·글 링크 /community/{dtype}/{id}) 수집. 상태 "완료".
 - **v0.70 · build 260924** — /api/peek에 본문 앞부분(body_head) 포함(JSON API 응답 구조 확인용). 대표 홈페이지 API(api.ncfoundation.or.kr) 연동 준비.
 - **v0.69 · build 260924** — SPA API 탐색 `/api/apihunt?url=` 추가: JS 번들을 받아 그 안에 박힌 API 주소 후보를 추출(CRA SPA인 대표 홈페이지의 목록 API 찾기용).

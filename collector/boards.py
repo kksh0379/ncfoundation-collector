@@ -235,9 +235,50 @@ def _build_entry(e, cfg):
     }
 
 
-def _crawl_json_api(cfg, max_items):
+def _find_str_by_keys(node, keys, depth=0):
+    """중첩 JSON에서 keys에 해당하는 첫 문자열 값을 찾는다."""
+    if depth > 6:
+        return None
+    if isinstance(node, dict):
+        for k, v in node.items():
+            if k.lower() in keys and isinstance(v, str) and len(v) > 20:
+                return v
+        for v in node.values():
+            r = _find_str_by_keys(v, keys, depth + 1)
+            if r:
+                return r
+    elif isinstance(node, list):
+        for v in node:
+            r = _find_str_by_keys(v, keys, depth + 1)
+            if r:
+                return r
+    return None
+
+
+_DETAIL_KEYS = {"contents", "content", "body", "contenthtml", "html",
+                "desc", "description", "text", "bodyhtml"}
+
+
+def _ncf_detail_summary(api_base, dtype, pid):
+    """대표 홈페이지 상세 API에서 본문을 받아 카드용 요약으로. 실패 시 빈 문자열."""
+    try:
+        resp = fetcher.get(f"{api_base}/community/{dtype}/{pid}", retries=0, timeout=8)
+        try:
+            j = resp.json()
+            raw = _find_str_by_keys(j, _DETAIL_KEYS)
+        except ValueError:
+            raw = extractor.extract_main_text(BeautifulSoup(resp.text, "lxml"))
+        if raw:
+            return extractor.summarize(extractor.clean_text(raw))
+    except Exception:  # noqa: BLE001
+        pass
+    return ""
+
+
+def _crawl_json_api(cfg, max_items, max_workers=5):
     """내부 JSON API로 글 목록을 받는 게시판(대표 홈페이지 등).
-    응답: {"count": N, "list": [{id, subject, createDt, dtype, ...}]}."""
+    응답: {"count": N, "list": [{id, subject, createDt, dtype, ...}]}.
+    본문 요약은 상세 API에서 보강하되, 이미 저장된 글은 건너뛴다(증분)."""
     label = f"{cfg['service']} · {cfg['category']}"
     t0 = time.time()
     try:
@@ -246,27 +287,53 @@ def _crawl_json_api(cfg, max_items):
         print(f"[board] {label} API 실패: {e}", flush=True)
         return []
     rows = data.get("list") or (data if isinstance(data, list) else [])
-    cap = max(max_items, 300)  # 전체 목록을 한 번에 주므로 넉넉히 저장
-    items = []
+    cap = max(max_items, 300)
+
+    # api base: "https://api.ncfoundation.or.kr/community/all" → "https://api.ncfoundation.or.kr"
+    from urllib.parse import urlsplit
+    sp = urlsplit(cfg["api"])
+    api_base = f"{sp.scheme}://{sp.netloc}"
+
+    try:
+        known = db.existing_board_urls(cfg["service"])
+    except Exception:  # noqa: BLE001
+        known = set()
+
+    entries = []
     for it in rows[:cap]:
         subject = extractor.clean_text(str(it.get("subject") or it.get("title") or ""))
         if not subject:
             continue
         pid = it.get("id")
-        dtype = str(it.get("dtype") or "all").lower()  # notice/report/social
+        dtype = str(it.get("dtype") or "all").lower()
         url = urljoin(cfg["base_url"], f"/community/{dtype}/{pid}") if pid is not None else cfg["list_url"]
         pub = it.get("createDt") or it.get("modifyDt") or ""
         published = extractor.parse_date(str(pub)) or (str(pub)[:16].replace("T", " ") if pub else None)
+        entries.append({"subject": subject, "url": url, "dtype": dtype, "pid": pid, "pub": published})
+
+    # 새 글만 상세 본문 보강(이미 저장된 글은 그대로 두어 재요청/덮어쓰기 방지)
+    new_entries = [e for e in entries if e["url"] not in known]
+
+    def _summ(e):
+        return _ncf_detail_summary(api_base, e["dtype"], e["pid"]) if e["pid"] is not None else ""
+    summaries = {}
+    if new_entries:
+        with ThreadPoolExecutor(max_workers=max_workers) as pool:
+            for e, s in zip(new_entries, pool.map(_summ, new_entries)):
+                summaries[e["url"]] = s
+
+    items = []
+    for e in new_entries:
         items.append({
             "service": cfg["service"],
             "category": cfg["category"],
-            "title": subject,
-            "published_at": published,
+            "title": e["subject"],
+            "published_at": e["pub"],
             "author": "NC문화재단",
-            "content": "",  # 목록 API엔 본문이 없음(제목·날짜·링크 위주)
-            "url": url,
+            "content": summaries.get(e["url"], ""),
+            "url": e["url"],
         })
-    print(f"[board] {label}: API에서 {len(items)}건 / {time.time() - t0:.1f}s", flush=True)
+    print(f"[board] {label}: 신규 {len(items)}건(전체 {len(entries)}) / {time.time() - t0:.1f}s", flush=True)
     return items
 
 

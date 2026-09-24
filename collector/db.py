@@ -378,6 +378,20 @@ def clear_tables(tables):
     return result
 
 
+def existing_board_urls(service=None):
+    """본문 요약이 이미 채워진 게시판 글 URL 집합(증분용). service 지정 시 해당 서비스만.
+    본문이 빈 글은 제외 → 다음 수집 때 상세를 다시 시도해 채운다(자가 복구)."""
+    cond = "content IS NOT NULL AND content != ''"
+    with get_conn() as conn:
+        if service:
+            rows = conn.execute(
+                _q(f"SELECT url FROM boards WHERE service = ? AND {cond}"), (service,)
+            ).fetchall()
+        else:
+            rows = conn.execute(f"SELECT url FROM boards WHERE {cond}").fetchall()
+        return {r["url"] for r in rows}
+
+
 def existing_board_titles(service):
     with get_conn() as conn:
         rows = conn.execute(_q("SELECT title FROM boards WHERE service = ?"), (service,)).fetchall()
