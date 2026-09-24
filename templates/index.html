@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>엔씨문화재단 콜렉터</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css', v='43') }}" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css', v='44') }}" />
 </head>
 <body>
   <header class="app-header">
@@ -34,16 +34,16 @@
           {% endfor %}
         </ul>
       </div>
-      <div class="dropdown admin-only" id="dd-news-period" data-value="90">
+      <div class="dropdown admin-only" id="dd-news-period" data-value="730">
         <button type="button" class="dropdown-btn" aria-haspopup="listbox" aria-expanded="false">
-          <span class="dropdown-label">수집 기간: 최근 3개월</span><span class="dropdown-caret">▾</span>
+          <span class="dropdown-label">수집 기간: 최근 2년</span><span class="dropdown-caret">▾</span>
         </button>
         <ul class="dropdown-menu" role="listbox" hidden>
           <li role="option" data-value="30">최근 1개월</li>
-          <li role="option" data-value="90" class="selected">최근 3개월</li>
+          <li role="option" data-value="90">최근 3개월</li>
           <li role="option" data-value="180">최근 6개월</li>
           <li role="option" data-value="365">최근 1년</li>
-          <li role="option" data-value="730">최근 2년</li>
+          <li role="option" data-value="730" class="selected">최근 2년</li>
           <li role="option" data-value="1825">최근 5년</li>
         </ul>
       </div>
@@ -161,12 +161,12 @@
 
   <footer class="app-footer">
     <span class="foot-copy">© 2026 김상화</span>
-    <span class="ver">v0.42 · build 260924</span>
+    <span class="ver">v0.43 · build 260924</span>
     <span class="ver" id="storage-badge"></span>
   </footer>
 
   <button id="to-top" aria-label="맨 위로" hidden>↑</button>
 
-  <script src="{{ url_for('static', filename='js/app.js', v='43') }}"></script>
+  <script src="{{ url_for('static', filename='js/app.js', v='44') }}"></script>
 </body>
 </html>
