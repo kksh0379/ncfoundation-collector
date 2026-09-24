@@ -72,8 +72,8 @@ SOURCES = [
     {
         "service": "FAIR AI", "category": "인사이트",
         "base_url": "https://fairai.or.kr",
-        "fairai_api": "https://api.fairai.or.kr/fair/api/ai-insight-page",
-        "detail_base": "https://fairai.or.kr/embedded-ethics/insight-plus/",
+        # 인사이트 목록 API 엔드포인트를 아직 못 찾음(공지와 다른 방식) → 당분간 건너뜀
+        "spa": True,
     },
     {
         "service": "대표 홈페이지", "category": "재단소식",
