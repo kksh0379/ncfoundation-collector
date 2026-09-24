@@ -496,9 +496,7 @@ def img_proxy():
 
 @app.get("/api/ytcheck")
 def ytcheck():
-    """유튜브 Data API 상태 진단(관리자 전용): 키 설정 여부·채널·수집 가능 여부."""
-    if not _admin_ok():
-        return jsonify({"error": "unauthorized"}), 401
+    """유튜브 Data API 상태 진단: 키 설정 여부·채널·수집 가능 여부(비밀값은 노출 안 함)."""
     key = os.environ.get("YOUTUBE_API_KEY", "").strip()
     out = {"key_set": bool(key), "key_len": len(key)}
     if not key:
