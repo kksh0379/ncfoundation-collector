@@ -175,8 +175,12 @@ def peek():
     if not url.startswith("http"):
         return jsonify({"error": "url 파라미터 필요"}), 400
     out = {"url": url}
+    # xhr=1 이면 AJAX 요청처럼 헤더를 붙여 JSON 응답을 유도
+    hdrs = None
+    if request.args.get("xhr") == "1":
+        hdrs = {"X-Requested-With": "XMLHttpRequest", "Accept": "application/json"}
     try:
-        resp = fetcher.get(url, retries=0, timeout=12)
+        resp = fetcher.get(url, headers=hdrs, retries=0, timeout=12)
         html = resp.text or ""
         out["status"] = resp.status_code
         out["final_url"] = resp.url
