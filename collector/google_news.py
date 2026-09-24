@@ -333,7 +333,7 @@ def _passes_date(item, days=RECENT_DAYS):
 
 
 def crawl(max_workers=24, max_items=0, progress=None, known_urls=None, days=None,
-          categories=None, keyword_filter=True, title_exclude=None):
+          categories=None, keyword_filter=True, title_exclude=None, body_exclude=None):
     """뉴스 수집 실행. 파싱된 기사 리스트 반환(그룹화/저장은 호출측).
     categories: {카테고리명: [검색어...]} (기본 CATEGORIES=재단/본사).
     keyword_filter=True면 NC 키워드/노이즈 필터를 적용하고, False면 날짜만 필터
@@ -417,6 +417,10 @@ def crawl(max_workers=24, max_items=0, progress=None, known_urls=None, days=None
                 t = (e.get("title") or "").lower()
                 if any(x.lower() in t for x in title_exclude):
                     return False
+            if body_exclude:  # 제목·본문에 제외어가 있으면 탈락(예: 업계동향에서 NC 자기기사 제외)
+                tc = (f"{e.get('title', '')} {e.get('content', '')}").lower()
+                if any(x.lower() in tc for x in body_exclude):
+                    return False
             return True
         items = [
             {k: e.get(k) for k in ("title", "published_at", "author", "content",
@@ -458,11 +462,14 @@ BIZ_CATEGORIES = {
     ],
 }
 BIZ_EXCLUDE_TITLE = ["채용", "채용공고", "입찰", "입찰공고", "휴관", "티켓"]
+# NC뉴스 탭과 겹치지 않게, NC 자기 기사(엔씨문화재단/엔씨소프트 등)는 업계동향에서 제외
+BIZ_EXCLUDE_BODY = ["엔씨문화재단", "nc문화재단", "엔씨소프트", "ncsoft"]
 
 
 def crawl_biz(max_workers=24, max_items=0, progress=None, known_urls=None, days=None):
     """업계동향 뉴스 수집. 검색어가 조건(키워드/기관명)이라 키워드 필터는 끄고,
-    제목에 제외어(채용·입찰·휴관·티켓 등)가 있으면 버린다."""
+    제목에 제외어(채용·입찰·휴관·티켓)가 있거나 NC 자기 기사면 버린다(NC뉴스와 분리)."""
     return crawl(max_workers=max_workers, max_items=max_items, progress=progress,
                  known_urls=known_urls, days=days, categories=BIZ_CATEGORIES,
-                 keyword_filter=False, title_exclude=BIZ_EXCLUDE_TITLE)
+                 keyword_filter=False, title_exclude=BIZ_EXCLUDE_TITLE,
+                 body_exclude=BIZ_EXCLUDE_BODY)

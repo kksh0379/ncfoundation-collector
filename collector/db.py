@@ -253,7 +253,9 @@ def _upsert_many(table, cols, items):
     if not items:
         return (0, 0)
     now = _now()
-    set_clause = ", ".join(f"{c}=excluded.{c}" for c in cols if c != "url")
+    # url은 키라서, section은 최초 소속을 유지(재수집이 다른 탭으로 뺏지 않게) 갱신에서 제외.
+    _no_update = {"url", "section"}
+    set_clause = ", ".join(f"{c}=excluded.{c}" for c in cols if c not in _no_update)
     ph = ", ".join(["?"] * len(cols))
     sql = _q(f"INSERT INTO {table} ({', '.join(cols)}) VALUES ({ph}) "
              f"ON CONFLICT (url) DO UPDATE SET {set_clause}")
