@@ -320,6 +320,45 @@ document.getElementById("collect-boards").addEventListener("click", (e) =>
 document.getElementById("collect-social").addEventListener("click", (e) =>
   runCrawl(e.currentTarget, "social", document.getElementById("msg-social"), loadSocial)
 );
+// ----------------------------- DB 비우기(관리자) -----------------------------
+async function purgeDb() {
+  const days = ddValue("dd-news-period") || "730";
+  const yrs = Math.round(Number(days) / 365) || 2;
+  if (!confirm(
+    "수집한 데이터(뉴스·게시판·소셜)를 모두 삭제합니다.\n" +
+    "삭제 후 곧바로 최근 " + yrs + "년치로 새로 수집을 시작합니다.\n\n계속할까요?"
+  )) return;
+  const btn = document.getElementById("purge-db-btn");
+  const msgEl = document.getElementById("msg-news");
+  btn.disabled = true;
+  msgEl.style.color = "";
+  msgEl.innerHTML = '<span class="mini-spin"></span> DB 비우는 중…';
+  try {
+    const r = await fetch("/api/admin/purge", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ scope: "all", recollect: true, days: Number(days) }),
+    });
+    const j = await r.json();
+    if (!r.ok || !j.ok) throw new Error(j.error || "실패");
+    const d = j.deleted || {};
+    msgEl.innerHTML = "🗑 삭제 완료(뉴스 " + (d.news || 0) + "·게시판 " +
+      (d.boards || 0) + "·소셜 " + (d.social || 0) + "건). 새 수집을 시작했어요.";
+    // 목록 즉시 비우고, 재수집 폴링 시작
+    ["news", "boards", "social"].forEach((g) => {
+      const el = document.getElementById("list-" + g);
+      if (el) el.innerHTML = "";
+    });
+    (j.recollect_started || []).forEach((g) => _startPolling(g));
+  } catch (e) {
+    msgEl.style.color = "#c0392b";
+    msgEl.textContent = "DB 비우기 실패: " + e.message;
+  } finally {
+    btn.disabled = false;
+  }
+}
+document.getElementById("purge-db-btn").addEventListener("click", purgeDb);
+
 // ----------------------------- 커스텀 드롭다운 -----------------------------
 function setupDropdown(id, onChange) {
   const dd = document.getElementById(id);

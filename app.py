@@ -76,6 +76,26 @@ def logout():
     return jsonify({"ok": True})
 
 
+@app.post("/api/admin/purge")
+def admin_purge():
+    """수집 데이터(DB)를 비운다(관리자 전용).
+    body: {"scope": "all"|"news"|"boards"|"social", "recollect": true|false}
+    recollect=true면 비운 뒤 즉시 재수집 시작(뉴스는 days 파라미터, 기본 RECENT_DAYS=2년)."""
+    if not _admin_ok():
+        return jsonify({"error": "unauthorized"}), 401
+    data = request.get_json(silent=True) or {}
+    scope = data.get("scope", "all")
+    tables = ["news", "boards", "social"] if scope == "all" else [scope]
+    deleted = db.clear_tables(tables)
+    started = []
+    if data.get("recollect"):
+        days = data.get("days")
+        for group in ("news", "boards", "social"):
+            if group in tables and _start_job(group, days=days if group == "news" else None):
+                started.append(group)
+    return jsonify({"ok": True, "deleted": deleted, "recollect_started": started})
+
+
 @app.get("/api/meta")
 def meta():
     m = db.get_all_meta()

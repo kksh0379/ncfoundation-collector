@@ -235,6 +235,27 @@ def news_count():
         return int(row["n"]) if row else 0
 
 
+def _count(table):
+    with get_conn() as conn:
+        row = conn.execute(f"SELECT COUNT(*) AS n FROM {table}").fetchone()
+        return int(row["n"]) if row else 0
+
+
+def clear_tables(tables):
+    """지정한 테이블(news/boards/social)을 통째로 비운다. 반환: {테이블: 삭제된 행 수}.
+    관리자 'DB 비우기' 기능용. meta(마지막 수집 일시 등)는 건드리지 않는다."""
+    allowed = {"news", "boards", "social"}
+    tables = [t for t in tables if t in allowed]
+    result = {}
+    with get_conn() as conn:
+        for t in tables:
+            row = conn.execute(f"SELECT COUNT(*) AS n FROM {t}").fetchone()
+            n = int(row["n"]) if row else 0
+            conn.execute(f"DELETE FROM {t}")
+            result[t] = n
+    return result
+
+
 def existing_board_titles(service):
     with get_conn() as conn:
         rows = conn.execute(_q("SELECT title FROM boards WHERE service = ?"), (service,)).fetchall()

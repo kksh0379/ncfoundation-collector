@@ -233,6 +233,20 @@ body.is-admin .guest-only { display: none !important; }
   white-space: nowrap;
 }
 .btn-status:active { background: #eef2ff; }
+
+.btn-danger {
+  padding: 9px 12px;
+  border: 1px solid #dc2626;
+  border-radius: 8px;
+  background: #fff;
+  color: #dc2626;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.btn-danger:active { background: #fef2f2; }
+.btn-danger:disabled { opacity: 0.5; }
 .btn-status:disabled { opacity: 0.5; }
 
 .status-panel {
