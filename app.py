@@ -198,6 +198,8 @@ def peek():
             out["embedded_sample"] = emb[:3]
         # <a> 전체 중 앞부분 샘플(패턴 파악용)
         out["any_links_sample"] = list(dict.fromkeys(_re.findall(r'href=["\']([^"\']+)["\']', html)))[:25]
+        # 본문 앞부분(JSON API 응답 구조 확인용)
+        out["body_head"] = html[:1800]
     except Exception as e:  # noqa: BLE001
         out["error"] = f"{type(e).__name__}: {str(e)[:200]}"
     return jsonify(out)

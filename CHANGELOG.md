@@ -5,6 +5,7 @@
 > 예: `v0.39 · build 260924`. (아래 과거 항목의 vNN 은 v0.NN 과 같은 번호예요: v38 = v0.38)
 
 ## 2026-09-24
+- **v0.70 · build 260924** — /api/peek에 본문 앞부분(body_head) 포함(JSON API 응답 구조 확인용). 대표 홈페이지 API(api.ncfoundation.or.kr) 연동 준비.
 - **v0.69 · build 260924** — SPA API 탐색 `/api/apihunt?url=` 추가: JS 번들을 받아 그 안에 박힌 API 주소 후보를 추출(CRA SPA인 대표 홈페이지의 목록 API 찾기용).
 - **v0.68 · build 260924** — 가벼운 구조 진단 `/api/peek?url=` 추가(단일 요청으로 링크·embedded JSON 요약). /api/inspect가 무거워 502 나던 문제 우회.
 - **v0.67 · build 260924** — 대표 홈페이지 글 주소 패턴 반영(`/community/all/{번호}`). 목록 URL `/community/all`, 링크 선택자·상세 경로(detail_path) 맞춤.
