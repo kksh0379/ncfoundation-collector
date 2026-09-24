@@ -472,9 +472,10 @@ def cron():
 
 def _auto_backfill():
     """앱 시작 시 뉴스 DB가 비어 있으면 자동으로 대량 수집(백필)한다.
-    → 배포하면 수집 버튼을 누르지 않아도 기사가 채워져 바로 보인다.
-    DB에 이미 데이터가 있으면(영구 저장이라 유지됨) 건너뛴다. AUTO_BACKFILL=0으로 끔."""
-    if os.environ.get("AUTO_BACKFILL", "1") != "1":
+    ⚠ 기본 OFF: 무료 512MB에서 부팅 직후 2년치 대량 수집이 메모리를 초과(OOM)시켜
+    프로세스가 죽고 재시작을 반복(크래시 루프 → 사이트 접속 불가)하는 문제가 있어서다.
+    데이터는 관리자 수집 버튼/🗑 초기화, 또는 cron으로 채운다. 켜려면 AUTO_BACKFILL=1."""
+    if os.environ.get("AUTO_BACKFILL", "0") != "1":
         return
     try:
         _ensure_db()
