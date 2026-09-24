@@ -132,12 +132,13 @@ def admin_purge():
         return jsonify({"ok": False, "error": "DB에 연결할 수 없어요(Neon 깨는 중일 수 있음). 20초 뒤 다시 시도해 주세요."}), 503
     data = request.get_json(silent=True) or {}
     scope = data.get("scope", "all")
-    groups = ["cat", "news", "boards", "social"] if scope == "all" else [scope]
+    groups = ["cat", "news", "biz", "boards", "social"] if scope == "all" else [scope]
+    _SEC = {"cat": "cat", "news": "nc", "biz": "biz"}
     deleted = {}
     try:
         for g in groups:
-            if g in ("cat", "news"):
-                deleted[g] = db.clear_news_section("cat" if g == "cat" else "nc")
+            if g in _SEC:
+                deleted[g] = db.clear_news_section(_SEC[g])
             elif g in ("boards", "social"):
                 deleted.update(db.clear_tables([g]))
     except Exception as e:  # noqa: BLE001
@@ -147,7 +148,7 @@ def admin_purge():
     if data.get("recollect"):
         days = data.get("days")
         for g in groups:
-            if _start_job(g, days=days if g in ("cat", "news") else None):
+            if _start_job(g, days=days if g in ("cat", "news", "biz") else None):
                 started.append(g)
     return jsonify({"ok": True, "deleted": deleted, "recollect_started": started})
 
@@ -412,6 +413,7 @@ def meta():
     return jsonify({
         "cat": m.get("last_crawl_cat"),
         "news": m.get("last_crawl_news"),
+        "biz": m.get("last_crawl_biz"),
         "boards": m.get("last_crawl_boards"),
         "social": m.get("last_crawl_social"),
         "storage": db.BACKEND,  # postgres(영구) / sqlite(임시)
@@ -464,6 +466,11 @@ def get_catnews():
     return _safe_list(lambda: db.list_news(category=category, section="cat"))
 
 
+@app.get("/api/biznews")
+def get_biznews():
+    return _safe_list(lambda: db.list_news(section="biz"))
+
+
 @app.get("/api/boards")
 def get_boards():
     service = request.args.get("service", "all")
@@ -497,6 +504,11 @@ def diag():
         from urllib.parse import quote as _quote
         targets.append(
             ("구글 뉴스(RSS) · 고양이", google_news.RSS_URL + "?q=" + _quote("고양이 반려묘") + "&hl=ko&gl=KR&ceid=KR:ko", None)
+        )
+    if group in ("all", "biz"):
+        from urllib.parse import quote as _quote
+        targets.append(
+            ("구글 뉴스(RSS) · 업계동향", google_news.RSS_URL + "?q=" + _quote("문화재단") + "&hl=ko&gl=KR&ceid=KR:ko", None)
         )
     if group in ("all", "boards"):
         import json as _json
@@ -583,7 +595,7 @@ def inspect():
 # 수집은 요청 한 번에 끝까지 처리하고 결과를 바로 반환한다. (구조가 단순해 어떤
 # 버전의 프론트엔드 JS가 캐시돼 있어도 호환되며, 무료 호스팅 재시작에도 안전)
 # 마지막 결과는 /api/crawl/status 폴링형 프론트와의 호환을 위해 보관한다.
-_last_result = {"news": None, "cat": None, "boards": None, "social": None}
+_last_result = {"news": None, "cat": None, "biz": None, "boards": None, "social": None}
 
 
 # 저장 정책: 키 = 원문 URL.
@@ -606,6 +618,10 @@ def _save_news(items, section="nc"):
 
 def _save_cat(items):
     return _save_news(items, section="cat")
+
+
+def _save_biz(items):
+    return _save_news(items, section="biz")
 
 
 def _purge_news_noise(progress=None):
@@ -657,6 +673,7 @@ def _save_social(items):
 _CRAWLERS = {
     "news": (google_news.crawl, _save_news),
     "cat": (google_news.crawl_cat, _save_cat),
+    "biz": (google_news.crawl_biz, _save_biz),
     "boards": (boards.crawl_all, _save_boards),
     "social": (social.crawl_all, _save_social),
 }
@@ -670,8 +687,8 @@ def _do_crawl(group, progress=None, days=None):
     progress("DB 연결 중…")
     _ensure_db(force=True)  # 실제로 접속을 기다려 Neon을 깨운다(수집은 DB가 꼭 필요)
     try:
-        if group in ("news", "cat"):
-            # 뉴스/고양이뉴스: 수집 기간(days) 전달. 저장 시 ON CONFLICT로 중복 처리.
+        if group in ("news", "cat", "biz"):
+            # 뉴스류(뉴스/냥정보/업계동향): 수집 기간(days) 전달. 저장 시 ON CONFLICT로 중복 처리.
             items = crawl_fn(progress=progress, days=days)
         else:
             items = crawl_fn(progress=progress)
@@ -680,7 +697,7 @@ def _do_crawl(group, progress=None, days=None):
         result = {"crawled": len(items), **counts}
         if group == "news":
             _purge_news_noise(progress)  # 기존에 쌓인 본사 노이즈(야구/백화점 등) 정리
-        if group in ("news", "cat"):
+        if group in ("news", "cat", "biz"):
             _enrich_news_images(progress)  # 이미지 없는 최근 기사에 대표 이미지(og:image) 보강
         progress(f"완료 · 신규 {result.get('new', 0)}건 · 갱신 {result.get('updated', 0)}건")
     except Exception as e:  # noqa: BLE001

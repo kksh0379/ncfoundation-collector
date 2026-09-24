@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>휴 스코프</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css', v='100') }}" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css', v='101') }}" />
 </head>
 <body>
   <header class="app-header">
@@ -29,6 +29,7 @@
   <nav class="tabs">
     <button class="tab active" data-tab="cat">🐱 냥정보</button>
     <button class="tab" data-tab="news">NC뉴스</button>
+    <button class="tab" data-tab="biz">업계동향</button>
     <button class="tab" data-tab="boards">재단게시판</button>
     <button class="tab" data-tab="social">재단소셜</button>
   </nav>
@@ -92,6 +93,22 @@
     <div class="last-crawl" id="last-news"></div>
     <div class="result-msg" id="msg-news"></div>
     <ul class="list" id="list-news"></ul>
+  </section>
+
+  <!-- 탭: 업계동향 -->
+  <section class="panel" id="panel-biz">
+    <div class="toolbar">
+      <span class="toolbar-title">업계동향 · 재단/공익법인</span>
+      <button class="btn-status admin-only" id="status-biz-btn">상태 확인</button>
+      <button class="btn-collect admin-only" id="collect-biz">수집 실행</button>
+    </div>
+    <div class="legend admin-only">
+      <span class="chip chip-done">업계 키워드(문화재단·공익법인 등) 또는 주요 재단</span>
+      <span class="chip chip-plan">제목 채용·입찰·휴관·티켓 제외 · 구글 뉴스(RSS)</span>
+    </div>
+    <div class="last-crawl" id="last-biz"></div>
+    <div class="result-msg" id="msg-biz"></div>
+    <ul class="list" id="list-biz"></ul>
   </section>
 
   <!-- 탭2: 게시판 -->
@@ -213,12 +230,12 @@
 
   <footer class="app-footer">
     <span class="foot-copy">© 2026 김상화</span>
-    <span class="ver">v0.99 · build 260924</span>
+    <span class="ver">v1.00 · build 260924</span>
     <span class="ver" id="storage-badge"></span>
   </footer>
 
   <button id="to-top" aria-label="맨 위로" hidden>↑</button>
 
-  <script src="{{ url_for('static', filename='js/app.js', v='100') }}"></script>
+  <script src="{{ url_for('static', filename='js/app.js', v='101') }}"></script>
 </body>
 </html>

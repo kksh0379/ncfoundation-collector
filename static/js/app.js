@@ -169,6 +169,15 @@ async function loadCat() {
   } catch (e) { el.innerHTML = `<li class="empty">불러오기 실패</li>`; }
 }
 
+async function loadBiz() {
+  const el = document.getElementById("list-biz");
+  showLoading(el);
+  try {
+    const res = await fetch("/api/biznews");
+    renderNewsGroups(el, await res.json());
+  } catch (e) { el.innerHTML = `<li class="empty">불러오기 실패</li>`; }
+}
+
 // 뉴스 카드 썸네일 HTML. 대표 이미지(og:image)가 있을 때만 표시(없으면 아무것도 안 보임).
 function newsThumb(rep) {
   if (!rep.image_url) return "";
@@ -313,6 +322,7 @@ async function runStatus(group) {
 
 document.getElementById("status-cat-btn").addEventListener("click", () => runStatus("cat"));
 document.getElementById("status-news-btn").addEventListener("click", () => runStatus("news"));
+document.getElementById("status-biz-btn").addEventListener("click", () => runStatus("biz"));
 document.getElementById("status-boards-btn").addEventListener("click", () => runStatus("boards"));
 document.getElementById("status-social-btn").addEventListener("click", () => runStatus("social"));
 
@@ -323,6 +333,7 @@ document.getElementById("status-social-btn").addEventListener("click", () => run
 const CRAWL_UI = {
   cat: { btn: "collect-cat", msg: "msg-cat", reload: () => loadCat() },
   news: { btn: "collect-news", msg: "msg-news", reload: () => loadNews() },
+  biz: { btn: "collect-biz", msg: "msg-biz", reload: () => loadBiz() },
   boards: { btn: "collect-boards", msg: "msg-boards", reload: () => loadBoards() },
   social: { btn: "collect-social", msg: "msg-social", reload: () => loadSocial() },
 };
@@ -396,6 +407,9 @@ document.addEventListener("visibilitychange", () => { if (!document.hidden) resu
 document.getElementById("collect-cat").addEventListener("click", (e) =>
   runCrawl(e.currentTarget, "cat", document.getElementById("msg-cat"), loadCat)
 );
+document.getElementById("collect-biz").addEventListener("click", (e) =>
+  runCrawl(e.currentTarget, "biz", document.getElementById("msg-biz"), loadBiz)
+);
 document.getElementById("collect-news").addEventListener("click", (e) =>
   runCrawl(e.currentTarget, "news", document.getElementById("msg-news"), loadNews)
 );
@@ -406,7 +420,7 @@ document.getElementById("collect-social").addEventListener("click", (e) =>
   runCrawl(e.currentTarget, "social", document.getElementById("msg-social"), loadSocial)
 );
 // ----------------------------- DB 비우기(관리자, 현재 탭만) -----------------------------
-const TAB_KO = { cat: "냥정보", news: "NC뉴스", boards: "재단게시판", social: "재단소셜" };
+const TAB_KO = { cat: "냥정보", news: "NC뉴스", biz: "업계동향", boards: "재단게시판", social: "재단소셜" };
 function activeTab() {
   const t = document.querySelector(".tab.active");
   return (t && t.dataset.tab) || "cat";
@@ -492,6 +506,7 @@ async function loadMeta() {
     const m = await r.json();
     document.getElementById("last-cat").textContent = fmtLast(m.cat);
     document.getElementById("last-news").textContent = fmtLast(m.news);
+    document.getElementById("last-biz").textContent = fmtLast(m.biz);
     document.getElementById("last-boards").textContent = fmtLast(m.boards);
     document.getElementById("last-social").textContent = fmtLast(m.social);
     const badge = document.getElementById("storage-badge");
@@ -701,6 +716,7 @@ initAdmin();
 loadMeta();
 loadCat();
 loadNews();
+loadBiz();
 loadBoards();
 loadSocial();
 resumeCrawls();  // 진행 중이던 수집이 있으면 폴링 재개(화면 껐다 켜도 이어짐)

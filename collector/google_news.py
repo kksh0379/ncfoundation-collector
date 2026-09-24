@@ -333,7 +333,7 @@ def _passes_date(item, days=RECENT_DAYS):
 
 
 def crawl(max_workers=24, max_items=0, progress=None, known_urls=None, days=None,
-          categories=None, keyword_filter=True):
+          categories=None, keyword_filter=True, title_exclude=None):
     """뉴스 수집 실행. 파싱된 기사 리스트 반환(그룹화/저장은 호출측).
     categories: {카테고리명: [검색어...]} (기본 CATEGORIES=재단/본사).
     keyword_filter=True면 NC 키워드/노이즈 필터를 적용하고, False면 날짜만 필터
@@ -409,10 +409,19 @@ def crawl(max_workers=24, max_items=0, progress=None, known_urls=None, days=None
                     if done % 5 == 0 or done == n:
                         progress(f"새 기사 요약 처리 {done}/{n}")
         _flt = _passes_filters if keyword_filter else _passes_date
+
+        def _ok(e):
+            if not _flt(e, days):
+                return False
+            if title_exclude:  # 제목에 제외어가 있으면 탈락(제목만 검사)
+                t = (e.get("title") or "").lower()
+                if any(x.lower() in t for x in title_exclude):
+                    return False
+            return True
         items = [
             {k: e.get(k) for k in ("title", "published_at", "author", "content",
                                     "url", "source_url", "category", "image_url")}
-            for e in processed if _flt(e, days)
+            for e in processed if _ok(e)
         ]
 
     msg = f"구글뉴스 수집 {len(items)}건 / {time.time() - t0:.1f}s"
@@ -436,3 +445,24 @@ def crawl_cat(max_workers=24, max_items=0, progress=None, known_urls=None, days=
     return crawl(max_workers=max_workers, max_items=max_items, progress=progress,
                  known_urls=known_urls, days=days,
                  categories=CAT_CATEGORIES, keyword_filter=False)
+
+
+# ---- 업계동향: (A) 업계 키워드 OR (B) 지정 기관명. 제목에 제외어 있으면 버림 ----
+BIZ_CATEGORIES = {
+    "업계동향": [
+        # A. 업계 키워드
+        "(문화재단 OR 공익재단 OR 비영리재단 OR 기업재단 OR 사회공헌재단 OR 공익법인 OR 비영리법인)",
+        # B. 지정 기관명(기타 기관은 여기에 OR로 추가하면 됨)
+        "(아산나눔재단 OR 삼성문화재단 OR CJ문화재단 OR 롯데문화재단 OR \"현대차 정몽구 재단\" "
+        "OR 포스코청암재단 OR 두산연강재단 OR LG연암문화재단 OR 카카오임팩트 OR 네이버문화재단)",
+    ],
+}
+BIZ_EXCLUDE_TITLE = ["채용", "채용공고", "입찰", "입찰공고", "휴관", "티켓"]
+
+
+def crawl_biz(max_workers=24, max_items=0, progress=None, known_urls=None, days=None):
+    """업계동향 뉴스 수집. 검색어가 조건(키워드/기관명)이라 키워드 필터는 끄고,
+    제목에 제외어(채용·입찰·휴관·티켓 등)가 있으면 버린다."""
+    return crawl(max_workers=max_workers, max_items=max_items, progress=progress,
+                 known_urls=known_urls, days=days, categories=BIZ_CATEGORIES,
+                 keyword_filter=False, title_exclude=BIZ_EXCLUDE_TITLE)
