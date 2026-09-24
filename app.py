@@ -241,6 +241,48 @@ def grep_url():
     return jsonify(out)
 
 
+@app.get("/api/grepall")
+def grepall():
+    """페이지의 모든 JS 청크를 받아 검색어(q) 주변 텍스트를 청크별로 반환(진단용)."""
+    import re as _re
+    from urllib.parse import urljoin as _join
+    url = request.args.get("url", "").strip()
+    q = request.args.get("q", "").strip()
+    if not url.startswith("http") or not q:
+        return jsonify({"error": "url, q 파라미터 필요"}), 400
+    _LIB = ("vue", "axios", "moment", "jquery", "libs.min", "polyfill", "runtime")
+    out = {"url": url, "q": q, "hits": []}
+    try:
+        html = (fetcher.get(url, retries=0, timeout=12).text or "")
+        srcs = _re.findall(r'(?:src|href)=["\']([^"\']+\.js)["\']', html)
+        srcs += _re.findall(r'import\(["\']([^"\']+\.js)["\']', html)
+        js_urls = sorted(set(_join(url, s) for s in srcs if not any(l in s.lower() for l in _LIB)))[:30]
+        ql = q.lower()
+        hits = []
+        for ju in js_urls:
+            try:
+                body = (fetcher.get(ju, retries=0, timeout=12).text or "")[:2_000_000]
+            except Exception:  # noqa: BLE001
+                continue
+            low = body.lower()
+            start, n = 0, 0
+            while n < 3:
+                i = low.find(ql, start)
+                if i < 0:
+                    break
+                snip = _re.sub(r"\s+", " ", body[max(0, i - 140): i + 200]).strip()
+                hits.append({"js": ju.rsplit("/", 1)[-1], "s": snip})
+                start = i + len(ql)
+                n += 1
+            if len(hits) >= 30:
+                break
+        out["hits"] = hits
+        out["count"] = len(hits)
+    except Exception as e:  # noqa: BLE001
+        out["error"] = f"{type(e).__name__}: {str(e)[:200]}"
+    return jsonify(out)
+
+
 @app.get("/api/apihunt")
 def apihunt():
     """SPA(CRA 등) 페이지의 JS 번들을 받아 그 안에 박힌 API 주소 후보를 찾아 반환(진단용)."""

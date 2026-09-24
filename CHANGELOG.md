@@ -5,6 +5,7 @@
 > 예: `v0.39 · build 260924`. (아래 과거 항목의 vNN 은 v0.NN 과 같은 번호예요: v38 = v0.38)
 
 ## 2026-09-24
+- **v0.86 · build 260924** — 전체 청크 검색 `/api/grepall?url=&q=` 추가(모든 JS 청크에서 검색어 주변 코드 반환). FAIR AI 인증 토큰/API 클라이언트 탐색용.
 - **v0.85 · build 260924** — /api/peek에 ref= 옵션(Origin/Referer 헤더) 추가. Origin 검사형 API(FAIR AI 등) 인증 테스트용.
 - **v0.84 · build 260924** — apihunt 보강: Nuxt/Vite modulepreload(`<link href>`)·import() 청크까지 모두 스캔(최대 25개), $fetch·/fair/api·notice/insight 패턴 추가. FAIR AI(Nuxt SPA) 목록 API 탐색용.
 - **v0.83 · build 260924** — 프로젝토리 텍스트 글 "요약 없음" 해결: 목록 API 응답에 본문(contents)이 포함돼 있어 상세 호출 없이 바로 요약. (상세 news-view는 껍데기라 불필요) 제목 필드 title 대응.
