@@ -3,12 +3,22 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>엔씨문화재단 콜렉터</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css', v='61') }}" />
+  <title>NC 스코프</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css', v='62') }}" />
 </head>
 <body>
   <header class="app-header">
-    <h1>엔씨문화재단 콜렉터</h1>
+    <a class="brand" href="/" aria-label="NC 스코프 홈">
+      <svg class="brand-mark" viewBox="0 0 32 32" width="28" height="28" aria-hidden="true">
+        <circle cx="16" cy="16" r="12" fill="none" stroke="currentColor" stroke-width="2.4"/>
+        <circle cx="16" cy="16" r="3.4" fill="currentColor"/>
+        <line x1="16" y1="1" x2="16" y2="5.5" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>
+        <line x1="16" y1="26.5" x2="16" y2="31" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>
+        <line x1="1" y1="16" x2="5.5" y2="16" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>
+        <line x1="26.5" y1="16" x2="31" y2="16" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>
+      </svg>
+      <span class="brand-name">NC <b>스코프</b></span>
+    </a>
     <button class="auth-btn admin-only" id="notes-btn">📓 노트</button>
     <button class="auth-btn admin-only" id="purge-db-btn">🗑 초기화</button>
     <button class="auth-btn guest-only" id="login-btn">관리자 로그인</button>
@@ -149,12 +159,12 @@
 
   <footer class="app-footer">
     <span class="foot-copy">© 2026 김상화</span>
-    <span class="ver">v0.60 · build 260924</span>
+    <span class="ver">v0.61 · build 260924</span>
     <span class="ver" id="storage-badge"></span>
   </footer>
 
   <button id="to-top" aria-label="맨 위로" hidden>↑</button>
 
-  <script src="{{ url_for('static', filename='js/app.js', v='61') }}"></script>
+  <script src="{{ url_for('static', filename='js/app.js', v='62') }}"></script>
 </body>
 </html>

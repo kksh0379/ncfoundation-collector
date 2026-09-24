@@ -32,6 +32,28 @@ body {
   gap: 8px;
 }
 .app-header h1 { margin: 0; font-size: 17px; font-weight: 700; flex: 1; }
+
+/* BI(브랜드): 로고 마크 + 워드마크. 클릭하면 홈(/)으로 이동 */
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  flex: 1;
+  min-width: 0;
+  color: #fff;
+  text-decoration: none;
+}
+.brand-mark { flex: 0 0 auto; color: #fff; }
+.brand-name {
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.brand-name b { font-weight: 800; }
+.brand:active { opacity: 0.75; }
 .ver { font-size: 11px; font-weight: 600; opacity: 0.8; vertical-align: middle; }
 
 .auth-btn {
