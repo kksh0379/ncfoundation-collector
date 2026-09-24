@@ -89,12 +89,13 @@ SOURCES = [
     },
     {
         "service": "대표 홈페이지", "category": "재단소식",
-        "list_url": "https://www.ncfoundation.or.kr/community/all",
-        "base_url": "https://www.ncfoundation.or.kr",
-        "item_link_sel": "a[href*=community], a.post-item",
-        "title_sel": ".title",
-        "desc_sel": ".desc",
-        "spa": True,
+        "list_url": "https://ncfoundation.or.kr/community/",
+        "base_url": "https://ncfoundation.or.kr",
+        "item_link_sel": "a[href*='/community/'], a.post-item, a[href*=view], a[href*=idx]",
+        "title_sel": ".title, .subject, strong, .tit",
+        "desc_sel": ".desc, .summary, p",
+        # 정적 HTML 목록이 없으면 embedded JSON(__NEXT_DATA__/__NUXT__ 등)에서 시도한다.
+        "try_embedded": True,
     },
 ]
 
@@ -140,6 +141,99 @@ def _resolve_url(a, cfg):
     return None
 
 
+def _walk_posts(node, depth=0):
+    """중첩 JSON을 훑어 '글'처럼 보이는 dict(제목 키가 있는)를 찾아 yield."""
+    if depth > 8:
+        return
+    if isinstance(node, dict):
+        keys = {k.lower() for k in node.keys()}
+        if keys & {"title", "subject", "tit", "posttitle", "boardtitle"}:
+            yield node
+        for v in node.values():
+            yield from _walk_posts(v, depth + 1)
+    elif isinstance(node, list):
+        for v in node:
+            yield from _walk_posts(v, depth + 1)
+
+
+def _extract_embedded(html, cfg):
+    """정적 목록이 없을 때, 페이지에 박힌 JSON(__NEXT_DATA__/application-json/__NUXT__)에서
+    글 목록을 뽑아 본다. 반환: entries 리스트(build가 쓰는 형태)."""
+    import json
+    candidates = []
+    m = re.search(r'<script id="__NEXT_DATA__"[^>]*>(.*?)</script>', html, re.S)
+    if m:
+        candidates.append(m.group(1))
+    for mm in re.finditer(r'<script[^>]*type="application/json"[^>]*>(.*?)</script>', html, re.S):
+        candidates.append(mm.group(1))
+    m = re.search(r'window\.__NUXT__\s*=\s*(\{.*?\})\s*;?\s*</script>', html, re.S)
+    if m:
+        candidates.append(m.group(1))
+
+    entries, seen = [], set()
+    for c in candidates:
+        try:
+            data = json.loads(c)
+        except Exception:  # noqa: BLE001
+            continue
+        for obj in _walk_posts(data):
+            title = obj.get("title") or obj.get("subject") or obj.get("tit") \
+                or obj.get("postTitle") or obj.get("boardTitle")
+            title = extractor.clean_text(str(title)) if title else None
+            if not title or len(title) < 2 or title in seen:
+                continue
+            # 글 번호/슬러그 후보 → 상세 URL 추정
+            pid = None
+            for k in ("id", "idx", "seq", "postId", "boardId", "no", "slug"):
+                if obj.get(k) not in (None, ""):
+                    pid = obj.get(k)
+                    break
+            url = urljoin(cfg["base_url"], f"/community/{pid}") if pid is not None else None
+            # 날짜 후보
+            pub = None
+            for k in ("createdAt", "created_at", "regDate", "date", "publishedAt", "created"):
+                if obj.get(k):
+                    pub = extractor.parse_date(str(obj[k])) or str(obj[k])[:16].replace("T", " ")
+                    break
+            desc = obj.get("summary") or obj.get("desc") or obj.get("content")
+            seen.add(title)
+            entries.append({
+                "url": url, "title": title, "published_at": pub,
+                "desc": extractor.clean_text(str(desc)) if desc else None,
+            })
+    return entries
+
+
+def _build_entry(e, cfg):
+    """목록 항목 1건 → 저장용 dict. http 링크면 상세에서 본문 보강, 아니면 고유 키 생성."""
+    content = e["desc"]
+    published = e["published_at"]
+    author = None
+    if e["url"]:
+        link = e["url"]
+        detail = _parse_detail(e["url"])
+        if detail.get("content") and len(detail["content"]) > 60:
+            content = detail["content"]
+        published = published or detail.get("published_at")
+        author = detail.get("author")
+    else:
+        # 원문 링크를 못 풀면 저장 키(url)가 목록 URL로 겹쳐 글들이 뭉개지므로,
+        # 목록 URL + 제목 해시로 고유 키를 만든다.
+        slug = hashlib.md5(
+            f"{cfg['service']}|{cfg['category']}|{e['title']}".encode("utf-8")
+        ).hexdigest()[:12]
+        link = f"{cfg['list_url']}#{slug}"
+    return {
+        "service": cfg["service"],
+        "category": cfg["category"],
+        "title": e["title"],
+        "published_at": published,
+        "author": author,
+        "content": extractor.summarize(content or ""),  # 카드용 요약
+        "url": link,
+    }
+
+
 def crawl_source(cfg, max_items=8, max_workers=3):
     """게시판 1개 크롤링 → 글 dict 리스트.
 
@@ -168,6 +262,13 @@ def crawl_source(cfg, max_items=8, max_workers=3):
 
     anchors = _select_any(soup, cfg["item_link_sel"])
     if not anchors:
+        # 정적 목록이 없으면 페이지에 박힌 JSON에서 시도(Next.js 등 SPA 대응)
+        if cfg.get("try_embedded"):
+            emb = _extract_embedded(resp.text, cfg)[:max_items]
+            if emb:
+                print(f"[board] {label}: embedded JSON에서 {len(emb)}건", flush=True)
+                with ThreadPoolExecutor(max_workers=max_workers) as pool:
+                    return list(pool.map(lambda e: _build_entry(e, cfg), emb))
         print(f"[board] {label}: 글 링크 0개", flush=True)
         return []
 
@@ -206,37 +307,8 @@ def crawl_source(cfg, max_items=8, max_workers=3):
             break
 
     # 2) 링크가 정상 http면 상세 페이지에서 요약을 보강한다
-    def build(e):
-        content = e["desc"]
-        published = e["published_at"]
-        author = None
-        if e["url"]:
-            link = e["url"]
-            detail = _parse_detail(e["url"])
-            if detail.get("content") and len(detail["content"]) > 60:
-                content = detail["content"]
-            published = published or detail.get("published_at")
-            author = detail.get("author")
-        else:
-            # 원문 링크를 못 풀면 저장 키(url)가 전부 list_url로 겹쳐, 같은 게시판의
-            # 여러 글이 한 행으로 뭉개지던 버그. 목록 URL + 제목 해시로 고유 키를 만든다.
-            # (브라우저는 #fragment를 무시하므로 '원문 보기'는 목록 페이지로 이동)
-            slug = hashlib.md5(
-                f"{cfg['service']}|{cfg['category']}|{e['title']}".encode("utf-8")
-            ).hexdigest()[:12]
-            link = f"{cfg['list_url']}#{slug}"
-        return {
-            "service": cfg["service"],
-            "category": cfg["category"],
-            "title": e["title"],
-            "published_at": published,
-            "author": author,
-            "content": extractor.summarize(content),  # 카드용 요약
-            "url": link,
-        }
-
     with ThreadPoolExecutor(max_workers=max_workers) as pool:
-        items = list(pool.map(build, entries))
+        items = list(pool.map(lambda e: _build_entry(e, cfg), entries))
 
     print(f"[board] {label}: 수집 {len(items)}건 / {time.time() - t0:.1f}s", flush=True)
     return items
