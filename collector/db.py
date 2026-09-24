@@ -161,11 +161,14 @@ def _upsert_many(table, cols, items):
     for it in items:
         rows.append(tuple(now if c == "collected_at" else it.get(c) for c in cols))
     with get_conn() as conn:
-        existing = {r["url"] for r in conn.execute(f"SELECT url FROM {table}").fetchall()}
+        # 신규 건수는 저장 전후 총 개수 차이로 계산한다(COUNT는 인덱스로 빨라서, 큰 테이블/
+        # Neon cold start에서도 전체 URL을 끌어오던 예전 방식보다 훨씬 빠르다).
+        before = conn.execute(f"SELECT COUNT(*) AS n FROM {table}").fetchone()["n"]
         cur = conn.cursor()
         cur.executemany(sql, rows)
-    new = sum(1 for it in items if it.get("url") not in existing)
-    return (new, len(items) - new)
+        after = conn.execute(f"SELECT COUNT(*) AS n FROM {table}").fetchone()["n"]
+    new = int(after) - int(before)
+    return (new, max(0, len(items) - new))
 
 
 def upsert_news_many(items):

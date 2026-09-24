@@ -290,11 +290,10 @@ def _do_crawl(group, progress=None, days=None):
     crawl_fn, save_fn = _CRAWLERS[group]
     try:
         if group == "news":
-            # 증분 수집: 이미 저장된 URL은 재해석(느린 원문 복원)하지 않고 새 기사만 처리.
-            # URL만 가볍게 로드(본문 미로딩 → 메모리 절약, 대량 누적 시 지연/OOM 방지).
-            progress("기존 데이터 확인 중…")
-            known = db.all_news_urls()
-            items = crawl_fn(known_urls=known, progress=progress, days=days)
+            # 예전엔 여기서 기존 URL을 전부 로드해 증분 비교했는데, 큰 테이블 + Neon
+            # cold start에서 이 '기존 데이터 확인'이 너무 느렸다. 이제는 그 단계를 없애고,
+            # 저장 시 ON CONFLICT로 중복을 걸러 새 기사만 추가한다(신규 건수는 COUNT 차이).
+            items = crawl_fn(progress=progress, days=days)
         else:
             items = crawl_fn(progress=progress)
         progress("저장·그룹화 중…")

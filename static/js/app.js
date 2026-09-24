@@ -293,8 +293,8 @@ function runCrawl(btn, group, msgEl, reload) {
   btn.disabled = true;
   msgEl.style.color = "";
   msgEl.innerHTML = '<span class="mini-spin"></span> 수집 시작…';
-  let url = "/api/crawl/" + group + "/start";
-  if (group === "news") url += "?days=" + encodeURIComponent(ddValue("dd-news-period"));
+  // 뉴스 수집 기간은 서버 기본값(최근 2년)을 사용한다(기간 선택 UI 제거).
+  const url = "/api/crawl/" + group + "/start";
   fetch(url, { method: "POST" }).catch(() => {});
   _startPolling(group);
 }
@@ -322,11 +322,10 @@ document.getElementById("collect-social").addEventListener("click", (e) =>
 );
 // ----------------------------- DB 비우기(관리자) -----------------------------
 async function purgeDb() {
-  const days = ddValue("dd-news-period") || "730";
-  const yrs = Math.round(Number(days) / 365) || 2;
+  const days = 730;  // 최근 2년(서버 기본값과 동일)
   if (!confirm(
     "수집한 데이터(뉴스·게시판·소셜)를 모두 삭제합니다.\n" +
-    "삭제 후 곧바로 최근 " + yrs + "년치로 새로 수집을 시작합니다.\n\n계속할까요?"
+    "삭제 후 곧바로 최근 2년치로 새로 수집을 시작합니다.\n\n계속할까요?"
   )) return;
   const btn = document.getElementById("purge-db-btn");
   const msgEl = document.getElementById("msg-news");
@@ -390,7 +389,6 @@ document.addEventListener("click", () =>
   document.querySelectorAll(".dropdown-menu").forEach((m) => (m.hidden = true))
 );
 setupDropdown("dd-news-category", loadNews);
-setupDropdown("dd-news-period", () => {});   // 수집 기간(크롤 파라미터) — 조회 갱신 불필요
 setupDropdown("dd-service", loadBoards);
 setupDropdown("dd-channel", loadSocial);
 
