@@ -680,6 +680,22 @@ def _save_biz(items):
     return _save_news(items, section="biz")
 
 
+def _purge_biz_nc(progress=None):
+    """업계동향(biz)에 섞여 들어온 NC 관련 기사를 삭제(NC뉴스 탭과 분리). 필터 강화 이전 잔여분 정리."""
+    try:
+        ex = [x.lower() for x in google_news.BIZ_EXCLUDE_BODY]
+        rows = db.list_news(section="biz", limit=5000)
+        bad = [r["url"] for r in rows
+               if any(x in f"{r.get('title', '')} {r.get('content', '')}".lower() for x in ex)]
+        if bad:
+            db.delete_news_by_urls(bad)
+            print(f"[crawl] 업계동향 NC 노이즈 {len(bad)}건 정리", flush=True)
+            if progress:
+                progress(f"NC 노이즈 {len(bad)}건 정리")
+    except Exception as e:  # noqa: BLE001
+        print(f"[crawl] 업계동향 정리 실패: {e}", flush=True)
+
+
 def _purge_news_noise(progress=None):
     """이미 저장된 뉴스 중 본사 카테고리의 노이즈(야구·백화점 등, 게임 문맥 없는 NC)를
     현재 필터 기준으로 재평가해 삭제한다. (필터 강화 이전에 쌓인 것 정리용)"""
@@ -753,6 +769,8 @@ def _do_crawl(group, progress=None, days=None):
         result = {"crawled": len(items), **counts}
         if group == "news":
             _purge_news_noise(progress)  # 기존에 쌓인 본사 노이즈(야구/백화점 등) 정리
+        if group == "biz":
+            _purge_biz_nc(progress)  # 업계동향에 섞인 NC 기사 정리(NC뉴스와 분리)
         if group in ("news", "cat", "biz"):
             _enrich_news_images(progress)  # 이미지 없는 최근 기사에 대표 이미지(og:image) 보강
         progress(f"완료 · 신규 {result.get('new', 0)}건 · 갱신 {result.get('updated', 0)}건")

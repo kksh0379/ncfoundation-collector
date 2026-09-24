@@ -462,8 +462,9 @@ BIZ_CATEGORIES = {
     ],
 }
 BIZ_EXCLUDE_TITLE = ["채용", "채용공고", "입찰", "입찰공고", "휴관", "티켓"]
-# NC뉴스 탭과 겹치지 않게, NC 자기 기사(엔씨문화재단/엔씨소프트 등)는 업계동향에서 제외
-BIZ_EXCLUDE_BODY = ["엔씨문화재단", "nc문화재단", "엔씨소프트", "ncsoft"]
+# NC뉴스 탭과 겹치지 않게, NC 관련 기사는 업계동향에서 제외(제목·본문에 있으면 탈락).
+# "엔씨"만 있어도 엔씨소프트/엔씨문화재단/엔씨에이아이 등을 모두 걸러낸다.
+BIZ_EXCLUDE_BODY = ["엔씨", "ncsoft", "nc문화재단", "ncfoundation", "nc다이노스", "nc소프트"]
 
 
 def crawl_biz(max_workers=24, max_items=0, progress=None, known_urls=None, days=None):

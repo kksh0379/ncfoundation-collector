@@ -200,9 +200,9 @@ function newsGroupNode(arr) {
     ? `<a href="${escapeHtml(repLink)}" target="_blank" rel="noopener">${t}</a>` : t;
   const li = document.createElement("li");
   li.className = "card card-news";
+  // 뉴스류(뉴스/냥정보/업계동향)는 대표이미지가 언론사 핫링크 차단으로 들쭉날쭉해 표시 제거(텍스트 카드).
   let html = `
     <div class="card-main">
-      ${newsThumb(rep, true)}
       <div class="card-body">
         <h3 class="card-title">${titleHtml}</h3>
         <div class="card-meta">${meta.join(" · ")}</div>
