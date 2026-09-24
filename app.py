@@ -203,6 +203,46 @@ def peek():
     return jsonify(out)
 
 
+@app.get("/api/apihunt")
+def apihunt():
+    """SPA(CRA 등) 페이지의 JS 번들을 받아 그 안에 박힌 API 주소 후보를 찾아 반환(진단용)."""
+    import re as _re
+    from urllib.parse import urljoin as _join
+    url = request.args.get("url", "").strip()
+    if not url.startswith("http"):
+        return jsonify({"error": "url 파라미터 필요"}), 400
+    out = {"url": url, "js": [], "candidates": []}
+    try:
+        html = (fetcher.get(url, retries=0, timeout=12).text or "")
+        srcs = _re.findall(r'<script[^>]+src=["\']([^"\']+)["\']', html)
+        js_urls = [_join(url, s) for s in srcs if ".js" in s]
+        # main 번들 우선, 최대 4개까지만
+        js_urls = sorted(set(js_urls), key=lambda u: (0 if "main" in u else 1, len(u)))[:4]
+        out["js"] = js_urls
+        cand = set()
+        for ju in js_urls:
+            try:
+                body = (fetcher.get(ju, retries=0, timeout=15).text or "")[:4_000_000]
+            except Exception:  # noqa: BLE001
+                continue
+            for pat in (
+                r'https?://[a-zA-Z0-9.\-]+/[a-zA-Z0-9/_\-]*(?:api|community|board|news|post)[a-zA-Z0-9/_\-]*',
+                r'["\'`](/(?:api|v1|v2)/[a-zA-Z0-9/_\-{}.:]+)["\'`]',
+                r'["\'`](/[a-zA-Z0-9/_\-]*community[a-zA-Z0-9/_\-]*)["\'`]',
+                r'baseURL\s*[:=]\s*["\'`]([^"\'`]+)["\'`]',
+                r'["\'`](https?://api\.[a-zA-Z0-9.\-]+[^"\'`]*)["\'`]',
+            ):
+                for m in _re.findall(pat, body):
+                    if isinstance(m, tuple):
+                        m = m[0]
+                    if 3 < len(m) < 200:
+                        cand.add(m)
+        out["candidates"] = sorted(cand)[:60]
+    except Exception as e:  # noqa: BLE001
+        out["error"] = f"{type(e).__name__}: {str(e)[:200]}"
+    return jsonify(out)
+
+
 @app.get("/api/visitlog")
 def visitlog():
     """접속자 로그(관리자 전용): 방문 시각·IP·기기(UA)·경로 등."""
