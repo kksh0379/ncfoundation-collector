@@ -167,6 +167,42 @@ def runlog():
         return jsonify([])
 
 
+@app.get("/api/peek")
+def peek():
+    """지정 URL을 한 번만 받아 구조를 가볍게 요약(진단용). /api/inspect보다 안전(단일 요청)."""
+    import re as _re
+    url = request.args.get("url", "").strip()
+    if not url.startswith("http"):
+        return jsonify({"error": "url 파라미터 필요"}), 400
+    out = {"url": url}
+    try:
+        resp = fetcher.get(url, retries=0, timeout=12)
+        html = resp.text or ""
+        out["status"] = resp.status_code
+        out["final_url"] = resp.url
+        out["len"] = len(html)
+        out["content_type"] = resp.headers.get("content-type", "")
+        # /community/all/숫자 형태 링크
+        links = _re.findall(r'href=["\'](/community/all/\d+[^"\']*)["\']', html)
+        links += _re.findall(r'href=["\'](https?://[^"\']*?/community/all/\d+[^"\']*)["\']', html)
+        out["community_links_count"] = len(links)
+        out["community_links_sample"] = list(dict.fromkeys(links))[:15]
+        out["has_next_data"] = "__NEXT_DATA__" in html
+        out["has_nuxt"] = "__NUXT__" in html
+        out["json_script_count"] = len(_re.findall(r'type=["\']application/json["\']', html))
+        # embedded 추출이 몇 건 잡는지 미리보기
+        cfg = next((s for s in boards.SOURCES if s["service"] == "대표 홈페이지"), None)
+        if cfg:
+            emb = boards._extract_embedded(html, cfg)
+            out["embedded_found"] = len(emb)
+            out["embedded_sample"] = emb[:3]
+        # <a> 전체 중 앞부분 샘플(패턴 파악용)
+        out["any_links_sample"] = list(dict.fromkeys(_re.findall(r'href=["\']([^"\']+)["\']', html)))[:25]
+    except Exception as e:  # noqa: BLE001
+        out["error"] = f"{type(e).__name__}: {str(e)[:200]}"
+    return jsonify(out)
+
+
 @app.get("/api/visitlog")
 def visitlog():
     """접속자 로그(관리자 전용): 방문 시각·IP·기기(UA)·경로 등."""

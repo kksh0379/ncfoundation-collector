@@ -5,6 +5,7 @@
 > 예: `v0.39 · build 260924`. (아래 과거 항목의 vNN 은 v0.NN 과 같은 번호예요: v38 = v0.38)
 
 ## 2026-09-24
+- **v0.68 · build 260924** — 가벼운 구조 진단 `/api/peek?url=` 추가(단일 요청으로 링크·embedded JSON 요약). /api/inspect가 무거워 502 나던 문제 우회.
 - **v0.67 · build 260924** — 대표 홈페이지 글 주소 패턴 반영(`/community/all/{번호}`). 목록 URL `/community/all`, 링크 선택자·상세 경로(detail_path) 맞춤.
 - **v0.66 · build 260924** — 대표 홈페이지 게시판 수집 재시도: 대상 URL을 `ncfoundation.or.kr/community/`로 변경. 정적 목록이 없을 때 페이지에 박힌 JSON(__NEXT_DATA__/application-json/__NUXT__)에서 글을 뽑는 폴백 추가. 상태 "구현 중".
 - **v0.65 · build 260924** — 카드 본문이 2줄뿐이던 원인 해결: 대량 수집은 구글 RSS 요약(제목+언론사 수준)만 저장돼 짧았음. 보강 단계에서 원문을 열 때 대표 이미지와 함께 **실제 요약(og:description/본문)** 도 채우도록 확장 → 수집 반복하면 본문이 3~4줄로 채워짐.
