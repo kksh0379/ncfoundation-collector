@@ -93,18 +93,6 @@ def _meta(soup, *names):
     return None
 
 
-def extract_image(soup):
-    """기사 대표 이미지(og:image 등)를 추출. 없으면 None."""
-    img = _meta(soup, "og:image", "og:image:url", "twitter:image", "twitter:image:src")
-    if img:
-        img = img.strip()
-        if img.startswith("//"):
-            img = "https:" + img
-        if img.startswith("http"):
-            return img
-    return None
-
-
 def extract_article(soup, url):
     """기사/글 1건에서 제목·작성일·작성자·본문을 추출."""
     title = _meta(soup, "og:title")

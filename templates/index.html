@@ -4,12 +4,13 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>엔씨문화재단 콜렉터</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css', v='46') }}" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css', v='47') }}" />
 </head>
 <body>
   <header class="app-header">
     <h1>엔씨문화재단 콜렉터</h1>
     <button class="auth-btn admin-only" id="notes-btn">📓 노트</button>
+    <button class="auth-btn admin-only" id="purge-db-btn">🗑 초기화</button>
     <button class="auth-btn guest-only" id="login-btn">관리자 로그인</button>
     <button class="auth-btn admin-only" id="logout-btn">로그아웃</button>
   </header>
@@ -49,7 +50,6 @@
       </div>
       <button class="btn-status admin-only" id="status-news-btn">상태 확인</button>
       <button class="btn-collect admin-only" id="collect-news">수집 실행</button>
-      <button class="btn-danger admin-only" id="purge-db-btn">🗑 DB 비우기</button>
     </div>
     <div class="legend admin-only">
       <span class="chip chip-done">재단 · 엔씨문화재단/NC문화재단</span>
@@ -162,12 +162,12 @@
 
   <footer class="app-footer">
     <span class="foot-copy">© 2026 김상화</span>
-    <span class="ver">v0.45 · build 260924</span>
+    <span class="ver">v0.46 · build 260924</span>
     <span class="ver" id="storage-badge"></span>
   </footer>
 
   <button id="to-top" aria-label="맨 위로" hidden>↑</button>
 
-  <script src="{{ url_for('static', filename='js/app.js', v='46') }}"></script>
+  <script src="{{ url_for('static', filename='js/app.js', v='47') }}"></script>
 </body>
 </html>

@@ -234,19 +234,13 @@ body.is-admin .guest-only { display: none !important; }
 }
 .btn-status:active { background: #eef2ff; }
 
-.btn-danger {
-  padding: 9px 12px;
-  border: 1px solid #dc2626;
-  border-radius: 8px;
-  background: #fff;
-  color: #dc2626;
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  white-space: nowrap;
+/* 헤더의 DB 초기화 버튼: 파괴적 동작이라 붉은 톤으로 구분 */
+#purge-db-btn {
+  border-color: rgba(255, 190, 190, 0.9);
+  background: rgba(220, 38, 38, 0.28);
 }
-.btn-danger:active { background: #fef2f2; }
-.btn-danger:disabled { opacity: 0.5; }
+#purge-db-btn:active { background: rgba(220, 38, 38, 0.45); }
+#purge-db-btn:disabled { opacity: 0.5; }
 .btn-status:disabled { opacity: 0.5; }
 
 .status-panel {
@@ -331,31 +325,6 @@ body.is-admin .guest-only { display: none !important; }
   -webkit-line-clamp: 4;
   -webkit-box-orient: vertical;
   overflow: hidden;
-}
-
-/* 뉴스 카드: 왼쪽 썸네일 + 오른쪽 본문 */
-.card-news .card-main { display: flex; gap: 12px; align-items: flex-start; }
-.card-news .card-body { flex: 1 1 auto; min-width: 0; }
-.card-thumb {
-  flex: 0 0 auto;
-  width: 84px;
-  height: 84px;
-  border-radius: 10px;
-  overflow: hidden;
-  background: #eef2f7;
-}
-.thumb-img, .card-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.thumb-fav { object-fit: contain !important; padding: 18px; background: #fff; }
-.thumb-ph {
-  width: 100%;
-  height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 30px;
-  font-weight: 800;
-  color: #fff;
-  background: linear-gradient(135deg, #6a8bd6, #2d6cdf);
 }
 .card-actions { margin-top: 10px; display: flex; gap: 12px; }
 .card-actions a, .card-actions button {

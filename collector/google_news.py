@@ -215,11 +215,7 @@ def _summary_from_article(entry):
             # 복원/리다이렉트로 얻은 실제 기사 URL은 표시(원문 보기)용으로만 보관.
             if final:
                 entry["source_url"] = final
-            page_soup = BeautifulSoup(resp.text, "lxml")
-            img = extractor.extract_image(page_soup)
-            if img:
-                entry["image_url"] = img  # 기사 대표 이미지(og:image)
-            art = extractor.extract_article(page_soup, final)
+            art = extractor.extract_article(BeautifulSoup(resp.text, "lxml"), final)
             if art.get("content") and len(art["content"]) > 120:
                 summary = extractor.summarize(art["content"])
                 entry["published_at"] = entry.get("published_at") or art.get("published_at")
@@ -229,41 +225,6 @@ def _summary_from_article(entry):
     # 본문으로 사용한다. 그래야 본문이 비어 키워드 필터에서 탈락하는 일이 없다.
     entry["content"] = summary or entry.get("snippet") or ""
     return entry
-
-
-def _image_for(row):
-    """저장된 뉴스 1건의 대표 이미지(og:image)를 복원. (url→원문 복원 후 og:image)"""
-    url = row.get("source_url") or row.get("url")
-    try:
-        real = row.get("source_url") or _decode_google_url(row.get("url", "")) or url
-        resp = fetcher.get(real, retries=0, timeout=NEWS_TIMEOUT)
-        final = resp.url or ""
-        if "news.google." in final or "consent.google" in final:
-            return None
-        return extractor.extract_image(BeautifulSoup(resp.text, "lxml"))
-    except Exception:  # noqa: BLE001
-        return None
-
-
-def enrich_images(rows, max_workers=12, progress=None):
-    """대표 이미지가 없는 뉴스들의 og:image를 병렬로 채운다. 반환: {url: image_url}.
-    대량 백필은 속도 때문에 원문을 안 열어 이미지가 비는데, 이후 이 보강으로 최근 것부터
-    이미지를 채운다(구글 차단/느림 대비 짧은 타임아웃·best-effort)."""
-    progress = progress or (lambda m: None)
-    if not rows:
-        return {}
-    out, done = {}, 0
-    with ThreadPoolExecutor(max_workers=max_workers) as pool:
-        futs = {pool.submit(_image_for, r): r for r in rows}
-        for fut in as_completed(futs):
-            r = futs[fut]
-            img = fut.result()
-            if img:
-                out[r["url"]] = img
-            done += 1
-            if done % 20 == 0 or done == len(rows):
-                progress(f"이미지 보강 {done}/{len(rows)} · 확보 {len(out)}건")
-    return out
 
 
 def _kw_match(haystack, kw):
@@ -382,8 +343,7 @@ def crawl(max_workers=24, max_items=0, progress=None, known_urls=None, days=None
                     if done % 5 == 0 or done == n:
                         progress(f"새 기사 요약 처리 {done}/{n}")
         items = [
-            {k: e.get(k) for k in ("title", "published_at", "author", "content",
-                                    "url", "source_url", "category", "image_url")}
+            {k: e.get(k) for k in ("title", "published_at", "author", "content", "url", "source_url", "category")}
             for e in processed if _passes_filters(e, days)
         ]
 

@@ -84,7 +84,7 @@ _DDL = [
     f"""CREATE TABLE IF NOT EXISTS news (
         id {_AUTO_PK}, title TEXT, published_at TEXT, author TEXT, content TEXT,
         url TEXT UNIQUE, content_hash TEXT, group_key TEXT, source_url TEXT,
-        category TEXT, image_url TEXT, collected_at TEXT
+        category TEXT, collected_at TEXT
     )""",
     f"""CREATE TABLE IF NOT EXISTS boards (
         id {_AUTO_PK}, service TEXT, category TEXT, title TEXT, published_at TEXT,
@@ -111,7 +111,6 @@ def init_db():
             conn.execute("ALTER TABLE news ADD COLUMN IF NOT EXISTS group_key TEXT")
             conn.execute("ALTER TABLE news ADD COLUMN IF NOT EXISTS source_url TEXT")
             conn.execute("ALTER TABLE news ADD COLUMN IF NOT EXISTS category TEXT")
-            conn.execute("ALTER TABLE news ADD COLUMN IF NOT EXISTS image_url TEXT")
         else:
             cols = {r["name"] for r in conn.execute("PRAGMA table_info(news)").fetchall()}
             if "group_key" not in cols:
@@ -120,8 +119,6 @@ def init_db():
                 conn.execute("ALTER TABLE news ADD COLUMN source_url TEXT")
             if "category" not in cols:
                 conn.execute("ALTER TABLE news ADD COLUMN category TEXT")
-            if "image_url" not in cols:
-                conn.execute("ALTER TABLE news ADD COLUMN image_url TEXT")
 
 
 def set_meta(key, value):
@@ -145,7 +142,7 @@ def _now():
 
 # ---- 배치 upsert (키=url, ON CONFLICT로 한 번에 처리 → 원격 DB에서도 빠름) ----
 _NEWS_COLS = ("title", "published_at", "author", "content", "url",
-              "content_hash", "group_key", "source_url", "category", "image_url", "collected_at")
+              "content_hash", "group_key", "source_url", "category", "collected_at")
 _BOARD_COLS = ("service", "category", "title", "published_at", "author",
                "content", "url", "collected_at")
 _SOCIAL_COLS = ("channel", "account", "title", "published_at", "content", "url", "collected_at")
@@ -212,28 +209,6 @@ def all_news_urls():
     with get_conn() as conn:
         rows = conn.execute("SELECT url FROM news").fetchall()
         return {r["url"] for r in rows}
-
-
-def news_missing_images(limit=150):
-    """대표 이미지가 아직 없는 뉴스(최근순)를 (url, source_url)로 로드. 이미지 보강용."""
-    with get_conn() as conn:
-        rows = conn.execute(
-            _q("SELECT url, source_url FROM news "
-               "WHERE image_url IS NULL OR image_url = '' "
-               "ORDER BY published_at DESC, id DESC LIMIT ?"), (limit,)
-        ).fetchall()
-        return [dict(r) for r in rows]
-
-
-def set_news_images(url_to_img):
-    """url→image_url 매핑으로 image_url 일괄 갱신."""
-    pairs = [(v, u) for u, v in (url_to_img or {}).items() if v]
-    if not pairs:
-        return 0
-    with get_conn() as conn:
-        cur = conn.cursor()
-        cur.executemany(_q("UPDATE news SET image_url=? WHERE url=?"), pairs)
-    return len(pairs)
 
 
 def all_news_for_filter():
