@@ -269,7 +269,12 @@ def _ncf_detail_summary(api_base, dtype, pid):
         except ValueError:
             raw = extractor.extract_main_text(BeautifulSoup(resp.text, "lxml"))
         if raw:
-            return extractor.summarize(extractor.clean_text(raw))
+            text = extractor.clean_text(raw)
+            if text and len(text) >= 10:
+                return extractor.summarize(text)
+            # 본문 텍스트가 없고 이미지만 있는 게시물 → '요약 없음' 대신 안내 문구
+            if "<img" in raw.lower():
+                return "🖼 이미지로 구성된 게시물입니다. 원문에서 확인하세요."
     except Exception:  # noqa: BLE001
         pass
     return ""
