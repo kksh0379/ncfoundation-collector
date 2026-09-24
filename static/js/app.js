@@ -43,6 +43,24 @@ document.querySelectorAll(".tab").forEach((tab) => {
   });
 });
 
+// ----------------------------- 보기 방식(리스트/카드) -----------------------------
+function setView(mode) {
+  mode = mode === "card" ? "card" : "list";  // 기본 list
+  document.body.classList.toggle("view-list", mode === "list");
+  document.body.classList.toggle("view-card", mode === "card");
+  document.querySelectorAll("#view-toggle button").forEach((b) =>
+    b.classList.toggle("active", b.dataset.view === mode));
+  try { localStorage.setItem("viewMode", mode); } catch (e) { /* 무시 */ }
+}
+(function initView() {
+  let saved = "list";
+  try { saved = localStorage.getItem("viewMode") || "list"; } catch (e) { /* 무시 */ }
+  setView(saved);
+  const seg = document.getElementById("view-toggle");
+  if (seg) seg.querySelectorAll("button").forEach((b) =>
+    b.addEventListener("click", () => setView(b.dataset.view)));
+})();
+
 // ----------------------------- 로딩 표시 / 무한 스크롤 -----------------------------
 function showLoading(el) {
   el.innerHTML = `<li class="empty"><span class="mini-spin"></span> 불러오는 중…</li>`;
@@ -75,10 +93,13 @@ function renderCard(item, opts) {
   meta.push(escapeHtml(fmtDate(item.published_at)));
   if (item.author) meta.push(escapeHtml(item.author));
 
+  const t = escapeHtml(item.title || "(제목 없음)");
+  const titleHtml = item.url
+    ? `<a href="${escapeHtml(item.url)}" target="_blank" rel="noopener">${t}</a>` : t;
   const li = document.createElement("li");
   li.className = "card";
   li.innerHTML = `
-    <h3 class="card-title">${escapeHtml(item.title || "(제목 없음)")}</h3>
+    <h3 class="card-title">${titleHtml}</h3>
     <div class="card-meta">${meta.join(" · ")}</div>
     <p class="card-summary">${escapeHtml(item.content || "요약 없음")}</p>
     <div class="card-actions">
@@ -119,13 +140,16 @@ function newsGroupNode(arr) {
   if (rep.author) meta.push(escapeHtml(rep.author));
   if (arr.length > 1) meta.push(`<span class="badge">${arr.length}개 매체</span>`);
 
+  const t = escapeHtml(rep.title || "(제목 없음)");
+  const titleHtml = repLink
+    ? `<a href="${escapeHtml(repLink)}" target="_blank" rel="noopener">${t}</a>` : t;
   const li = document.createElement("li");
   li.className = "card card-news";
   let html = `
     <div class="card-main">
       ${newsThumb(rep)}
       <div class="card-body">
-        <h3 class="card-title">${escapeHtml(rep.title || "(제목 없음)")}</h3>
+        <h3 class="card-title">${titleHtml}</h3>
         <div class="card-meta">${meta.join(" · ")}</div>
         <p class="card-summary">${escapeHtml(rep.content || "요약 없음")}</p>
         <div class="card-actions">
@@ -334,10 +358,10 @@ document.getElementById("collect-social").addEventListener("click", (e) =>
 );
 // ----------------------------- DB 비우기(관리자) -----------------------------
 async function purgeDb() {
-  const days = 730;  // 최근 2년(서버 기본값과 동일)
+  const days = 1825;  // 최근 5년(서버 기본값과 동일)
   if (!confirm(
     "수집한 데이터(뉴스·게시판·소셜)를 모두 삭제합니다.\n" +
-    "삭제 후 곧바로 최근 2년치로 새로 수집을 시작합니다.\n\n계속할까요?"
+    "삭제 후 곧바로 최근 5년치로 새로 수집을 시작합니다.\n\n계속할까요?"
   )) return;
   const btn = document.getElementById("purge-db-btn");
   const msgEl = document.getElementById("msg-news");

@@ -360,6 +360,43 @@ body.is-admin .guest-only { display: none !important; }
   background: #eef2f7;
 }
 .thumb-img, .card-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+/* 제목을 링크로(리스트/카드 공통): 밑줄·색 없이 제목처럼 보이게 */
+.card-title a { color: inherit; text-decoration: none; }
+.card-title a:active { color: var(--primary); }
+
+/* 보기 방식 선택 바 */
+.viewbar { display: flex; justify-content: flex-end; padding: 8px 16px 0; }
+.viewseg { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: #fff; }
+.viewseg button {
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 12px;
+  cursor: pointer;
+}
+.viewseg button.active { background: var(--primary); color: #fff; }
+
+/* 리스트 뷰: 제목 한 줄(…)만 보이게 간소화 */
+body.view-list .card { padding: 11px 13px; margin-bottom: 6px; border-radius: 8px; }
+body.view-list .card-thumb,
+body.view-list .card-meta,
+body.view-list .card-summary,
+body.view-list .card-actions,
+body.view-list .accordion-toggle,
+body.view-list .accordion-body { display: none !important; }
+body.view-list .card-main { display: block; gap: 0; }
+body.view-list .card-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.4;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .card-actions { margin-top: 10px; display: flex; gap: 12px; }
 .card-actions a, .card-actions button {
   font-size: 12px;

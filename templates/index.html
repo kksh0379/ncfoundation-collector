@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>NC 스코프</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css', v='62') }}" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css', v='63') }}" />
 </head>
 <body>
   <header class="app-header">
@@ -31,6 +31,14 @@
     <button class="tab" data-tab="social">소셜 채널</button>
   </nav>
 
+  <!-- 보기 방식 선택: 리스트(제목만) / 카드(썸네일·요약) -->
+  <div class="viewbar">
+    <div class="viewseg" id="view-toggle" role="group" aria-label="보기 방식">
+      <button type="button" data-view="list" class="active">☰ 리스트</button>
+      <button type="button" data-view="card">▭ 카드</button>
+    </div>
+  </div>
+
   <!-- 탭1: 뉴스 -->
   <section class="panel active" id="panel-news">
     <div class="toolbar">
@@ -51,7 +59,7 @@
     <div class="legend admin-only">
       <span class="chip chip-done">재단 · 엔씨문화재단/NC문화재단</span>
       <span class="chip chip-done">본사 · 엔씨소프트·자회사(NC AI/QA/IDS·게임스튜디오), 야구 제외</span>
-      <span class="chip chip-plan">최근 2년 · 구글 뉴스(RSS)</span>
+      <span class="chip chip-plan">최근 5년 · 구글 뉴스(RSS)</span>
     </div>
     <div class="last-crawl" id="last-news"></div>
     <div class="result-msg" id="msg-news"></div>
@@ -159,12 +167,12 @@
 
   <footer class="app-footer">
     <span class="foot-copy">© 2026 김상화</span>
-    <span class="ver">v0.61 · build 260924</span>
+    <span class="ver">v0.62 · build 260924</span>
     <span class="ver" id="storage-badge"></span>
   </footer>
 
   <button id="to-top" aria-label="맨 위로" hidden>↑</button>
 
-  <script src="{{ url_for('static', filename='js/app.js', v='62') }}"></script>
+  <script src="{{ url_for('static', filename='js/app.js', v='63') }}"></script>
 </body>
 </html>

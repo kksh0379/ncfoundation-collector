@@ -59,7 +59,7 @@ NEWS_TIMEOUT = 6  # 뉴스 원문 해석은 빨리 실패시켜(스냅샷 폴백
 FULLBODY_MAX = 150  # 새 기사가 이보다 많으면 원문 해석 생략(스냅샷만) → 대량 백필 폭주 방지
 # 진단 등 호환용 평면 키워드 목록
 KEYWORDS = [kw for kws in CATEGORIES.values() for kw in kws]
-RECENT_DAYS = 730  # 최근 2년 기사만 수집
+RECENT_DAYS = 1825  # 최근 5년 기사 수집
 # 원문 본문 추출 시도 여부. 구글 링크는 리다이렉트라 대부분 실패하면서 느려지므로
 # 기본은 끄고 RSS 요약을 본문으로 쓴다. (속도·안정성 우선)
 FETCH_FULL_BODY = True  # 원문 기사로 풀리면 요약 추출 시도(실패 시 RSS 요약 사용)
@@ -308,7 +308,7 @@ def crawl(max_workers=24, max_items=0, progress=None, known_urls=None, days=None
     재단/본사 카테고리별로 수집하고 각 기사에 category를 태그한다. 동일 기사가 여러
     매체에 배포된 것도 전부 수집한다(중복 제거 X, 저장측에서 그룹화).
 
-    days: 수집 기간(최근 N일). 미지정 시 기본 RECENT_DAYS(2년).
+    days: 수집 기간(최근 N일). 미지정 시 기본 RECENT_DAYS(5년).
     max_items=0이면 개수 제한 없이 전부 수집. 속도를 위해 원문 해석을 높은 병렬도로
     처리하고(각 요청은 짧은 타임아웃으로 빨리 실패→스냅샷 폴백), 증분 수집으로
     이미 저장된 URL은 재해석하지 않는다(재수집은 새 기사만).

@@ -560,7 +560,7 @@ def _auto_backfill():
     if has_news:
         print("[backfill] 기존 데이터 있음 → 백필 건너뜀", flush=True)
         return
-    days = int(os.environ.get("BACKFILL_DAYS", "730"))  # 기본 2년(뉴스 필터 RECENT_DAYS와 일치)
+    days = int(os.environ.get("BACKFILL_DAYS", "1825"))  # 기본 5년(뉴스 필터 RECENT_DAYS와 일치)
     print(f"[backfill] DB 비어있음 → 자동 백필 시작(뉴스 최근 {days}일 + 게시판/소셜)", flush=True)
     _start_job("news", days=days)
     _start_job("boards")
