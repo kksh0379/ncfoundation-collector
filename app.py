@@ -481,9 +481,11 @@ def diag():
     if group in ("all", "boards"):
         seen = set()
         for s in boards.SOURCES:
-            if s["list_url"] not in seen:
-                seen.add(s["list_url"])
-                targets.append((f"{s['service']} · {s['category']}", s["list_url"], s.get("item_link_sel")))
+            # API 방식 소스는 list_url 대신 api/projectory_api/fairai_api 주소로 점검
+            chk = s.get("list_url") or s.get("api") or s.get("projectory_api") or s.get("fairai_api")
+            if chk and chk not in seen:
+                seen.add(chk)
+                targets.append((f"{s['service']} · {s['category']}", chk, s.get("item_link_sel")))
     if group in ("all", "social"):
         for s in social.SOURCES:
             if s.get("url"):
@@ -535,9 +537,10 @@ def inspect():
 
     seen, urls = set(), []
     for s in boards.SOURCES:
-        if s["list_url"] not in seen:
-            seen.add(s["list_url"])
-            urls.append(s["list_url"])
+        lu = s.get("list_url") or s.get("api") or s.get("projectory_api") or s.get("fairai_api")
+        if lu and lu not in seen:
+            seen.add(lu)
+            urls.append(lu)
     with ThreadPoolExecutor(max_workers=8) as pool:
         return jsonify(list(pool.map(inspector.inspect_url, urls)))
 
