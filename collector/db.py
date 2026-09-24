@@ -127,7 +127,7 @@ _DDL = [
     )""",
     f"""CREATE TABLE IF NOT EXISTS social (
         id {_AUTO_PK}, channel TEXT, account TEXT, title TEXT, published_at TEXT,
-        content TEXT, url TEXT UNIQUE, collected_at TEXT
+        content TEXT, url TEXT UNIQUE, image_url TEXT, collected_at TEXT
     )""",
     "CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT)",
     f"""CREATE TABLE IF NOT EXISTS run_log (
@@ -154,6 +154,7 @@ def init_db():
             conn.execute("ALTER TABLE news ADD COLUMN IF NOT EXISTS category TEXT")
             conn.execute("ALTER TABLE news ADD COLUMN IF NOT EXISTS image_url TEXT")
             conn.execute("ALTER TABLE boards ADD COLUMN IF NOT EXISTS image_url TEXT")
+            conn.execute("ALTER TABLE social ADD COLUMN IF NOT EXISTS image_url TEXT")
         else:
             cols = {r["name"] for r in conn.execute("PRAGMA table_info(news)").fetchall()}
             if "group_key" not in cols:
@@ -167,6 +168,9 @@ def init_db():
             bcols = {r["name"] for r in conn.execute("PRAGMA table_info(boards)").fetchall()}
             if "image_url" not in bcols:
                 conn.execute("ALTER TABLE boards ADD COLUMN image_url TEXT")
+            scols = {r["name"] for r in conn.execute("PRAGMA table_info(social)").fetchall()}
+            if "image_url" not in scols:
+                conn.execute("ALTER TABLE social ADD COLUMN image_url TEXT")
 
 
 def set_meta(key, value):
@@ -238,7 +242,7 @@ _NEWS_COLS = ("title", "published_at", "author", "content", "url",
               "content_hash", "group_key", "source_url", "category", "image_url", "collected_at")
 _BOARD_COLS = ("service", "category", "title", "published_at", "author",
                "content", "url", "image_url", "collected_at")
-_SOCIAL_COLS = ("channel", "account", "title", "published_at", "content", "url", "collected_at")
+_SOCIAL_COLS = ("channel", "account", "title", "published_at", "content", "url", "image_url", "collected_at")
 
 
 def _upsert_many(table, cols, items):

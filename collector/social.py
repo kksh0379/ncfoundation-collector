@@ -94,10 +94,17 @@ def _crawl_youtube(cfg, max_items=15):
         pub_el = entry.find("published")
         desc_el = entry.find("description")  # media:description
 
+        image = None
         if vid_el and vid_el.text:
-            link = "https://www.youtube.com/watch?v=" + vid_el.text.strip()
+            vid = vid_el.text.strip()
+            link = "https://www.youtube.com/watch?v=" + vid
+            image = f"https://i.ytimg.com/vi/{vid}/hqdefault.jpg"  # 영상 썸네일
         else:
             link = link_el.get("href") if link_el else None
+        # RSS media:thumbnail 이 있으면 우선 사용
+        thumb_el = entry.find("thumbnail")
+        if thumb_el and thumb_el.get("url"):
+            image = thumb_el.get("url")
 
         # 날짜 제한은 두지 않는다(영상 수가 많지 않아 전체 수집).
         published = pub_el.text[:16].replace("T", " ") if (pub_el and pub_el.text) else None
@@ -109,6 +116,7 @@ def _crawl_youtube(cfg, max_items=15):
             "published_at": published,
             "content": extractor.summarize(desc_el.text if desc_el else ""),
             "url": link,
+            "image_url": image,
         })
     return items
 
@@ -187,6 +195,7 @@ def _crawl_instagram(cfg, max_items=12):
             "published_at": published,
             "content": extractor.summarize(caption),
             "url": f"https://www.instagram.com/p/{shortcode}/",
+            "image_url": node.get("thumbnail_src") or node.get("display_url"),
         })
     return items
 
