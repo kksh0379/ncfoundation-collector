@@ -178,10 +178,12 @@ async function loadBiz() {
   } catch (e) { el.innerHTML = `<li class="empty">불러오기 실패</li>`; }
 }
 
-// 뉴스 카드 썸네일 HTML. 대표 이미지(og:image)가 있을 때만 표시(없으면 아무것도 안 보임).
-function newsThumb(rep) {
+// 뉴스 카드 썸네일 HTML. 대표 이미지가 있을 때만 표시(없으면 아무것도 안 보임).
+// proxy=true(뉴스류)면 언론사 핫링크 차단 우회를 위해 서버 프록시(/api/img)로 불러온다.
+function newsThumb(rep, proxy) {
   if (!rep.image_url) return "";
-  return `<div class="card-thumb"><img class="thumb-img" loading="lazy" src="${escapeHtml(rep.image_url)}" alt=""
+  const src = proxy ? ("/api/img?u=" + encodeURIComponent(rep.image_url)) : rep.image_url;
+  return `<div class="card-thumb"><img class="thumb-img" loading="lazy" src="${escapeHtml(src)}" alt=""
     onerror="this.closest('.card-thumb').remove()"></div>`;
 }
 
@@ -200,7 +202,7 @@ function newsGroupNode(arr) {
   li.className = "card card-news";
   let html = `
     <div class="card-main">
-      ${newsThumb(rep)}
+      ${newsThumb(rep, true)}
       <div class="card-body">
         <h3 class="card-title">${titleHtml}</h3>
         <div class="card-meta">${meta.join(" · ")}</div>

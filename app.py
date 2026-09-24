@@ -12,7 +12,7 @@ import threading
 import time
 from datetime import datetime, timedelta, timezone
 
-from flask import Flask, jsonify, render_template, request, session
+from flask import Flask, Response, jsonify, render_template, request, session
 
 from collector import boards, db, dedup, fetcher, google_news, social
 
@@ -469,6 +469,62 @@ def get_catnews():
 @app.get("/api/biznews")
 def get_biznews():
     return _safe_list(lambda: db.list_news(section="biz"))
+
+
+@app.get("/api/img")
+def img_proxy():
+    """뉴스 대표이미지 프록시: 서버가 대신 받아 넘겨준다(언론사 핫링크 차단 우회).
+    원본이 http여도, 외부 직접 로딩을 막아도 화면에 뜨게 한다."""
+    from urllib.parse import urlsplit
+    u = request.args.get("u", "")
+    if not u.startswith("http"):
+        return ("", 404)
+    sp = urlsplit(u)
+    ref = f"{sp.scheme}://{sp.netloc}/"
+    try:
+        r = fetcher.get(u, headers={"Referer": ref, "Accept": "image/avif,image/webp,image/*,*/*"},
+                        retries=0, timeout=10, raise_status=False)
+        ct = (r.headers.get("content-type") or "").split(";")[0].strip()
+        if r.status_code >= 400 or not ct.startswith("image"):
+            return ("", 404)  # 실패 시 404 → 화면에서 onerror로 썸네일 제거
+        resp = Response(r.content, content_type=ct)
+        resp.headers["Cache-Control"] = "public, max-age=86400"
+        return resp
+    except Exception:  # noqa: BLE001
+        return ("", 404)
+
+
+@app.get("/api/ytcheck")
+def ytcheck():
+    """유튜브 Data API 상태 진단(관리자 전용): 키 설정 여부·채널·수집 가능 여부."""
+    if not _admin_ok():
+        return jsonify({"error": "unauthorized"}), 401
+    key = os.environ.get("YOUTUBE_API_KEY", "").strip()
+    out = {"key_set": bool(key), "key_len": len(key)}
+    if not key:
+        out["hint"] = "Render 환경변수 YOUTUBE_API_KEY 미설정 → RSS(최신 15개)만 수집됨"
+        return jsonify(out)
+    cfg = next((s for s in social.SOURCES if s.get("type") == "youtube"), None)
+    if not cfg:
+        return jsonify(out)
+    try:
+        import json as _json
+        cid = social._youtube_channel_id(cfg["url"])
+        out["channel_id"] = cid
+        uploads = "UU" + cid[2:]
+        r = fetcher.get(social.YT_DATA_API,
+                        params={"part": "snippet", "maxResults": 3, "playlistId": uploads, "key": key},
+                        retries=0, timeout=12, raise_status=False)
+        out["http_status"] = r.status_code
+        j = r.json()
+        if r.status_code >= 400:
+            out["error"] = (j.get("error") or {}).get("message", "")[:200]
+        else:
+            out["sample_count"] = len(j.get("items", []))
+            out["total_estimate"] = (j.get("pageInfo") or {}).get("totalResults")
+    except Exception as e:  # noqa: BLE001
+        out["error"] = f"{type(e).__name__}: {str(e)[:200]}"
+    return jsonify(out)
 
 
 @app.get("/api/boards")
