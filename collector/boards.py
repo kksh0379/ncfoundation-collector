@@ -47,27 +47,18 @@ SOURCES = [
     },
     {
         "service": "프로젝토리", "category": "공지",
-        "list_url": "https://www.projectory.or.kr/news/notice-list",
-        "base_url": "https://www.projectory.or.kr",
-        "item_link_sel": "a.info__title-link, a[href*=news-view], a[href*=boardIdx]",
-        "title_sel": "a.info__title-link",
-        "desc_sel": "dd.info__desc, span.info__desc, .desc",
+        "base_url": "https://m.projectory.or.kr",
+        "projectory_api": "https://m.projectory.or.kr/news/notice-list",
     },
     {
         "service": "프로젝토리", "category": "프로젝토리 이야기",
-        "list_url": "https://www.projectory.or.kr/news/projectory-story-list",
-        "base_url": "https://www.projectory.or.kr",
-        "item_link_sel": "a.info__title-link, a[href*=news-view], a[href*=boardIdx]",
-        "title_sel": "a.info__title-link",
-        "desc_sel": "dd.info__desc, span.info__desc, .desc",
+        "base_url": "https://m.projectory.or.kr",
+        "projectory_api": "https://m.projectory.or.kr/news/projectory-story-list",
     },
     {
         "service": "프로젝토리", "category": "갤러리",
-        "list_url": "https://www.projectory.or.kr/news/gallery-list",
-        "base_url": "https://www.projectory.or.kr",
-        "item_link_sel": "a.info__title-link, a[href*=news-view], a[href*=boardIdx]",
-        "title_sel": "a.info__title-link",
-        "desc_sel": "dd.info__desc, span.info__desc, .desc",
+        "base_url": "https://m.projectory.or.kr",
+        "projectory_api": "https://m.projectory.or.kr/news/gallery-list",
     },
     {
         "service": "FAIR AI", "category": "공지사항",
@@ -348,14 +339,73 @@ def _crawl_json_api(cfg, max_items, max_workers=5):
     return items
 
 
+def _pick(d, keys):
+    for k in keys:
+        v = d.get(k)
+        if isinstance(v, str) and v.strip():
+            return v.strip()
+    return None
+
+
+def _crawl_projectory(cfg, max_items):
+    """프로젝토리(모바일 m.projectory.or.kr): axios.get(url, {params})로 목록 JSON을 받는다.
+    params={lastIdx, regDay, searchVal, pg}로 페이지네이션. 응답 {boardList:[...], search:{totalCnt}}."""
+    label = f"{cfg['service']} · {cfg['category']}"
+    t0 = time.time()
+    base, api = cfg["base_url"], cfg["projectory_api"]
+    accept = {"Accept": "application/json, text/plain, */*", "Referer": api}
+    out, seen = [], set()
+    last_idx, reg_day, pg, list_count = -1, "", 1, 10
+    cap = max(max_items, 300)
+    for _ in range(30):  # 최대 30페이지 안전장치
+        params = {"lastIdx": last_idx, "regDay": reg_day or "", "searchVal": "", "pg": pg}
+        try:
+            j = fetcher.get(api, params=params, headers=accept, retries=0, timeout=12).json()
+        except Exception as e:  # noqa: BLE001
+            print(f"[board] {label} API 실패(pg={pg}): {e}", flush=True)
+            break
+        blist = j.get("boardList") or []
+        if not blist:
+            break
+        for b in blist:
+            idx = b.get("boardIdx")
+            if idx in seen:
+                continue
+            seen.add(idx)
+            title = _pick(b, ("subject", "title", "boardTitle", "boardSubject", "boardNm", "tit"))
+            if not title:
+                continue
+            fu = b.get("fileUrl") or b.get("thumbnail")
+            image = urljoin(base, fu) if fu else None
+            reg = b.get("regDay") or b.get("regDate") or b.get("createDt") or ""
+            out.append({
+                "service": cfg["service"], "category": cfg["category"],
+                "title": extractor.clean_text(title),
+                "published_at": extractor.parse_date(str(reg)) or (str(reg)[:16].replace("T", " ") or None),
+                "author": "프로젝토리", "content": "",
+                "url": f"{base}/news/news-view?boardIdx={idx}",
+                "image_url": image,
+            })
+        last = blist[-1]
+        last_idx = last.get("boardIdx", last_idx)
+        reg_day = last.get("regDay") or reg_day
+        pg += 1
+        total = (j.get("search") or {}).get("totalCnt")
+        if len(blist) < list_count or len(out) >= cap or (total and len(out) >= total):
+            break
+    print(f"[board] {label}: API에서 {len(out)}건 / {time.time() - t0:.1f}s", flush=True)
+    return out
+
+
 def crawl_source(cfg, max_items=8, max_workers=3):
     """게시판 1개 크롤링 → 글 dict 리스트.
 
-    목록 페이지에서 글 링크/제목/날짜/요약을 뽑고, 정상 http 링크인 글은 상세 페이지를
-    가볍게(소량·저동시성) 받아 본문을 채운다. 본문에서 마크업은 제거한다.
-    내부 JSON API가 있는 사이트(api 지정)는 그걸 직접 호출한다.
+    내부 JSON API가 있는 사이트는 그걸 직접 호출한다(대표 홈페이지·프로젝토리).
+    그 외에는 목록 페이지에서 글 링크/제목/날짜/요약을 뽑고 상세로 본문을 보강한다.
     """
     label = f"{cfg['service']} · {cfg['category']}"
+    if cfg.get("projectory_api"):
+        return _crawl_projectory(cfg, max_items)
     if cfg.get("api"):
         return _crawl_json_api(cfg, max_items)
     if cfg.get("spa"):
