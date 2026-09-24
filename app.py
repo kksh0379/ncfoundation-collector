@@ -266,6 +266,25 @@ def _purge_news_noise(progress=None):
         print(f"[crawl] 노이즈 정리 실패: {e}", flush=True)
 
 
+IMG_ENRICH_MAX = int(os.environ.get("IMG_ENRICH_MAX", "200"))  # 수집 1회당 이미지 보강 개수 상한
+
+
+def _enrich_news_images(progress=None):
+    """대표 이미지가 없는 최근 뉴스 일부(IMG_ENRICH_MAX)의 og:image를 채운다.
+    대량 백필은 속도 때문에 이미지가 비므로, 수집 때마다 최근 것부터 조금씩 보강한다."""
+    try:
+        rows = db.news_missing_images(limit=IMG_ENRICH_MAX)
+        if not rows:
+            return
+        if progress:
+            progress(f"이미지 보강 0/{len(rows)}")
+        url_to_img = google_news.enrich_images(rows, progress=progress)
+        n = db.set_news_images(url_to_img)
+        print(f"[crawl] 이미지 보강 {n}건", flush=True)
+    except Exception as e:  # noqa: BLE001
+        print(f"[crawl] 이미지 보강 실패: {e}", flush=True)
+
+
 def _save_boards(items):
     new, updated = db.upsert_board_many(items)
     return {"new": new, "updated": updated, "duplicates": 0}
@@ -302,6 +321,7 @@ def _do_crawl(group, progress=None, days=None):
         result = {"crawled": len(items), **counts}
         if group == "news":
             _purge_news_noise(progress)  # 기존에 쌓인 본사 노이즈(야구/백화점 등) 정리
+            _enrich_news_images(progress)  # 이미지 없는 최근 기사에 대표 이미지 보강
         progress(f"완료 · 신규 {result.get('new', 0)}건 · 갱신 {result.get('updated', 0)}건")
     except Exception as e:  # noqa: BLE001
         print(f"[crawl] {group} 오류: {e}", flush=True)

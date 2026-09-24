@@ -104,6 +104,30 @@ async function loadNews() {
   } catch (e) { el.innerHTML = `<li class="empty">불러오기 실패</li>`; }
 }
 
+// URL에서 도메인 추출(파비콘 폴백용). 실패 시 빈 문자열.
+function domainOf(u) {
+  try { return new URL(u).hostname.replace(/^www\./, ""); } catch (e) { return ""; }
+}
+
+// 뉴스 카드 썸네일 HTML. og:image가 있으면 그걸, 없으면 언론사 파비콘, 그것도 없으면 글자 배지.
+function newsThumb(rep) {
+  const initial = escapeHtml((rep.author || rep.title || "N").trim().charAt(0) || "N");
+  const ph = `<div class="thumb-ph">${initial}</div>`;
+  if (rep.image_url) {
+    return `<div class="card-thumb"><img class="thumb-img" loading="lazy" src="${escapeHtml(rep.image_url)}" alt=""
+      onerror="this.closest('.card-thumb').innerHTML='${ph.replace(/'/g, "&#39;")}'">
+    </div>`;
+  }
+  const dom = domainOf(rep.source_url || "");
+  if (dom) {
+    return `<div class="card-thumb"><img class="thumb-fav" loading="lazy"
+      src="https://www.google.com/s2/favicons?domain=${encodeURIComponent(dom)}&sz=128" alt=""
+      onerror="this.closest('.card-thumb').innerHTML='${ph.replace(/'/g, "&#39;")}'">
+    </div>`;
+  }
+  return `<div class="card-thumb">${ph}</div>`;
+}
+
 // 뉴스 그룹 1개 → 카드 노드(아코디언 핸들러 포함)
 function newsGroupNode(arr) {
   const rep = arr[0];  // 그룹 내 최신(작성일 내림차순 첫 항목)
@@ -113,13 +137,18 @@ function newsGroupNode(arr) {
   if (arr.length > 1) meta.push(`<span class="badge">${arr.length}개 매체</span>`);
 
   const li = document.createElement("li");
-  li.className = "card";
+  li.className = "card card-news";
   let html = `
-    <h3 class="card-title">${escapeHtml(rep.title || "(제목 없음)")}</h3>
-    <div class="card-meta">${meta.join(" · ")}</div>
-    <p class="card-summary">${escapeHtml(rep.content || "요약 없음")}</p>
-    <div class="card-actions">
-      ${repLink ? `<a href="${escapeHtml(repLink)}" target="_blank" rel="noopener">원문 보기 ↗</a>` : ""}
+    <div class="card-main">
+      ${newsThumb(rep)}
+      <div class="card-body">
+        <h3 class="card-title">${escapeHtml(rep.title || "(제목 없음)")}</h3>
+        <div class="card-meta">${meta.join(" · ")}</div>
+        <p class="card-summary">${escapeHtml(rep.content || "요약 없음")}</p>
+        <div class="card-actions">
+          ${repLink ? `<a href="${escapeHtml(repLink)}" target="_blank" rel="noopener">원문 보기 ↗</a>` : ""}
+        </div>
+      </div>
     </div>`;
   if (arr.length > 1) {
     html += `<button class="accordion-toggle" type="button">같은 기사 ${arr.length}건 매체별 보기 ▾</button>
