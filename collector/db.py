@@ -303,26 +303,34 @@ def all_news_urls():
         return {r["url"] for r in rows}
 
 
-def news_missing_images(limit=200):
-    """대표 이미지가 아직 없는 뉴스(최근순)를 (url, source_url)로 로드. 이미지 보강용."""
+def news_needs_enrich(limit=200):
+    """이미지가 없거나 본문이 너무 짧은(=RSS 요약뿐) 뉴스를 최근순으로 로드. 보강 대상."""
     with get_conn() as conn:
         rows = conn.execute(
-            _q("SELECT url, source_url FROM news "
-               "WHERE image_url IS NULL OR image_url = '' "
+            _q("SELECT url, source_url, content FROM news "
+               "WHERE image_url IS NULL OR image_url = '' OR content IS NULL OR LENGTH(content) < 80 "
                "ORDER BY published_at DESC, id DESC LIMIT ?"), (limit,)
         ).fetchall()
         return [dict(r) for r in rows]
 
 
-def set_news_images(url_to_img):
-    """url→image_url 매핑으로 image_url 일괄 갱신. 반환: 갱신 건수."""
-    pairs = [(v, u) for u, v in (url_to_img or {}).items() if v]
-    if not pairs:
-        return 0
+def apply_news_enrich(url_to_data):
+    """url→{image_url?, content?, source_url?} 로 뉴스 보강 값 일괄 반영. 반환: 갱신 건수."""
+    n = 0
     with get_conn() as conn:
         cur = conn.cursor()
-        cur.executemany(_q("UPDATE news SET image_url=? WHERE url=?"), pairs)
-    return len(pairs)
+        for u, d in (url_to_data or {}).items():
+            sets, vals = [], []
+            for col in ("image_url", "content", "source_url"):
+                if d.get(col):
+                    sets.append(f"{col}=?")
+                    vals.append(d[col])
+            if not sets:
+                continue
+            vals.append(u)
+            cur.execute(_q(f"UPDATE news SET {', '.join(sets)} WHERE url=?"), tuple(vals))
+            n += 1
+    return n
 
 
 def all_news_for_filter():

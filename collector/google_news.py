@@ -231,37 +231,53 @@ def _summary_from_article(entry):
     return entry
 
 
-def _image_for(row):
-    """저장된 뉴스 1건의 대표 이미지(og:image)를 복원(url→원문 복원 후 og:image)."""
+def _enrich_one(row):
+    """저장된 뉴스 1건의 원문을 열어 대표 이미지(og:image)와 요약(og:description/본문)을
+    함께 복원한다. 반환: {"image_url": ..., "content": ..., "source_url": ...} (없는 값은 생략)."""
+    out = {}
     try:
-        real = row.get("source_url") or _decode_google_url(row.get("url", "")) or row.get("url")
+        gl = row.get("url", "")
+        real = row.get("source_url") or _decode_google_url(gl) or gl
         resp = fetcher.get(real, retries=0, timeout=NEWS_TIMEOUT)
         final = resp.url or ""
         if "news.google." in final or "consent.google" in final:
-            return None
-        return extractor.extract_image(BeautifulSoup(resp.text, "lxml"))
+            return out
+        if final and not row.get("source_url"):
+            out["source_url"] = final
+        soup = BeautifulSoup(resp.text, "lxml")
+        img = extractor.extract_image(soup)
+        if img:
+            out["image_url"] = img
+        # 요약: og:description 우선, 없으면 본문에서 요약
+        summ = extractor.extract_summary(soup)
+        if not summ:
+            art = extractor.extract_article(soup, final)
+            if art.get("content") and len(art["content"]) > 120:
+                summ = extractor.summarize(art["content"])
+        if summ and len(summ) > len(row.get("content") or ""):
+            out["content"] = summ  # 기존(짧은 RSS 요약)보다 길 때만 교체
     except Exception:  # noqa: BLE001
-        return None
+        pass
+    return out
 
 
-def enrich_images(rows, max_workers=12, progress=None):
-    """대표 이미지가 없는 뉴스들의 og:image를 병렬로 채운다. 반환: {url: image_url}.
-    대량 백필은 속도 때문에 원문을 안 열어 이미지가 비는데, 이후 이 보강으로 최근 것부터
-    채운다(구글 차단/느림 대비 짧은 타임아웃·best-effort)."""
+def enrich_articles(rows, max_workers=12, progress=None):
+    """이미지/요약이 부실한 뉴스들의 원문을 열어 og:image·요약을 채운다.
+    반환: {url: {image_url?, content?, source_url?}} (실제로 얻은 값만)."""
     progress = progress or (lambda m: None)
     if not rows:
         return {}
     out, done = {}, 0
     with ThreadPoolExecutor(max_workers=max_workers) as pool:
-        futs = {pool.submit(_image_for, r): r for r in rows}
+        futs = {pool.submit(_enrich_one, r): r for r in rows}
         for fut in as_completed(futs):
             r = futs[fut]
-            img = fut.result()
-            if img:
-                out[r["url"]] = img
+            data = fut.result()
+            if data:
+                out[r["url"]] = data
             done += 1
             if done % 20 == 0 or done == len(rows):
-                progress(f"이미지 보강 {done}/{len(rows)} · 확보 {len(out)}건")
+                progress(f"본문·이미지 보강 {done}/{len(rows)} · 확보 {len(out)}건")
     return out
 
 

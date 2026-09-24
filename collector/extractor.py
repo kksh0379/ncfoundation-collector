@@ -106,6 +106,16 @@ def extract_image(soup):
     return None
 
 
+def extract_summary(soup):
+    """기사 요약(og:description/meta description)을 추출. 없으면 None."""
+    d = _meta(soup, "og:description", "description", "twitter:description")
+    if d:
+        d = clean_text(d)
+        if len(d) >= 20:
+            return d
+    return None
+
+
 def extract_article(soup, url):
     """기사/글 1건에서 제목·작성일·작성자·본문을 추출."""
     title = _meta(soup, "og:title")
