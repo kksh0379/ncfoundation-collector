@@ -179,6 +179,10 @@ def peek():
     hdrs = None
     if request.args.get("xhr") == "1":
         hdrs = {"X-Requested-With": "XMLHttpRequest", "Accept": "application/json"}
+    ref = request.args.get("ref")  # Origin/Referer 검사형 API 테스트용
+    if ref:
+        hdrs = dict(hdrs or {})
+        hdrs.update({"Origin": ref, "Referer": ref, "Accept": "application/json, text/plain, */*"})
     try:
         resp = fetcher.get(url, headers=hdrs, retries=0, timeout=12)
         html = resp.text or ""

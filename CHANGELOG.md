@@ -5,6 +5,7 @@
 > 예: `v0.39 · build 260924`. (아래 과거 항목의 vNN 은 v0.NN 과 같은 번호예요: v38 = v0.38)
 
 ## 2026-09-24
+- **v0.85 · build 260924** — /api/peek에 ref= 옵션(Origin/Referer 헤더) 추가. Origin 검사형 API(FAIR AI 등) 인증 테스트용.
 - **v0.84 · build 260924** — apihunt 보강: Nuxt/Vite modulepreload(`<link href>`)·import() 청크까지 모두 스캔(최대 25개), $fetch·/fair/api·notice/insight 패턴 추가. FAIR AI(Nuxt SPA) 목록 API 탐색용.
 - **v0.83 · build 260924** — 프로젝토리 텍스트 글 "요약 없음" 해결: 목록 API 응답에 본문(contents)이 포함돼 있어 상세 호출 없이 바로 요약. (상세 news-view는 껍데기라 불필요) 제목 필드 title 대응.
 - **v0.82 · build 260924** — 나의AAC 전면 보강: (1) 카드 썸네일을 상세 본문 이미지 우선으로(사이트 기본 로고 회피, 상대경로 해결), (2) `?page=N` 페이지네이션으로 과거 글(최초 2024.3)까지 수집(최대 15페이지). 게시판 목록 파싱을 페이지 단위로 리팩터, 이미 저장된 글은 상세 재요청 생략(증분).
