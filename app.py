@@ -45,25 +45,31 @@ _db_last_try = 0.0
 _DB_RETRY_COOLDOWN = 30  # 초: DB 연결 실패 시 이 시간 동안은 재시도 안 함(요청을 매번 막지 않게)
 
 
-def _ensure_db():
-    """DB 테이블 준비를 보장하되, '요청을 절대 오래 막지 않는다'.
-    Neon이 죽어 있으면 연결이 수십 초 걸리는데, 그걸 매 요청마다 시도하면 스레드가 다
-    막혀 502가 난다. → 실패하면 쿨다운 동안은 그냥 넘어가고(요청 즉시 반환), 다른 스레드가
-    시도 중이면 나는 기다리지 않는다. 반환값: 준비됐으면 True."""
+def _ensure_db(force=False):
+    """DB 테이블 준비를 보장한다.
+    - force=False(기본, 웹 조회용): '요청을 절대 오래 막지 않는다'. Neon이 자고 있으면
+      연결이 수십 초 걸리는데 매 요청마다 시도하면 스레드가 막혀 502가 난다. → 실패하면
+      쿨다운 동안 그냥 넘어가고 즉시 반환.
+    - force=True(수집/초기화용): 쿨다운 무시하고 실제로 접속을 '기다려' Neon을 깨운다.
+      (백그라운드 작업/관리자 동작이라 몇 초~수십 초 기다려도 됨.)
+    반환값: 준비됐으면 True."""
     global _db_ready, _db_last_try
     if _db_ready:
         return True
-    if time.time() - _db_last_try < _DB_RETRY_COOLDOWN:
+    if not force and time.time() - _db_last_try < _DB_RETRY_COOLDOWN:
         return False  # 최근에 실패 → 지금은 시도 안 함(빠르게 반환)
-    if not _db_lock.acquire(blocking=False):
-        return False  # 다른 스레드가 시도 중 → 안 막고 그냥 반환
+    # force면 락을 '기다려서라도' 잡는다(진짜 깨워야 하므로). 아니면 안 막고 넘어감.
+    if not _db_lock.acquire(blocking=force):
+        return False
     try:
+        if _db_ready:
+            return True
         _db_last_try = time.time()
         db.init_db()
         _db_ready = True
         return True
     except Exception as e:  # noqa: BLE001
-        print(f"[startup] init_db 실패(쿨다운 후 재시도): {e}", flush=True)
+        print(f"[startup] init_db 실패: {e}", flush=True)
         return False
     finally:
         _db_lock.release()
@@ -113,8 +119,8 @@ def admin_purge():
     recollect=true면 비운 뒤 즉시 재수집 시작(뉴스는 days 파라미터, 기본 RECENT_DAYS=2년)."""
     if not _admin_ok():
         return jsonify({"error": "unauthorized"}), 401
-    if not _ensure_db():  # DB 연결/테이블 보장(안 되면 JSON 에러로 응답)
-        return jsonify({"ok": False, "error": "DB에 연결할 수 없어요(Neon 깨는 중일 수 있음). 잠시 후 다시 시도."}), 503
+    if not _ensure_db(force=True):  # 실제로 접속을 기다려 Neon 깨우기(안 되면 JSON 에러)
+        return jsonify({"ok": False, "error": "DB에 연결할 수 없어요(Neon 깨는 중일 수 있음). 20초 뒤 다시 시도해 주세요."}), 503
     data = request.get_json(silent=True) or {}
     scope = data.get("scope", "all")
     tables = ["news", "boards", "social"] if scope == "all" else [scope]
@@ -351,7 +357,8 @@ def _do_crawl(group, progress=None, days=None):
     progress(msg): 진행상황 콜백(선택). days: 뉴스 수집 기간(최근 N일)."""
     progress = progress or (lambda m: None)
     crawl_fn, save_fn = _CRAWLERS[group]
-    _ensure_db()  # 테이블 보장(DB가 죽어있던 동안 init이 안 됐을 수 있음)
+    progress("DB 연결 중…")
+    _ensure_db(force=True)  # 실제로 접속을 기다려 Neon을 깨운다(수집은 DB가 꼭 필요)
     try:
         if group == "news":
             # 예전엔 여기서 기존 URL을 전부 로드해 증분 비교했는데, 큰 테이블 + Neon
