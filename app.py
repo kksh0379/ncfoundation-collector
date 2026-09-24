@@ -184,7 +184,15 @@ def peek():
         hdrs = dict(hdrs or {})
         hdrs.update({"Origin": ref, "Referer": ref, "Accept": "application/json, text/plain, */*"})
     try:
-        resp = fetcher.get(url, headers=hdrs, retries=0, timeout=12)
+        if request.args.get("method", "get").lower() == "post":
+            import json as _json
+            payload = request.args.get("body")
+            body_data = payload if payload else "{}"
+            phdrs = dict(hdrs or {})
+            phdrs.update({"Content-Type": "application/json", "Accept": "application/json, text/plain, */*"})
+            resp = fetcher.post(url, data=body_data, headers=phdrs, retries=0, timeout=12)
+        else:
+            resp = fetcher.get(url, headers=hdrs, retries=0, timeout=12)
         html = resp.text or ""
         out["status"] = resp.status_code
         out["final_url"] = resp.url
