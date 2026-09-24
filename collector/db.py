@@ -130,6 +130,9 @@ _DDL = [
         content TEXT, url TEXT UNIQUE, collected_at TEXT
     )""",
     "CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT)",
+    f"""CREATE TABLE IF NOT EXISTS run_log (
+        id {_AUTO_PK}, grp TEXT, status TEXT, detail TEXT, ran_at TEXT
+    )""",
     "CREATE INDEX IF NOT EXISTS idx_news_hash ON news(content_hash)",
     "CREATE INDEX IF NOT EXISTS idx_news_group ON news(group_key)",
     "CREATE INDEX IF NOT EXISTS idx_boards_title ON boards(service, title)",
@@ -166,6 +169,29 @@ def set_meta(key, value):
                "ON CONFLICT (key) DO UPDATE SET value = excluded.value"),
             (key, value),
         )
+
+
+def add_run_log(group, status, detail, ran_at):
+    """수집 실행 1건 기록(언제·무엇·성공/실패·상세). 오래된 기록은 자동 정리."""
+    with get_conn() as conn:
+        conn.execute(
+            _q("INSERT INTO run_log (grp, status, detail, ran_at) VALUES (?, ?, ?, ?)"),
+            (group, status, detail, ran_at),
+        )
+        # 최근 200건만 유지(무한 증가 방지)
+        conn.execute(
+            _q("DELETE FROM run_log WHERE id NOT IN "
+               "(SELECT id FROM run_log ORDER BY id DESC LIMIT 200)")
+        )
+
+
+def list_run_log(limit=60):
+    with get_conn() as conn:
+        rows = conn.execute(
+            _q("SELECT grp, status, detail, ran_at FROM run_log ORDER BY id DESC LIMIT ?"),
+            (limit,),
+        ).fetchall()
+        return [dict(r) for r in rows]
 
 
 def get_all_meta():

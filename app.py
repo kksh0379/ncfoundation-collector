@@ -153,6 +153,20 @@ def dbcheck():
     return jsonify(db.diagnose())
 
 
+@app.get("/api/runlog")
+def runlog():
+    """수집 실행 로그(관리자 전용): 언제·무엇·성공/실패."""
+    if not _admin_ok():
+        return jsonify({"error": "unauthorized"}), 401
+    if not _ensure_db():
+        return jsonify([])
+    try:
+        return jsonify(db.list_run_log())
+    except Exception as e:  # noqa: BLE001
+        print(f"[runlog] 조회 실패: {e}", flush=True)
+        return jsonify([])
+
+
 @app.get("/api/meta")
 def meta():
     if not _ensure_db():
@@ -407,6 +421,17 @@ def _do_crawl(group, progress=None, days=None):
     result["last_crawled_at"] = _now_kst()  # 서버 기준 마지막 수집 일시
     db.set_meta(f"last_crawl_{group}", result["last_crawled_at"])
     _last_result[group] = result
+    # 실행 로그 기록(관리자가 언제·성공/실패를 볼 수 있게)
+    try:
+        if result.get("error"):
+            status, detail = "실패", str(result["error"])[:200]
+        else:
+            status = "성공"
+            detail = (f"신규 {result.get('new', 0)} · 갱신 {result.get('updated', 0)} "
+                      f"· 수집 {result.get('crawled', 0)}")
+        db.add_run_log(group, status, detail, result["last_crawled_at"])
+    except Exception as e:  # noqa: BLE001
+        print(f"[runlog] 기록 실패: {e}", flush=True)
     return result
 
 

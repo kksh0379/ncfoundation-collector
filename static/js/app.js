@@ -530,6 +530,35 @@ notesModal.addEventListener("click", (e) => { if (e.target === notesModal) notes
 document.querySelectorAll(".notes-tab").forEach((b) =>
   b.addEventListener("click", () => showNotes(b.dataset.notes)));
 
+// ----------------------------- 수집 로그(관리자) -----------------------------
+const runlogModal = document.getElementById("runlog-modal");
+const GRP_KO = { news: "뉴스", boards: "게시판", social: "소셜" };
+function renderRunlog(rows) {
+  const body = document.getElementById("runlog-body");
+  if (!rows || !rows.length) { body.innerHTML = '<div class="empty">아직 수집 기록이 없어요.</div>'; return; }
+  body.innerHTML = '<ul class="runlog-list">' + rows.map((r) => {
+    const ok = r.status === "성공";
+    return `<li class="runlog-row">
+      <span class="runlog-badge ${ok ? "ok" : "fail"}">${ok ? "성공" : "실패"}</span>
+      <div class="runlog-main">
+        <div class="runlog-top">${escapeHtml(GRP_KO[r.grp] || r.grp || "")} · <span class="runlog-time">${escapeHtml(r.ran_at || "")}</span></div>
+        <div class="runlog-detail">${escapeHtml(r.detail || "")}</div>
+      </div>
+    </li>`;
+  }).join("") + "</ul>";
+}
+document.getElementById("runlog-btn").addEventListener("click", async () => {
+  runlogModal.hidden = false;
+  document.getElementById("runlog-body").innerHTML = '<div class="empty">불러오는 중…</div>';
+  try {
+    renderRunlog(await (await fetch("/api/runlog")).json());
+  } catch (e) {
+    document.getElementById("runlog-body").innerHTML = '<div class="empty">불러오기 실패: ' + escapeHtml(e.message) + "</div>";
+  }
+});
+document.getElementById("runlog-close").addEventListener("click", () => (runlogModal.hidden = true));
+runlogModal.addEventListener("click", (e) => { if (e.target === runlogModal) runlogModal.hidden = true; });
+
 // ----------------------------- 맨 위로 플로팅 버튼 -----------------------------
 const toTop = document.getElementById("to-top");
 if (toTop) {

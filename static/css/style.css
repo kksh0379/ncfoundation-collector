@@ -379,6 +379,17 @@ body.is-admin .guest-only { display: none !important; }
 }
 .viewseg button.active { background: var(--primary); color: #fff; }
 
+/* 수집 로그 */
+.runlog-list { list-style: none; margin: 0; padding: 0; }
+.runlog-row { display: flex; gap: 10px; align-items: flex-start; padding: 10px 2px; border-bottom: 1px solid var(--border); }
+.runlog-badge { flex: 0 0 auto; font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 6px; color: #fff; }
+.runlog-badge.ok { background: #16a34a; }
+.runlog-badge.fail { background: #dc2626; }
+.runlog-main { min-width: 0; }
+.runlog-top { font-size: 13px; font-weight: 600; }
+.runlog-time { color: var(--muted); font-weight: 500; }
+.runlog-detail { font-size: 12px; color: #4b5563; margin-top: 2px; word-break: break-word; }
+
 /* 리스트 뷰: 제목 한 줄(…)만 보이게 간소화 */
 body.view-list .card { padding: 11px 13px; margin-bottom: 6px; border-radius: 8px; }
 body.view-list .card-thumb,
