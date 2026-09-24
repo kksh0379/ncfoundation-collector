@@ -70,12 +70,6 @@ SOURCES = [
         "detail_base": "https://fairai.or.kr/about/notices/",
     },
     {
-        "service": "FAIR AI", "category": "인사이트",
-        "base_url": "https://fairai.or.kr",
-        # 인사이트 목록 API 엔드포인트를 아직 못 찾음(공지와 다른 방식) → 당분간 건너뜀
-        "spa": True,
-    },
-    {
         "service": "대표 홈페이지", "category": "재단소식",
         "list_url": "https://ncfoundation.or.kr/community/all",
         "base_url": "https://ncfoundation.or.kr",
