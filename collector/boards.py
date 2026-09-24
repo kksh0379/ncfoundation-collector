@@ -89,11 +89,12 @@ SOURCES = [
     },
     {
         "service": "대표 홈페이지", "category": "재단소식",
-        "list_url": "https://ncfoundation.or.kr/community/",
+        "list_url": "https://ncfoundation.or.kr/community/all",
         "base_url": "https://ncfoundation.or.kr",
-        "item_link_sel": "a[href*='/community/'], a.post-item, a[href*=view], a[href*=idx]",
+        "item_link_sel": "a[href*='/community/all/']",
         "title_sel": ".title, .subject, strong, .tit",
         "desc_sel": ".desc, .summary, p",
+        "detail_path": "/community/all/{id}",  # 상세글 주소 패턴(끝에 글 번호)
         # 정적 HTML 목록이 없으면 embedded JSON(__NEXT_DATA__/__NUXT__ 등)에서 시도한다.
         "try_embedded": True,
     },
@@ -188,7 +189,11 @@ def _extract_embedded(html, cfg):
                 if obj.get(k) not in (None, ""):
                     pid = obj.get(k)
                     break
-            url = urljoin(cfg["base_url"], f"/community/{pid}") if pid is not None else None
+            if pid is not None:
+                path = (cfg.get("detail_path") or "/{id}").format(id=pid)
+                url = urljoin(cfg["base_url"], path)
+            else:
+                url = None
             # 날짜 후보
             pub = None
             for k in ("createdAt", "created_at", "regDate", "date", "publishedAt", "created"):
