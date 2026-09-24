@@ -111,14 +111,15 @@ def is_duplicate_title(title, existing_titles):
     return norm in {normalize_title(t) for t in existing_titles}
 
 
-def cluster_items(items, threshold=SIMILARITY_THRESHOLD):
+def cluster_items(items, threshold=SIMILARITY_THRESHOLD, max_tfidf=600):
     """뉴스 기사들을 '같은 기사'끼리 묶어 각 항목의 group_key를 돌려준다.
 
     같은 보도자료가 여러 매체에 뿌려진 경우를 하나로 묶기 위함(중복 제거가 아니라
     '그룹화' — 전부 저장하되 group_key로 아코디언 묶음 표시).
-    기준: (1) 정규화 제목이 같으면 같은 그룹, (2) 본문(요약) 글자 n-gram TF-IDF
-    코사인 유사도가 임계값 이상이면 같은 그룹. group_key = 그룹 대표(가장 앞) 항목의 url.
-    입력 items: [{'url','title','content'}...] / 반환: items와 같은 길이의 group_key 리스트.
+    기준: (1) 정규화 제목이 같으면 같은 그룹(O(N), 항상 적용),
+    (2) 항목 수가 max_tfidf 이하일 때만 본문 유사도(글자 n-gram TF-IDF 코사인)로 추가 그룹화.
+    (대량이면 N×N 코사인 행렬이 메모리를 폭발시키므로 제목 기준만 사용 → OOM 방지)
+    group_key = 그룹 대표(가장 앞) 항목의 url.
     """
     n = len(items)
     if n == 0:
@@ -146,20 +147,21 @@ def cluster_items(items, threshold=SIMILARITY_THRESHOLD):
         for j in idxs[1:]:
             union(idxs[0], j)
 
-    # 2) 본문(요약) 유사도로 그룹화
-    content_norm = [normalize_text(it.get("content") or "") for it in items]
-    idx = [i for i, c in enumerate(content_norm) if len(c) >= 20]
-    if len(idx) >= 2:
-        try:
-            vec = TfidfVectorizer(analyzer="char", ngram_range=NGRAM_RANGE, min_df=1)
-            m = vec.fit_transform([content_norm[i] for i in idx])
-            sims = cosine_similarity(m)
-            for a in range(len(idx)):
-                for b in range(a + 1, len(idx)):
-                    if sims[a, b] >= threshold:
-                        union(idx[a], idx[b])
-        except ValueError:
-            pass
+    # 2) 본문 유사도 그룹화는 항목 수가 많지 않을 때만(메모리 보호 — N×N 코사인 회피)
+    if n <= max_tfidf:
+        content_norm = [normalize_text(it.get("content") or "") for it in items]
+        idx = [i for i, c in enumerate(content_norm) if len(c) >= 20]
+        if len(idx) >= 2:
+            try:
+                vec = TfidfVectorizer(analyzer="char", ngram_range=NGRAM_RANGE, min_df=1)
+                m = vec.fit_transform([content_norm[i] for i in idx])
+                sims = cosine_similarity(m)
+                for a in range(len(idx)):
+                    for b in range(a + 1, len(idx)):
+                        if sims[a, b] >= threshold:
+                            union(idx[a], idx[b])
+            except ValueError:
+                pass
 
     keys = []
     for i in range(n):

@@ -42,6 +42,7 @@ EXCLUDE = {
     "본사": ["다이노스", "프로야구", "야구", "kbo", "구단", "선발", "타자", "투수"],
 }
 NEWS_TIMEOUT = 6  # 뉴스 원문 해석은 빨리 실패시켜(스냅샷 폴백) 전체 수집을 지연시키지 않음
+FULLBODY_MAX = 150  # 새 기사가 이보다 많으면 원문 해석 생략(스냅샷만) → 대량 백필 폭주 방지
 # 진단 등 호환용 평면 키워드 목록
 KEYWORDS = [kw for kws in CATEGORIES.values() for kw in kws]
 RECENT_DAYS = 730  # 최근 2년 기사만 수집
@@ -301,19 +302,26 @@ def crawl(max_workers=24, max_items=0, progress=None, known_urls=None, days=None
     items = []
     if entries:
         n = len(entries)
-        progress(f"새 기사 요약 처리 0/{n}")
-        processed = []
-        with ThreadPoolExecutor(max_workers=max_workers) as pool:
-            futures = [pool.submit(_summary_from_article, e) for e in entries]
-            done = 0
-            for fut in as_completed(futures):
-                processed.append(fut.result())
-                done += 1
-                # 기사 하나 끝날 때마다(과다 전송 방지로 2건 단위) 진행률 갱신
-                if done % 2 == 0 or done == n:
-                    progress(f"새 기사 요약 처리 {done}/{n}")
-        with_body = sum(1 for e in processed if e.get("content"))
-        print(f"[google] 본문(요약) 추출 성공 {with_body}/{len(processed)}건", flush=True)
+        if n > FULLBODY_MAX:
+            # 대량(백필 등): 원문 해석(batchexecute) 생략하고 RSS 요약(snippet)만 사용.
+            # → 수천 건도 빠르게 처리, 구글 rate-limit/차단 회피, 서버 부하 급감.
+            progress(f"새 기사 {n}건 — 요약(스냅샷)만 사용(대량)")
+            processed = []
+            for e in entries:
+                e["content"] = e.get("snippet") or ""
+                processed.append(e)
+        else:
+            # 소량(일상 증분): 원문 해석 시도(병렬)로 본문 요약 품질 확보.
+            progress(f"새 기사 요약 처리 0/{n}")
+            processed = []
+            with ThreadPoolExecutor(max_workers=max_workers) as pool:
+                futures = [pool.submit(_summary_from_article, e) for e in entries]
+                done = 0
+                for fut in as_completed(futures):
+                    processed.append(fut.result())
+                    done += 1
+                    if done % 5 == 0 or done == n:
+                        progress(f"새 기사 요약 처리 {done}/{n}")
         items = [
             {k: e.get(k) for k in ("title", "published_at", "author", "content", "url", "source_url", "category")}
             for e in processed if _passes_filters(e, days)
