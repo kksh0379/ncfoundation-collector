@@ -209,6 +209,34 @@ def peek():
     return jsonify(out)
 
 
+@app.get("/api/grep")
+def grep_url():
+    """지정 URL(주로 JS 파일)을 받아 검색어(q) 주변 텍스트를 반환(진단용)."""
+    import re as _re
+    url = request.args.get("url", "").strip()
+    q = request.args.get("q", "").strip()
+    if not url.startswith("http") or not q:
+        return jsonify({"error": "url, q 파라미터 필요"}), 400
+    out = {"url": url, "q": q, "hits": []}
+    try:
+        body = (fetcher.get(url, retries=0, timeout=15).text or "")[:4_000_000]
+        low = body.lower()
+        ql = q.lower()
+        hits, start = [], 0
+        while len(hits) < 25:
+            i = low.find(ql, start)
+            if i < 0:
+                break
+            snippet = body[max(0, i - 120): i + 180]
+            hits.append(_re.sub(r"\s+", " ", snippet).strip())
+            start = i + len(ql)
+        out["hits"] = hits
+        out["count"] = len(hits)
+    except Exception as e:  # noqa: BLE001
+        out["error"] = f"{type(e).__name__}: {str(e)[:200]}"
+    return jsonify(out)
+
+
 @app.get("/api/apihunt")
 def apihunt():
     """SPA(CRA 등) 페이지의 JS 번들을 받아 그 안에 박힌 API 주소 후보를 찾아 반환(진단용)."""

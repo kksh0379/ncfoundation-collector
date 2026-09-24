@@ -5,6 +5,7 @@
 > 예: `v0.39 · build 260924`. (아래 과거 항목의 vNN 은 v0.NN 과 같은 번호예요: v38 = v0.38)
 
 ## 2026-09-24
+- **v0.78 · build 260924** — 파일 내용 검색 진단 `/api/grep?url=&q=` 추가(JS에서 특정 함수/문자열 주변 코드 확인). 프로젝토리 _sendAxios 호출 방식 분석용.
 - **v0.77 · build 260924** — /api/peek에 xhr=1 옵션 추가(X-Requested-With 헤더로 AJAX 응답 유도). 프로젝토리처럼 같은 URL이 XHR일 때 JSON을 주는 사이트 확인용.
 - **v0.76 · build 260924** — apihunt 보강: 페이지 HTML의 인라인 스크립트까지 검색(라이브러리 파일 제외), axios/ajax/url 패턴 추가, script_hits(관련 줄 원문) 반환. 프로젝토리처럼 Vue+axios 인라인 호출 사이트 API 탐색용.
 - **v0.75 · build 260924** — 소셜 카드 썸네일: 유튜브 영상 썸네일(i.ytimg.com/…/hqdefault.jpg, RSS media:thumbnail 우선), 인스타 게시물 썸네일 표시. social에 image_url 컬럼.
