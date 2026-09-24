@@ -213,33 +213,46 @@ def apihunt():
     url = request.args.get("url", "").strip()
     if not url.startswith("http"):
         return jsonify({"error": "url 파라미터 필요"}), 400
-    out = {"url": url, "js": [], "candidates": []}
+    out = {"url": url, "js": [], "candidates": [], "script_hits": []}
+    _LIB = ("vue", "axios", "moment", "jquery", "libs.min", "polyfill", "runtime")
     try:
         html = (fetcher.get(url, retries=0, timeout=12).text or "")
         srcs = _re.findall(r'<script[^>]+src=["\']([^"\']+)["\']', html)
-        js_urls = [_join(url, s) for s in srcs if ".js" in s]
-        # main 번들 우선, 최대 4개까지만
+        # 라이브러리(vue/axios 등)는 제외 — 앱 코드가 든 파일만
+        js_urls = [_join(url, s) for s in srcs if ".js" in s and not any(l in s.lower() for l in _LIB)]
         js_urls = sorted(set(js_urls), key=lambda u: (0 if "main" in u else 1, len(u)))[:4]
         out["js"] = js_urls
-        cand = set()
+        # 검색 대상: 페이지 HTML(인라인 스크립트 포함) + 앱 JS 파일
+        bodies = [html]
         for ju in js_urls:
             try:
-                body = (fetcher.get(ju, retries=0, timeout=15).text or "")[:4_000_000]
+                bodies.append((fetcher.get(ju, retries=0, timeout=15).text or "")[:4_000_000])
             except Exception:  # noqa: BLE001
                 continue
+        cand = set()
+        for body in bodies:
             for pat in (
-                r'https?://[a-zA-Z0-9.\-]+/[a-zA-Z0-9/_\-]*(?:api|community|board|news|post)[a-zA-Z0-9/_\-]*',
-                r'["\'`](/(?:api|v1|v2)/[a-zA-Z0-9/_\-{}.:]+)["\'`]',
-                r'["\'`](/[a-zA-Z0-9/_\-]*community[a-zA-Z0-9/_\-]*)["\'`]',
-                r'baseURL\s*[:=]\s*["\'`]([^"\'`]+)["\'`]',
-                r'["\'`](https?://api\.[a-zA-Z0-9.\-]+[^"\'`]*)["\'`]',
+                r'axios\.(?:get|post|put)\(\s*["\'`]([^"\'`]+)["\'`]',
+                r'\$\.(?:get|post|ajax)\(\s*["\'`]([^"\'`]+)["\'`]',
+                r'(?:url|api|endpoint|baseURL)\s*[:=]\s*["\'`]([^"\'`]{4,})["\'`]',
+                r'["\'`](/[a-zA-Z0-9/_\-]*(?:api|ajax|list|view|board|news|notice)[a-zA-Z0-9/_\-.?=&]*)["\'`]',
+                r'["\'`](https?://[a-zA-Z0-9.\-]+/[^"\'`]*(?:api|board|news|notice|list)[^"\'`]*)["\'`]',
             ):
                 for m in _re.findall(pat, body):
                     if isinstance(m, tuple):
                         m = m[0]
                     if 3 < len(m) < 200:
                         cand.add(m)
-        out["candidates"] = sorted(cand)[:60]
+        out["candidates"] = sorted(cand)[:80]
+        # 인라인 스크립트에서 axios/url/boardIdx 근처 줄을 그대로 보여줌(수동 확인용)
+        hits = []
+        for line in html.splitlines():
+            low = line.lower()
+            if any(k in low for k in ("axios", "boardidx", "notice-list", "ajax", ".json", "url:")):
+                s = line.strip()
+                if 6 < len(s) < 300:
+                    hits.append(s)
+        out["script_hits"] = list(dict.fromkeys(hits))[:40]
     except Exception as e:  # noqa: BLE001
         out["error"] = f"{type(e).__name__}: {str(e)[:200]}"
     return jsonify(out)
