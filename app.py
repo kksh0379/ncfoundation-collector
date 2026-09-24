@@ -491,37 +491,51 @@ def diag():
             ("구글 뉴스(RSS) · 고양이", google_news.RSS_URL + "?q=" + _quote("고양이 반려묘") + "&hl=ko&gl=KR&ceid=KR:ko", None)
         )
     if group in ("all", "boards"):
+        import json as _json
+        _fair_body = _json.dumps({"page": 1, "rowsPerPage": 5, "sortBy": "createdAt",
+                                  "sortType": "desc", "keyword": None})
         seen = set()
         for s in boards.SOURCES:
             # API 방식 소스는 list_url 대신 api/projectory_api/fairai_api 주소로 점검
             chk = s.get("list_url") or s.get("api") or s.get("projectory_api") or s.get("fairai_api")
-            if chk and chk not in seen:
-                seen.add(chk)
-                targets.append((f"{s['service']} · {s['category']}", chk, s.get("item_link_sel")))
+            if not chk or chk in seen:
+                continue
+            seen.add(chk)
+            t = {"name": f"{s['service']} · {s['category']}", "url": chk, "sel": s.get("item_link_sel")}
+            if s.get("fairai_api"):  # FAIR AI는 POST API라 POST로 점검
+                t["method"], t["body"] = "post", _fair_body
+            targets.append(t)
     if group in ("all", "social"):
         for s in social.SOURCES:
             if s.get("url"):
-                targets.append((f"{s['channel']} · {s['account']}", s["url"], None))
+                targets.append({"name": f"{s['channel']} · {s['account']}", "url": s["url"], "sel": None})
 
     def check(item):
-        name, url, sel = item
+        # 튜플(뉴스/고양이) 또는 dict(게시판/소셜) 모두 지원
+        if isinstance(item, tuple):
+            item = {"name": item[0], "url": item[1], "sel": item[2]}
+        name, url, sel = item["name"], item["url"], item.get("sel")
         t0 = _t.time()
         try:
-            r = fetcher.get(url, retries=0)
+            if item.get("method") == "post":
+                r = fetcher.post(url, data=item.get("body"), retries=0, raise_status=False,
+                                 headers={"Content-Type": "application/json",
+                                          "Accept": "application/json, text/plain, */*"})
+            else:
+                # raise_status=False: 4xx여도 '연결됨'으로 본다(서버가 응답했으니 도달 성공)
+                r = fetcher.get(url, retries=0, raise_status=False)
             body = r.text or ""
             res = {
-                "name": name, "url": url, "ok": True,
+                "name": name, "url": url, "ok": True,  # 응답을 받았으면 연결 성공
                 "status": r.status_code, "bytes": len(body),
                 "looks_html": "<html" in body.lower() or "<!doctype" in body.lower(),
                 "sec": round(_t.time() - t0, 1),
             }
-            # 게시판은 '연결됨'만이 아니라 설정된 선택자로 실제 글이 몇 개 잡히는지 센다.
-            # (연결 정상인데 글 0개면 = SPA이거나 선택자 불일치 → 스크래핑 안 되는 원인)
             if sel:
                 from bs4 import BeautifulSoup
                 res["items"] = len(boards._select_any(BeautifulSoup(body, "lxml"), sel))
             return res
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:  # noqa: BLE001  (네트워크 자체 실패만 오류)
             return {
                 "name": name, "url": url, "ok": False,
                 "error": type(e).__name__ + ": " + str(e)[:160],

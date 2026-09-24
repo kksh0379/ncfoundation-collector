@@ -34,7 +34,7 @@ DEFAULT_HEADERS = {
 TIMEOUT = 15
 
 
-def get(url, params=None, headers=None, retries=1, timeout=None):
+def get(url, params=None, headers=None, retries=1, timeout=None, raise_status=True):
     last_err = None
     to = timeout or TIMEOUT
     merged = dict(DEFAULT_HEADERS)
@@ -48,7 +48,8 @@ def get(url, params=None, headers=None, retries=1, timeout=None):
                 resp = requests.get(
                     url, params=params, headers=merged, timeout=to, verify=verify
                 )
-                resp.raise_for_status()
+                if raise_status:  # 상태확인용은 4xx도 '연결됨'으로 보려고 예외를 끈다
+                    resp.raise_for_status()
                 resp.encoding = resp.apparent_encoding or resp.encoding
                 return resp
             except requests.exceptions.SSLError as e:
@@ -66,7 +67,7 @@ def get_json(url, params=None, headers=None, retries=2):
     return get(url, params=params, headers=headers, retries=retries).json()
 
 
-def post(url, data=None, headers=None, retries=1, timeout=None):
+def post(url, data=None, headers=None, retries=1, timeout=None, raise_status=True):
     """POST 요청 헬퍼. 구글 뉴스 batchexecute 같은 폼 전송에 쓴다."""
     last_err = None
     to = timeout or TIMEOUT
@@ -76,7 +77,8 @@ def post(url, data=None, headers=None, retries=1, timeout=None):
     for attempt in range(retries + 1):
         try:
             resp = requests.post(url, data=data, headers=merged, timeout=to)
-            resp.raise_for_status()
+            if raise_status:
+                resp.raise_for_status()
             return resp
         except requests.RequestException as e:  # noqa: PERF203
             last_err = e
