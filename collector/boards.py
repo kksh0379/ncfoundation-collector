@@ -35,6 +35,7 @@ SOURCES = [
         "title_sel": "b.notice_title, strong.board_title",
         "desc_sel": "p.notice_desc, p.board_desc",
         "detail_url": "https://www.myaac.or.kr/info/announcementDetail.do?seq={seq}",
+        "page_param": "page", "pages": 15,
     },
     {
         "service": "나의AAC", "category": "커뮤니티",
@@ -44,6 +45,7 @@ SOURCES = [
         "title_sel": "strong.board_title, b.notice_title",
         "desc_sel": "p.board_desc, p.notice_desc",
         "detail_url": "https://www.myaac.or.kr/info/communityDetail.do?seq={seq}",
+        "page_param": "page", "pages": 15,
     },
     {
         "service": "프로젝토리", "category": "공지",
@@ -112,8 +114,26 @@ def _parse_detail(url):
         return {}
     soup = BeautifulSoup(resp.text, "lxml")
     art = extractor.extract_article(soup, url)
-    art["image_url"] = extractor.extract_image(soup)  # 대표 이미지(og:image)
+    art["image_url"] = _detail_image(soup, url)  # 본문 이미지 우선(og:image 폴백)
     return art
+
+
+def _detail_image(soup, page_url):
+    """상세 페이지의 대표 이미지. 본문 업로드 이미지를 우선하고(사이트 기본 로고 회피),
+    없으면 og:image를 쓴다. 상대경로는 절대경로로 변환."""
+    for im in soup.select("img[src]"):
+        src = (im.get("src") or "").strip()
+        low = src.lower()
+        if src and any(k in low for k in ("/upload", "/editor", "/files", "/attach",
+                                          "/data/", "/bbs", "/board", "/community")):
+            return urljoin(page_url, src)
+    og = extractor._meta(soup, "og:image", "og:image:url", "twitter:image")
+    if og:
+        u = urljoin(page_url, og.strip())
+        if not any(k in u.lower() for k in ("_og.", "og.png", "og.jpg", "logo",
+                                            "favicon", "default", "noimg", "no-img", "no_img")):
+            return u
+    return None
 
 
 def _resolve_url(a, cfg):
@@ -201,8 +221,11 @@ def _extract_embedded(html, cfg):
     return entries
 
 
-def _build_entry(e, cfg):
-    """목록 항목 1건 → 저장용 dict. http 링크면 상세에서 본문 보강, 아니면 고유 키 생성."""
+def _build_entry(e, cfg, known=None):
+    """목록 항목 1건 → 저장용 dict. http 링크면 상세에서 본문·이미지 보강, 아니면 고유 키 생성.
+    이미 저장돼(요약 있음) 있으면 None을 반환(상세 재요청 생략, 기존 글 유지 → 증분)."""
+    if e.get("url") and (known or {}).get(e["url"], "").strip():
+        return None
     content = e["desc"]
     published = e["published_at"]
     author = None
@@ -456,35 +479,60 @@ def crawl_source(cfg, max_items=8, max_workers=3):
         return []
 
     t0 = time.time()
-    try:
-        resp = fetcher.get(cfg["list_url"])
-    except Exception as e:  # noqa: BLE001
-        print(f"[board] {label} 목록 요청 실패: {e}", flush=True)
-        return []
+    page_param = cfg.get("page_param")           # 예: "page" → ?page=N 페이지네이션
+    pages = cfg.get("pages", 12) if page_param else 1
+    cap = max(max_items, 500) if page_param else max_items
 
-    soup = BeautifulSoup(resp.text, "lxml")
-    # 푸터/내비만 제거 (오시는 길·문의 등 푸터 링크가 글로 잘못 잡히는 것 방지).
-    # 본문 영역을 지우지 않도록 header/aside 등 광범위 제거는 하지 않는다.
+    entries, seen = [], set()
+    for pg in range(1, pages + 1):
+        params = {page_param: pg} if page_param else None
+        try:
+            resp = fetcher.get(cfg["list_url"], params=params)
+        except Exception as e:  # noqa: BLE001
+            print(f"[board] {label} 목록 요청 실패(pg={pg}): {e}", flush=True)
+            break
+        page_entries, had_anchors = _parse_list_page(resp.text, cfg)
+        if not had_anchors:
+            if pg == 1 and cfg.get("try_embedded"):
+                for e in _extract_embedded(resp.text, cfg):
+                    entries.append(e)
+            break
+        new = 0
+        for e in page_entries:
+            key = e["url"] or e["title"]
+            if key in seen:
+                continue
+            seen.add(key)
+            entries.append(e)
+            new += 1
+        if new == 0 or len(entries) >= cap:  # 더 이상 새 글 없음 or 상한 → 중단
+            break
+
+    entries = entries[:cap]
+
+    # 상세 페이지에서 본문·이미지 보강(이미 저장된 글은 생략 → 증분)
+    try:
+        known = db.board_content_map(cfg["service"])
+    except Exception:  # noqa: BLE001
+        known = {}
+    with ThreadPoolExecutor(max_workers=max_workers) as pool:
+        built = list(pool.map(lambda e: _build_entry(e, cfg, known), entries))
+    items = [x for x in built if x]
+
+    print(f"[board] {label}: 수집 {len(items)}건(목록 {len(entries)}) / {time.time() - t0:.1f}s", flush=True)
+    return items
+
+
+def _parse_list_page(html, cfg):
+    """목록 페이지 HTML 1장 → (entries, 앵커가 있었는지). 제목은 링크 자체에서 뽑는다."""
+    soup = BeautifulSoup(html, "lxml")
     for chrome in soup.select("footer, .footer, [class*=footer], .gnb, .lnb, "
                               ".sticky-menu, .sticky-menu__item, nav.gnb"):
         chrome.decompose()
-
     anchors = _select_any(soup, cfg["item_link_sel"])
     if not anchors:
-        # 정적 목록이 없으면 페이지에 박힌 JSON에서 시도(Next.js 등 SPA 대응)
-        if cfg.get("try_embedded"):
-            emb = _extract_embedded(resp.text, cfg)[:max_items]
-            if emb:
-                print(f"[board] {label}: embedded JSON에서 {len(emb)}건", flush=True)
-                with ThreadPoolExecutor(max_workers=max_workers) as pool:
-                    return list(pool.map(lambda e: _build_entry(e, cfg), emb))
-        print(f"[board] {label}: 글 링크 0개", flush=True)
-        return []
-
-    # 1) 목록에서 항목 메타 수집
-    # 제목은 '행 전체'가 아니라 '링크 자체'에서 뽑는다. (행에서 뽑으면 여러 글이 같은
-    # 제목으로 잡혀 과도하게 중복 제거되던 버그 → 링크 단위로 추출해 해결)
-    entries, seen = [], set()
+        return [], False
+    entries = []
     for a in anchors:
         title = None
         if cfg.get("title_sel"):
@@ -493,18 +541,9 @@ def crawl_source(cfg, max_items=8, max_workers=3):
         title = extractor.clean_text(title or a.get_text(" ", strip=True))
         if not title:
             continue
-
         url = _resolve_url(a, cfg)
-        key = url or title
-        if key in seen:
-            continue
-        seen.add(key)
-
-        # 날짜/요약은 행(li/dd/tr/article) 범위에서만 찾는다(전체 목록 X)
-        # 날짜 제한은 두지 않는다(글 수가 많지 않아 전체 수집).
         row = a.find_parent(["li", "dd", "tr", "article"]) or a
         published = extractor.parse_date(row.get_text(" ", strip=True))
-
         desc_el = _first(row, cfg.get("desc_sel", "")) if cfg.get("desc_sel") else None
         entries.append({
             "url": url,
@@ -512,15 +551,7 @@ def crawl_source(cfg, max_items=8, max_workers=3):
             "published_at": published,
             "desc": extractor.clean_text(desc_el.get_text(" ", strip=True)) if desc_el else None,
         })
-        if len(entries) >= max_items:
-            break
-
-    # 2) 링크가 정상 http면 상세 페이지에서 요약을 보강한다
-    with ThreadPoolExecutor(max_workers=max_workers) as pool:
-        items = list(pool.map(lambda e: _build_entry(e, cfg), entries))
-
-    print(f"[board] {label}: 수집 {len(items)}건 / {time.time() - t0:.1f}s", flush=True)
-    return items
+    return entries, True
 
 
 def crawl_all(max_items=10, progress=None):
