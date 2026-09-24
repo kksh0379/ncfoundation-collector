@@ -91,12 +91,8 @@ SOURCES = [
         "service": "대표 홈페이지", "category": "재단소식",
         "list_url": "https://ncfoundation.or.kr/community/all",
         "base_url": "https://ncfoundation.or.kr",
-        "item_link_sel": "a[href*='/community/all/']",
-        "title_sel": ".title, .subject, strong, .tit",
-        "desc_sel": ".desc, .summary, p",
-        "detail_path": "/community/all/{id}",  # 상세글 주소 패턴(끝에 글 번호)
-        # 정적 HTML 목록이 없으면 embedded JSON(__NEXT_DATA__/__NUXT__ 등)에서 시도한다.
-        "try_embedded": True,
+        # 이 사이트는 CRA SPA라 내부 API(JSON)를 직접 호출한다.
+        "api": "https://api.ncfoundation.or.kr/community/all",
     },
 ]
 
@@ -239,14 +235,51 @@ def _build_entry(e, cfg):
     }
 
 
+def _crawl_json_api(cfg, max_items):
+    """내부 JSON API로 글 목록을 받는 게시판(대표 홈페이지 등).
+    응답: {"count": N, "list": [{id, subject, createDt, dtype, ...}]}."""
+    label = f"{cfg['service']} · {cfg['category']}"
+    t0 = time.time()
+    try:
+        data = fetcher.get(cfg["api"], retries=1, timeout=15).json()
+    except Exception as e:  # noqa: BLE001
+        print(f"[board] {label} API 실패: {e}", flush=True)
+        return []
+    rows = data.get("list") or (data if isinstance(data, list) else [])
+    cap = max(max_items, 300)  # 전체 목록을 한 번에 주므로 넉넉히 저장
+    items = []
+    for it in rows[:cap]:
+        subject = extractor.clean_text(str(it.get("subject") or it.get("title") or ""))
+        if not subject:
+            continue
+        pid = it.get("id")
+        dtype = str(it.get("dtype") or "all").lower()  # notice/report/social
+        url = urljoin(cfg["base_url"], f"/community/{dtype}/{pid}") if pid is not None else cfg["list_url"]
+        pub = it.get("createDt") or it.get("modifyDt") or ""
+        published = extractor.parse_date(str(pub)) or (str(pub)[:16].replace("T", " ") if pub else None)
+        items.append({
+            "service": cfg["service"],
+            "category": cfg["category"],
+            "title": subject,
+            "published_at": published,
+            "author": "NC문화재단",
+            "content": "",  # 목록 API엔 본문이 없음(제목·날짜·링크 위주)
+            "url": url,
+        })
+    print(f"[board] {label}: API에서 {len(items)}건 / {time.time() - t0:.1f}s", flush=True)
+    return items
+
+
 def crawl_source(cfg, max_items=8, max_workers=3):
     """게시판 1개 크롤링 → 글 dict 리스트.
 
     목록 페이지에서 글 링크/제목/날짜/요약을 뽑고, 정상 http 링크인 글은 상세 페이지를
     가볍게(소량·저동시성) 받아 본문을 채운다. 본문에서 마크업은 제거한다.
-    SPA 사이트(정적 목록 없음)는 건너뛴다.
+    내부 JSON API가 있는 사이트(api 지정)는 그걸 직접 호출한다.
     """
     label = f"{cfg['service']} · {cfg['category']}"
+    if cfg.get("api"):
+        return _crawl_json_api(cfg, max_items)
     if cfg.get("spa"):
         print(f"[board] {label}: SPA라 건너뜀 (API/Playwright 필요)", flush=True)
         return []
