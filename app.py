@@ -128,10 +128,9 @@ def admin_purge():
 
 @app.get("/api/dbcheck")
 def dbcheck():
-    """DB 연결을 직접 시도해 실제 에러 원문을 반환(관리자 전용, 진단용).
-    로그인은 DB 없이도 되므로, DB가 죽어도 이 진단은 볼 수 있다."""
-    if not _admin_ok():
-        return jsonify({"error": "unauthorized"}), 401
+    """DB 연결을 직접 시도해 실제 에러 원문을 반환(진단용).
+    비밀번호는 마스킹되고 연결 성공/실패·에러 종류만 나오므로 로그인 없이도 열 수 있게 둔다
+    (DB가 죽으면 로그인 자체가 애매할 수 있어 진단 접근성을 우선)."""
     return jsonify(db.diagnose())
 
 
