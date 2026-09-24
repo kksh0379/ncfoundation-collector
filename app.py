@@ -547,10 +547,32 @@ def _auto_backfill():
     _start_job("social")
 
 
+# DB keep-alive: Neon 무료는 5분 놀면 잠든다. 앱이 상시 가동(Render Starter)이면,
+# 주기적으로 DB에 가벼운 쿼리를 날려 잠들지 않게 유지 → 방문자가 잠든 DB를 안 만난다.
+# DB_KEEPALIVE_SEC=0 이면 끔. (Neon 무료는 compute 사용시간 한도가 있으니, 한도가 걱정되면
+# 끄거나 Supabase처럼 상시 켜짐 DB로 바꾸면 된다.)
+DB_KEEPALIVE_SEC = int(os.environ.get("DB_KEEPALIVE_SEC", "240"))  # 기본 4분
+
+
+def _db_keepalive():
+    if db.BACKEND != "postgres" or DB_KEEPALIVE_SEC <= 0:
+        return
+    print(f"[keepalive] DB 유지 시작({DB_KEEPALIVE_SEC}초 주기)", flush=True)
+    while True:
+        time.sleep(DB_KEEPALIVE_SEC)
+        try:
+            _ensure_db(force=True)
+            with db.get_conn() as conn:
+                conn.execute("SELECT 1")
+        except Exception as e:  # noqa: BLE001
+            print(f"[keepalive] 실패(무시): {e}", flush=True)
+
+
 _start_scheduler()
 # 백필은 DB를 건드리므로(cold start로 느릴 수 있음) 백그라운드 스레드에서 돌려
 # import(부팅)를 절대 막지 않게 한다. → Render 배포가 DB 상태와 무관하게 성공.
 threading.Thread(target=_auto_backfill, daemon=True).start()
+threading.Thread(target=_db_keepalive, daemon=True).start()
 
 
 if __name__ == "__main__":

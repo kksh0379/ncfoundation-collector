@@ -5,6 +5,7 @@
 > 예: `v0.39 · build 260924`. (아래 과거 항목의 vNN 은 v0.NN 과 같은 번호예요: v38 = v0.38)
 
 ## 2026-09-24
+- **v0.57 · build 260924** — DB keep-alive 추가: 앱이 4분마다 DB에 가벼운 쿼리를 날려 Neon이 잠들지 않게 유지(Render 상시가동과 세트). 방문자가 잠든 DB를 안 만나 응답이 항상 빠름. `DB_KEEPALIVE_SEC`로 조절/해제.
 - **v0.56 · build 260924** — 어떤 Postgres(특히 Supabase 트랜잭션 풀러)에도 안전하게 붙도록 prepared statement 자동생성 비활성화(prepare_threshold=None). DB 교체(예: Neon→Supabase) 대비.
 - **v0.55 · build 260924** — 킵얼라이브용 초경량 `/healthz` 추가(DB 미접속). 외부 크론이 주기 호출하면 Render 무료 앱이 안 잠들어 방문자 cold start 감소.
 - **v0.54 · build 260924** — 수집/초기화 시 DB를 실제로 깨우도록 수정. 직전 웹요청 실패의 쿨다운 때문에 수집이 DB를 안 깨우고 건너뛰어 실패하던 문제 해결(`_ensure_db(force=True)` — 쿨다운 무시하고 접속 대기해 Neon 깨움).
