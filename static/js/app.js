@@ -104,26 +104,11 @@ async function loadNews() {
   } catch (e) { el.innerHTML = `<li class="empty">불러오기 실패</li>`; }
 }
 
-// URL에서 도메인 추출(파비콘 폴백용). 실패 시 빈 문자열.
-function domainOf(u) {
-  try { return new URL(u).hostname.replace(/^www\./, ""); } catch (e) { return ""; }
-}
-
-// 뉴스 카드 썸네일 HTML. og:image가 있으면 그걸, 없으면 언론사 파비콘, 그것도 없으면 글자 배지.
+// 뉴스 카드 썸네일 HTML. 대표 이미지(og:image)가 있을 때만 표시(없으면 아무것도 안 보임).
 function newsThumb(rep) {
-  const initial = escapeHtml((rep.author || rep.title || "N").trim().charAt(0) || "N");
-  const ph = ('<div class="thumb-ph">' + initial + '</div>').replace(/'/g, "&#39;");
-  if (rep.image_url) {
-    return `<div class="card-thumb"><img class="thumb-img" loading="lazy" src="${escapeHtml(rep.image_url)}" alt=""
-      onerror="this.closest('.card-thumb').innerHTML='${ph}'"></div>`;
-  }
-  const dom = domainOf(rep.source_url || "");
-  if (dom) {
-    return `<div class="card-thumb"><img class="thumb-fav" loading="lazy"
-      src="https://www.google.com/s2/favicons?domain=${encodeURIComponent(dom)}&sz=128" alt=""
-      onerror="this.closest('.card-thumb').innerHTML='${ph}'"></div>`;
-  }
-  return `<div class="card-thumb">${('<div class="thumb-ph">' + initial + '</div>')}</div>`;
+  if (!rep.image_url) return "";
+  return `<div class="card-thumb"><img class="thumb-img" loading="lazy" src="${escapeHtml(rep.image_url)}" alt=""
+    onerror="this.closest('.card-thumb').remove()"></div>`;
 }
 
 // 뉴스 그룹 1개 → 카드 노드(아코디언 핸들러 포함)

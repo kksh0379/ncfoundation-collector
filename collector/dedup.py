@@ -117,9 +117,10 @@ def cluster_items(items, threshold=SIMILARITY_THRESHOLD, max_tfidf=600):
     같은 보도자료가 여러 매체에 뿌려진 경우를 하나로 묶기 위함(중복 제거가 아니라
     '그룹화' — 전부 저장하되 group_key로 아코디언 묶음 표시).
     기준: (1) 정규화 제목이 같으면 같은 그룹(O(N), 항상 적용),
-    (2) 항목 수가 max_tfidf 이하일 때만 본문 유사도(글자 n-gram TF-IDF 코사인)로 추가 그룹화.
-    (대량이면 N×N 코사인 행렬이 메모리를 폭발시키므로 제목 기준만 사용 → OOM 방지)
+    (2) 제목이 달라도 본문 유사도(글자 n-gram TF-IDF 코사인)가 높으면 같은 그룹.
+        전체 N×N은 메모리가 터지므로 '같은 날짜' 블록 안에서만 비교(대량도 안전).
     group_key = 그룹 대표(가장 앞) 항목의 url.
+    max_tfidf: 하루 블록이 이보다 크면 본문 비교를 건너뜀(메모리 보호).
     """
     n = len(items)
     if n == 0:
@@ -147,21 +148,35 @@ def cluster_items(items, threshold=SIMILARITY_THRESHOLD, max_tfidf=600):
         for j in idxs[1:]:
             union(idxs[0], j)
 
-    # 2) 본문 유사도 그룹화는 항목 수가 많지 않을 때만(메모리 보호 — N×N 코사인 회피)
-    if n <= max_tfidf:
-        content_norm = [normalize_text(it.get("content") or "") for it in items]
-        idx = [i for i, c in enumerate(content_norm) if len(c) >= 20]
-        if len(idx) >= 2:
-            try:
-                vec = TfidfVectorizer(analyzer="char", ngram_range=NGRAM_RANGE, min_df=1)
-                m = vec.fit_transform([content_norm[i] for i in idx])
-                sims = cosine_similarity(m)
-                for a in range(len(idx)):
-                    for b in range(a + 1, len(idx)):
-                        if sims[a, b] >= threshold:
-                            union(idx[a], idx[b])
-            except ValueError:
-                pass
+    # 2) 본문 유사도 그룹화(제목이 달라도 같은 기사면 묶기).
+    #    전체를 N×N으로 비교하면 대량에서 메모리가 터지므로, '같은 날짜(YYYY-MM-DD)'끼리
+    #    블록으로 나눠 블록 내에서만 비교한다. 같은 사건 재배포 기사는 보통 같은 날 쏟아지므로
+    #    이걸로 대부분 잡히고, 각 블록은 작아서 수천 건이어도 안전하다.
+    content_norm = [normalize_text(it.get("content") or "") for it in items]
+
+    def _daykey(it):
+        p = (it.get("published_at") or "").strip()
+        return p[:10] if len(p) >= 10 else ""  # 날짜 모르면 "" 블록(본문묶기 제외)
+
+    day_blocks = {}
+    for i, it in enumerate(items):
+        dk = _daykey(it)
+        if dk and len(content_norm[i]) >= 20:
+            day_blocks.setdefault(dk, []).append(i)
+
+    for idxs in day_blocks.values():
+        if not (2 <= len(idxs) <= max_tfidf):
+            continue  # 너무 큰 날 블록은 건너뜀(메모리 보호). 대부분의 날은 작다.
+        try:
+            vec = TfidfVectorizer(analyzer="char", ngram_range=NGRAM_RANGE, min_df=1)
+            m = vec.fit_transform([content_norm[i] for i in idxs])
+            sims = cosine_similarity(m)
+            for a in range(len(idxs)):
+                for b in range(a + 1, len(idxs)):
+                    if sims[a, b] >= threshold:
+                        union(idxs[a], idxs[b])
+        except ValueError:
+            pass
 
     keys = []
     for i in range(n):
