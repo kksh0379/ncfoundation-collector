@@ -249,33 +249,35 @@ def apihunt():
     _LIB = ("vue", "axios", "moment", "jquery", "libs.min", "polyfill", "runtime")
     try:
         html = (fetcher.get(url, retries=0, timeout=12).text or "")
-        srcs = _re.findall(r'<script[^>]+src=["\']([^"\']+)["\']', html)
-        # 라이브러리(vue/axios 등)는 제외 — 앱 코드가 든 파일만
-        js_urls = [_join(url, s) for s in srcs if ".js" in s and not any(l in s.lower() for l in _LIB)]
-        js_urls = sorted(set(js_urls), key=lambda u: (0 if "main" in u else 1, len(u)))[:4]
+        # <script src>, <link href>(modulepreload; Nuxt/Vite), import('...') 전부에서 .js 수집
+        srcs = _re.findall(r'(?:src|href)=["\']([^"\']+\.js)["\']', html)
+        srcs += _re.findall(r'import\(["\']([^"\']+\.js)["\']', html)
+        js_urls = [_join(url, s) for s in srcs if not any(l in s.lower() for l in _LIB)]
+        js_urls = sorted(set(js_urls), key=lambda u: (0 if any(k in u.lower() for k in ("entry", "main")) else 1, len(u)))[:25]
         out["js"] = js_urls
         # 검색 대상: 페이지 HTML(인라인 스크립트 포함) + 앱 JS 파일
         bodies = [html]
         for ju in js_urls:
             try:
-                bodies.append((fetcher.get(ju, retries=0, timeout=15).text or "")[:4_000_000])
+                bodies.append((fetcher.get(ju, retries=0, timeout=12).text or "")[:1_500_000])
             except Exception:  # noqa: BLE001
                 continue
         cand = set()
         for body in bodies:
             for pat in (
                 r'axios\.(?:get|post|put)\(\s*["\'`]([^"\'`]+)["\'`]',
-                r'\$\.(?:get|post|ajax)\(\s*["\'`]([^"\'`]+)["\'`]',
-                r'(?:url|api|endpoint|baseURL)\s*[:=]\s*["\'`]([^"\'`]{4,})["\'`]',
-                r'["\'`](/[a-zA-Z0-9/_\-]*(?:api|ajax|list|view|board|news|notice)[a-zA-Z0-9/_\-.?=&]*)["\'`]',
-                r'["\'`](https?://[a-zA-Z0-9.\-]+/[^"\'`]*(?:api|board|news|notice|list)[^"\'`]*)["\'`]',
+                r'\$fetch\(\s*["\'`]([^"\'`]+)["\'`]',
+                r'(?:url|api|endpoint|baseURL|baseUrl)\s*[:=]\s*["\'`]([^"\'`]{4,})["\'`]',
+                r'["\'`](/(?:fair|search)/api[^"\'`]*)["\'`]',
+                r'["\'`]([^"\'`]{2,50}(?:notice|board|news|insight|list|article)[^"\'`]{0,40})["\'`]',
+                r'["\'`](https?://[a-zA-Z0-9.\-]+/[^"\'`]*(?:api|board|news|notice|list|insight)[^"\'`]*)["\'`]',
             ):
                 for m in _re.findall(pat, body):
                     if isinstance(m, tuple):
                         m = m[0]
                     if 3 < len(m) < 200:
                         cand.add(m)
-        out["candidates"] = sorted(cand)[:80]
+        out["candidates"] = sorted(cand)[:120]
         # 인라인 스크립트에서 axios/url/boardIdx 근처 줄을 그대로 보여줌(수동 확인용)
         hits = []
         for line in html.splitlines():
