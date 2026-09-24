@@ -75,6 +75,13 @@ def _ensure_db(force=False):
         _db_lock.release()
 
 
+@app.get("/healthz")
+def healthz():
+    """킵얼라이브용 초경량 엔드포인트(DB 접속 안 함). 외부 크론이 이걸 주기적으로
+    호출하면 Render 무료 앱이 잠들지 않아 방문자가 cold start를 안 겪는다."""
+    return "ok", 200
+
+
 @app.get("/api/me")
 def me():
     return jsonify({"admin": _admin_ok()})
