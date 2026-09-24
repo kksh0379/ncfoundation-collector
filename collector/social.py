@@ -12,6 +12,7 @@
 요청을 차단하면 0건이 될 수 있는데, 그 경우 사유를 로그로 남기고 건너뛴다.
 확실한 수집이 필요하면 공식 Graph API(비즈니스 계정 + 토큰)로 교체한다.
 """
+import os
 import re
 import time
 from datetime import datetime
@@ -20,6 +21,8 @@ import requests
 from bs4 import BeautifulSoup
 
 from . import extractor, fetcher
+
+YT_DATA_API = "https://www.googleapis.com/youtube/v3/playlistItems"
 
 SOURCES = [
     {
@@ -71,12 +74,57 @@ def _youtube_channel_id(url):
     return None
 
 
+def _crawl_youtube_api(cfg, cid, max_items):
+    """YouTube Data API v3로 채널의 '업로드 재생목록'을 페이지네이션해 전 영상을 수집한다.
+    (RSS는 최신 ~15개만 주므로 과거 영상까지 받으려면 이 방식이 필요) 키 없으면 호출 안 함."""
+    key = os.environ.get("YOUTUBE_API_KEY", "").strip()
+    if not key:
+        return None  # 키 없음 → 호출측이 RSS로 폴백
+    uploads = "UU" + cid[2:]  # 업로드 재생목록 id = 채널id의 UC→UU
+    label = f"{cfg['channel']}·{cfg['account']}"
+    cap = max(max_items, 1000)
+    items, token = [], None
+    for _ in range(40):  # 최대 40페이지(50개씩=2000개) 안전장치
+        params = {"part": "snippet", "maxResults": 50, "playlistId": uploads, "key": key}
+        if token:
+            params["pageToken"] = token
+        try:
+            j = fetcher.get(YT_DATA_API, params=params, retries=1, timeout=12).json()
+        except Exception as e:  # noqa: BLE001
+            print(f"[social] 유튜브 Data API 실패({label}): {e}", flush=True)
+            return None if not items else items  # 첫 페이지부터 실패면 RSS 폴백
+        for it in j.get("items", []):
+            sn = it.get("snippet", {})
+            vid = (sn.get("resourceId") or {}).get("videoId")
+            title = extractor.clean_text(sn.get("title") or "")
+            if not vid or title in ("Private video", "Deleted video", ""):
+                continue
+            pub = (sn.get("publishedAt") or "")[:16].replace("T", " ")
+            th = sn.get("thumbnails") or {}
+            img = ((th.get("high") or th.get("medium") or th.get("default") or {}).get("url")
+                   or f"https://i.ytimg.com/vi/{vid}/hqdefault.jpg")
+            items.append({
+                "channel": cfg["channel"], "account": cfg["account"],
+                "title": title, "published_at": pub,
+                "content": extractor.summarize(sn.get("description") or ""),
+                "url": "https://www.youtube.com/watch?v=" + vid, "image_url": img,
+            })
+        token = j.get("nextPageToken")
+        if not token or len(items) >= cap:
+            break
+    print(f"[social] 유튜브 Data API {label}: {len(items)}개", flush=True)
+    return items
+
+
 def _crawl_youtube(cfg, max_items=15):
     cid = _youtube_channel_id(cfg["url"])
     if not cid:
         print(f"[social] {cfg['channel']}·{cfg['account']}: channel_id 못 찾음 ({cfg['url']})", flush=True)
         return []
     print(f"[social] 유튜브 channel_id={cid}", flush=True)
+    api_items = _crawl_youtube_api(cfg, cid, max_items)  # 키 있으면 전 영상, 없으면 None
+    if api_items is not None:
+        return api_items
     try:
         resp = fetcher.get(YT_FEED, params={"channel_id": cid})
     except Exception as e:  # noqa: BLE001
