@@ -49,6 +49,13 @@ def _q(sql):
     return sql.replace("?", "%s") if _PG else sql
 
 
+def _section_cond(section):
+    """섹션(nc/cat/biz…) WHERE 조건과 인자. 레거시(NULL)는 nc로 취급."""
+    if section == "nc":
+        return "COALESCE(section,'nc') = 'nc'", ()
+    return "section = ?", (section,)
+
+
 def diagnose():
     """DB 연결을 '풀을 거치지 않고' 직접 한 번 시도해서 실제 원인을 돌려준다.
     반환: {ok, backend, host, error}. 비밀번호는 마스킹. (관리자 진단용)"""
@@ -286,13 +293,11 @@ def upsert_social_many(items):
 
 
 def all_news_min(section="nc"):
-    """클러스터링용으로 뉴스의 (url, title, content)만 가볍게 로드. section별(nc/cat)."""
+    """클러스터링용으로 뉴스의 (url, title, content)만 가볍게 로드. section별(nc/cat/biz)."""
+    cond, args = _section_cond(section)
     with get_conn() as conn:
-        if section == "cat":
-            rows = conn.execute("SELECT url, title, content FROM news WHERE section = 'cat'").fetchall()
-        else:
-            rows = conn.execute(
-                "SELECT url, title, content FROM news WHERE COALESCE(section,'nc') = 'nc'").fetchall()
+        rows = conn.execute(
+            _q(f"SELECT url, title, content FROM news WHERE {cond}"), args).fetchall()
         return [dict(r) for r in rows]
 
 
@@ -382,12 +387,12 @@ def _count(table):
 
 
 def clear_news_section(section):
-    """news 테이블에서 특정 섹션(nc/cat)만 삭제. 반환: 삭제된 행 수."""
-    sec_sql = "section = 'cat'" if section == "cat" else "COALESCE(section,'nc') = 'nc'"
+    """news 테이블에서 특정 섹션(nc/cat/biz)만 삭제. 반환: 삭제된 행 수."""
+    cond, args = _section_cond(section)
     with get_conn() as conn:
-        row = conn.execute(f"SELECT COUNT(*) AS n FROM news WHERE {sec_sql}").fetchone()
+        row = conn.execute(_q(f"SELECT COUNT(*) AS n FROM news WHERE {cond}"), args).fetchone()
         n = int(row["n"]) if row else 0
-        conn.execute(f"DELETE FROM news WHERE {sec_sql}")
+        conn.execute(_q(f"DELETE FROM news WHERE {cond}"), args)
     return n
 
 
@@ -436,18 +441,18 @@ def existing_board_titles(service):
 
 
 def list_news(limit=3000, category=None, section="nc"):
-    sec_sql = "section = 'cat'" if section == "cat" else "COALESCE(section,'nc') = 'nc'"
+    cond, cargs = _section_cond(section)
     with get_conn() as conn:
         if category and category != "all":
             rows = conn.execute(
-                _q(f"SELECT * FROM news WHERE {sec_sql} AND category = ? "
+                _q(f"SELECT * FROM news WHERE {cond} AND category = ? "
                    "ORDER BY published_at DESC, id DESC LIMIT ?"),
-                (category, limit),
+                (*cargs, category, limit),
             ).fetchall()
         else:
             rows = conn.execute(
-                _q(f"SELECT * FROM news WHERE {sec_sql} ORDER BY published_at DESC, id DESC LIMIT ?"),
-                (limit,),
+                _q(f"SELECT * FROM news WHERE {cond} ORDER BY published_at DESC, id DESC LIMIT ?"),
+                (*cargs, limit),
             ).fetchall()
         return [dict(r) for r in rows]
 
