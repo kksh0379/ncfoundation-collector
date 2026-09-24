@@ -338,8 +338,9 @@ async function purgeDb() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ scope: "all", recollect: true, days: Number(days) }),
     });
-    const j = await r.json();
-    if (!r.ok || !j.ok) throw new Error(j.error || "실패");
+    let j = {};
+    try { j = await r.json(); } catch (_) { /* 응답이 JSON이 아닐 때 대비 */ }
+    if (!r.ok || !j.ok) throw new Error(j.error || ("서버 오류 " + r.status));
     const d = j.deleted || {};
     msgEl.innerHTML = "🗑 삭제 완료(뉴스 " + (d.news || 0) + "·게시판 " +
       (d.boards || 0) + "·소셜 " + (d.social || 0) + "건). 새 수집을 시작했어요.";

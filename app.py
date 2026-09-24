@@ -113,10 +113,16 @@ def admin_purge():
     recollect=true면 비운 뒤 즉시 재수집 시작(뉴스는 days 파라미터, 기본 RECENT_DAYS=2년)."""
     if not _admin_ok():
         return jsonify({"error": "unauthorized"}), 401
+    if not _ensure_db():  # DB 연결/테이블 보장(안 되면 JSON 에러로 응답)
+        return jsonify({"ok": False, "error": "DB에 연결할 수 없어요(Neon 깨는 중일 수 있음). 잠시 후 다시 시도."}), 503
     data = request.get_json(silent=True) or {}
     scope = data.get("scope", "all")
     tables = ["news", "boards", "social"] if scope == "all" else [scope]
-    deleted = db.clear_tables(tables)
+    try:
+        deleted = db.clear_tables(tables)
+    except Exception as e:  # noqa: BLE001
+        print(f"[purge] 삭제 실패: {e}", flush=True)
+        return jsonify({"ok": False, "error": f"삭제 실패: {e}"}), 500
     started = []
     if data.get("recollect"):
         days = data.get("days")
@@ -345,6 +351,7 @@ def _do_crawl(group, progress=None, days=None):
     progress(msg): 진행상황 콜백(선택). days: 뉴스 수집 기간(최근 N일)."""
     progress = progress or (lambda m: None)
     crawl_fn, save_fn = _CRAWLERS[group]
+    _ensure_db()  # 테이블 보장(DB가 죽어있던 동안 init이 안 됐을 수 있음)
     try:
         if group == "news":
             # 예전엔 여기서 기존 URL을 전부 로드해 증분 비교했는데, 큰 테이블 + Neon
