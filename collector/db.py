@@ -133,6 +133,9 @@ _DDL = [
     f"""CREATE TABLE IF NOT EXISTS run_log (
         id {_AUTO_PK}, grp TEXT, status TEXT, detail TEXT, ran_at TEXT
     )""",
+    f"""CREATE TABLE IF NOT EXISTS visit_log (
+        id {_AUTO_PK}, ts TEXT, ip TEXT, ua TEXT, path TEXT, referer TEXT, lang TEXT
+    )""",
     "CREATE INDEX IF NOT EXISTS idx_news_hash ON news(content_hash)",
     "CREATE INDEX IF NOT EXISTS idx_news_group ON news(group_key)",
     "CREATE INDEX IF NOT EXISTS idx_boards_title ON boards(service, title)",
@@ -189,6 +192,28 @@ def list_run_log(limit=60):
     with get_conn() as conn:
         rows = conn.execute(
             _q("SELECT grp, status, detail, ran_at FROM run_log ORDER BY id DESC LIMIT ?"),
+            (limit,),
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
+def add_visit(ts, ip, ua, path, referer, lang):
+    """방문 1건 기록. 최근 1000건만 유지."""
+    with get_conn() as conn:
+        conn.execute(
+            _q("INSERT INTO visit_log (ts, ip, ua, path, referer, lang) VALUES (?, ?, ?, ?, ?, ?)"),
+            (ts, ip, ua, path, referer, lang),
+        )
+        conn.execute(
+            _q("DELETE FROM visit_log WHERE id NOT IN "
+               "(SELECT id FROM visit_log ORDER BY id DESC LIMIT 1000)")
+        )
+
+
+def list_visits(limit=100):
+    with get_conn() as conn:
+        rows = conn.execute(
+            _q("SELECT ts, ip, ua, path, referer, lang FROM visit_log ORDER BY id DESC LIMIT ?"),
             (limit,),
         ).fetchall()
         return [dict(r) for r in rows]

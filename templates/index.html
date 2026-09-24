@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>NC 스코프</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css', v='64') }}" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css', v='65') }}" />
 </head>
 <body>
   <header class="app-header">
@@ -35,8 +35,8 @@
   <!-- 보기 방식 선택: 리스트(제목만) / 카드(썸네일·요약) -->
   <div class="viewbar">
     <div class="viewseg" id="view-toggle" role="group" aria-label="보기 방식">
-      <button type="button" data-view="list" class="active">☰ 리스트</button>
-      <button type="button" data-view="card">▭ 카드</button>
+      <button type="button" data-view="list">☰ 리스트</button>
+      <button type="button" data-view="card" class="active">▭ 카드</button>
     </div>
   </div>
 
@@ -149,14 +149,20 @@
     </div>
   </div>
 
-  <!-- 수집 로그 팝업 (관리자 전용) -->
+  <!-- 로그 팝업 (관리자 전용): 수집 로그 / 접속 로그 -->
   <div class="modal" id="runlog-modal" hidden>
-    <div class="modal-box">
+    <div class="modal-box notes-box">
       <div class="modal-head">
-        <span>수집 로그</span>
+        <span>로그</span>
         <button class="modal-close" id="runlog-close" aria-label="닫기">✕</button>
       </div>
-      <div class="modal-body" id="runlog-body"></div>
+      <div class="modal-body">
+        <div class="notes-tabs">
+          <button class="notes-tab active" data-log="run">📋 수집 로그</button>
+          <button class="notes-tab" data-log="visit">👥 접속 로그</button>
+        </div>
+        <div id="runlog-body"></div>
+      </div>
     </div>
   </div>
 
@@ -179,12 +185,12 @@
 
   <footer class="app-footer">
     <span class="foot-copy">© 2026 김상화</span>
-    <span class="ver">v0.63 · build 260924</span>
+    <span class="ver">v0.64 · build 260924</span>
     <span class="ver" id="storage-badge"></span>
   </footer>
 
   <button id="to-top" aria-label="맨 위로" hidden>↑</button>
 
-  <script src="{{ url_for('static', filename='js/app.js', v='64') }}"></script>
+  <script src="{{ url_for('static', filename='js/app.js', v='65') }}"></script>
 </body>
 </html>

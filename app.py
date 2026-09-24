@@ -167,6 +167,52 @@ def runlog():
         return jsonify([])
 
 
+@app.get("/api/visitlog")
+def visitlog():
+    """접속자 로그(관리자 전용): 방문 시각·IP·기기(UA)·경로 등."""
+    if not _admin_ok():
+        return jsonify({"error": "unauthorized"}), 401
+    if not _ensure_db():
+        return jsonify([])
+    try:
+        return jsonify(db.list_visits())
+    except Exception as e:  # noqa: BLE001
+        print(f"[visitlog] 조회 실패: {e}", flush=True)
+        return jsonify([])
+
+
+_BOT_UA = ("bot", "spider", "crawler", "go-http-client", "uptimerobot",
+           "render", "pingdom", "python-requests", "curl", "headless")
+
+
+def _log_visit():
+    """방문 1건을 백그라운드로 기록한다(페이지 로딩을 막지 않도록 별도 스레드).
+    관리자 자신·명백한 봇/헬스체크는 제외."""
+    try:
+        ua = (request.headers.get("User-Agent") or "")
+        if _admin_ok():
+            return  # 관리자 본인 접속은 기록 안 함
+        low = ua.lower()
+        if any(b in low for b in _BOT_UA):
+            return
+        xff = request.headers.get("X-Forwarded-For", "")
+        ip = (xff.split(",")[0].strip() if xff else (request.remote_addr or ""))
+        data = (_now_kst(), ip, ua[:400], request.path,
+                (request.headers.get("Referer") or "")[:300],
+                (request.headers.get("Accept-Language") or "")[:80])
+    except Exception:  # noqa: BLE001
+        return
+
+    def _w():
+        try:
+            if _ensure_db():
+                db.add_visit(*data)
+        except Exception as e:  # noqa: BLE001
+            print(f"[visit] 기록 실패: {e}", flush=True)
+
+    threading.Thread(target=_w, daemon=True).start()
+
+
 @app.get("/api/meta")
 def meta():
     if not _ensure_db():
@@ -192,6 +238,7 @@ SOCIAL_STATUS = {"유튜브": "완료", "인스타그램": "구현 예정"}
 
 @app.route("/")
 def index():
+    _log_visit()  # 방문 기록(백그라운드, 페이지 로딩 안 막음)
     services = sorted({s["service"] for s in boards.SOURCES})
     channels = sorted({s["channel"] for s in social.SOURCES})
     board_status = [{"name": n, "status": BOARD_STATUS.get(n, "완료")} for n in services]

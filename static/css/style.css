@@ -344,7 +344,7 @@ body.is-admin .guest-only { display: none !important; }
   margin: 0;
   /* 요약을 6줄로 고정해 본문을 더 보여준다 */
   display: -webkit-box;
-  -webkit-line-clamp: 6;
+  -webkit-line-clamp: 4;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }

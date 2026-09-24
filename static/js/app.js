@@ -45,16 +45,16 @@ document.querySelectorAll(".tab").forEach((tab) => {
 
 // ----------------------------- 보기 방식(리스트/카드) -----------------------------
 function setView(mode) {
-  mode = mode === "card" ? "card" : "list";  // 기본 list
+  mode = mode === "list" ? "list" : "card";  // 기본 card
   document.body.classList.toggle("view-list", mode === "list");
   document.body.classList.toggle("view-card", mode === "card");
   document.querySelectorAll("#view-toggle button").forEach((b) =>
     b.classList.toggle("active", b.dataset.view === mode));
-  try { localStorage.setItem("viewMode", mode); } catch (e) { /* 무시 */ }
+  try { localStorage.setItem("nvView", mode); } catch (e) { /* 무시 */ }
 }
 (function initView() {
-  let saved = "list";
-  try { saved = localStorage.getItem("viewMode") || "list"; } catch (e) { /* 무시 */ }
+  let saved = "card";
+  try { saved = localStorage.getItem("nvView") || "card"; } catch (e) { /* 무시 */ }
   setView(saved);
   const seg = document.getElementById("view-toggle");
   if (seg) seg.querySelectorAll("button").forEach((b) =>
@@ -530,9 +530,29 @@ notesModal.addEventListener("click", (e) => { if (e.target === notesModal) notes
 document.querySelectorAll(".notes-tab").forEach((b) =>
   b.addEventListener("click", () => showNotes(b.dataset.notes)));
 
-// ----------------------------- 수집 로그(관리자) -----------------------------
+// ----------------------------- 로그(관리자): 수집 / 접속 -----------------------------
 const runlogModal = document.getElementById("runlog-modal");
 const GRP_KO = { news: "뉴스", boards: "게시판", social: "소셜" };
+
+// User-Agent를 사람이 읽기 쉬운 "기기·OS·브라우저"로 요약
+function uaSummary(ua) {
+  ua = ua || "";
+  let os = "기타";
+  if (/iphone|ipad|ipod/i.test(ua)) os = "iOS";
+  else if (/android/i.test(ua)) os = "Android";
+  else if (/windows/i.test(ua)) os = "Windows";
+  else if (/mac os x|macintosh/i.test(ua)) os = "Mac";
+  else if (/linux/i.test(ua)) os = "Linux";
+  let br = "기타";
+  if (/edg\//i.test(ua)) br = "Edge";
+  else if (/samsungbrowser/i.test(ua)) br = "삼성인터넷";
+  else if (/chrome\//i.test(ua) && !/edg\//i.test(ua)) br = "Chrome";
+  else if (/firefox\//i.test(ua)) br = "Firefox";
+  else if (/safari/i.test(ua) && !/chrome/i.test(ua)) br = "Safari";
+  const dev = /mobile|iphone|android/i.test(ua) ? "📱 모바일" : "💻 PC";
+  return `${dev} · ${os} · ${br}`;
+}
+
 function renderRunlog(rows) {
   const body = document.getElementById("runlog-body");
   if (!rows || !rows.length) { body.innerHTML = '<div class="empty">아직 수집 기록이 없어요.</div>'; return; }
@@ -547,17 +567,39 @@ function renderRunlog(rows) {
     </li>`;
   }).join("") + "</ul>";
 }
-document.getElementById("runlog-btn").addEventListener("click", async () => {
-  runlogModal.hidden = false;
-  document.getElementById("runlog-body").innerHTML = '<div class="empty">불러오는 중…</div>';
+
+function renderVisit(rows) {
+  const body = document.getElementById("runlog-body");
+  if (!rows || !rows.length) { body.innerHTML = '<div class="empty">아직 접속 기록이 없어요.</div>'; return; }
+  body.innerHTML = '<ul class="runlog-list">' + rows.map((r) => `
+    <li class="runlog-row">
+      <div class="runlog-main">
+        <div class="runlog-top">${escapeHtml(uaSummary(r.ua))}</div>
+        <div class="runlog-detail"><span class="runlog-time">${escapeHtml(r.ts || "")}</span> · IP ${escapeHtml(r.ip || "-")}${r.lang ? " · " + escapeHtml((r.lang || "").split(",")[0]) : ""}</div>
+      </div>
+    </li>`).join("") + "</ul>";
+}
+
+async function loadLog(which) {
+  document.querySelectorAll("#runlog-modal .notes-tab").forEach((b) =>
+    b.classList.toggle("active", b.dataset.log === which));
+  const body = document.getElementById("runlog-body");
+  body.innerHTML = '<div class="empty">불러오는 중…</div>';
   try {
-    renderRunlog(await (await fetch("/api/runlog")).json());
+    if (which === "visit") renderVisit(await (await fetch("/api/visitlog")).json());
+    else renderRunlog(await (await fetch("/api/runlog")).json());
   } catch (e) {
-    document.getElementById("runlog-body").innerHTML = '<div class="empty">불러오기 실패: ' + escapeHtml(e.message) + "</div>";
+    body.innerHTML = '<div class="empty">불러오기 실패: ' + escapeHtml(e.message) + "</div>";
   }
+}
+document.getElementById("runlog-btn").addEventListener("click", () => {
+  runlogModal.hidden = false;
+  loadLog("run");
 });
 document.getElementById("runlog-close").addEventListener("click", () => (runlogModal.hidden = true));
 runlogModal.addEventListener("click", (e) => { if (e.target === runlogModal) runlogModal.hidden = true; });
+document.querySelectorAll("#runlog-modal .notes-tab").forEach((b) =>
+  b.addEventListener("click", () => loadLog(b.dataset.log)));
 
 // ----------------------------- 맨 위로 플로팅 버튼 -----------------------------
 const toTop = document.getElementById("to-top");
