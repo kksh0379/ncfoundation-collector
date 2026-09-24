@@ -35,8 +35,32 @@ def _now_kst():
     return datetime.now(KST).strftime("%Y.%m.%d %H:%M:%S")
 
 
-# gunicorn 등으로 띄울 때도 테이블이 준비되도록 import 시점에 초기화한다.
-db.init_db()
+# DB 초기화는 '지연(lazy)'으로 한다. import(부팅) 시점에 Neon에 동기 접속하면,
+# Neon 무료가 자고 있을 때(cold start) 연결이 최대 수십 초~2분 걸려 gunicorn 워커가
+# 강제 종료되고 → Render 배포가 통째로 실패(이전 버전으로 남음)한다. 그래서 부팅은
+# DB와 무관하게 즉시 끝내고, 첫 요청 때 한 번만 테이블을 준비한다.
+_db_ready = False
+_db_lock = threading.Lock()
+
+
+def _ensure_db():
+    global _db_ready
+    if _db_ready:
+        return
+    with _db_lock:
+        if _db_ready:
+            return
+        try:
+            db.init_db()
+            _db_ready = True
+        except Exception as e:  # noqa: BLE001
+            # 실패해도 부팅/응답은 계속(테이블은 대개 이미 존재). 다음 요청에서 재시도.
+            print(f"[startup] init_db 지연 실패(다음 요청에서 재시도): {e}", flush=True)
+
+
+@app.before_request
+def _before():
+    _ensure_db()
 
 
 @app.get("/api/me")
@@ -453,6 +477,7 @@ def _auto_backfill():
     if os.environ.get("AUTO_BACKFILL", "1") != "1":
         return
     try:
+        _ensure_db()
         has_news = db.news_count() > 0
     except Exception as e:  # noqa: BLE001
         print(f"[backfill] DB 확인 실패, 건너뜀: {e}", flush=True)
@@ -468,7 +493,9 @@ def _auto_backfill():
 
 
 _start_scheduler()
-_auto_backfill()
+# 백필은 DB를 건드리므로(cold start로 느릴 수 있음) 백그라운드 스레드에서 돌려
+# import(부팅)를 절대 막지 않게 한다. → Render 배포가 DB 상태와 무관하게 성공.
+threading.Thread(target=_auto_backfill, daemon=True).start()
 
 
 if __name__ == "__main__":
