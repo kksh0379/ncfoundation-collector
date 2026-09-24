@@ -5,6 +5,7 @@
 > 예: `v0.39 · build 260924`. (아래 과거 항목의 vNN 은 v0.NN 과 같은 번호예요: v38 = v0.38)
 
 ## 2026-09-24
+- **v0.88 · build 260924** — FAIR AI 공지사항 수집(POST `ai-notice-page`, body {page,rowsPerPage,sortBy,sortType,keyword} → items[]{id,title,contents}). 제목·요약(contents)·본문이미지·상세링크. 인사이트는 엔드포인트 확인 중.
 - **v0.87 · build 260924** — /api/peek에 POST 옵션(method=post&body=) 추가. FAIR AI 목록 API가 POST(ai-notice-page)인 것 확인 후 테스트용.
 - **v0.86 · build 260924** — 전체 청크 검색 `/api/grepall?url=&q=` 추가(모든 JS 청크에서 검색어 주변 코드 반환). FAIR AI 인증 토큰/API 클라이언트 탐색용.
 - **v0.85 · build 260924** — /api/peek에 ref= 옵션(Origin/Referer 헤더) 추가. Origin 검사형 API(FAIR AI 등) 인증 테스트용.

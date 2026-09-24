@@ -64,21 +64,16 @@ SOURCES = [
     },
     {
         "service": "FAIR AI", "category": "공지사항",
-        "list_url": "https://fairai.or.kr/about/notices",
         "base_url": "https://fairai.or.kr",
-        "item_link_sel": "a.notice-item, a[href*=notice]",
-        "title_sel": ".title",
-        "desc_sel": ".desc",
-        "spa": True,
+        # POST API: body {page, rowsPerPage, sortBy, sortType, keyword} → {items:[{id,title,contents,createdAt}]}
+        "fairai_api": "https://api.fairai.or.kr/fair/api/ai-notice-page",
+        "detail_base": "https://fairai.or.kr/about/notices/",
     },
     {
         "service": "FAIR AI", "category": "인사이트",
-        "list_url": "https://fairai.or.kr/embedded-ethics/insight-plus",
         "base_url": "https://fairai.or.kr",
-        "item_link_sel": "a.insight-item, a[href*=insight]",
-        "title_sel": ".title",
-        "desc_sel": ".desc",
-        "spa": True,
+        "fairai_api": "https://api.fairai.or.kr/fair/api/ai-insight-page",
+        "detail_base": "https://fairai.or.kr/embedded-ethics/insight-plus/",
     },
     {
         "service": "대표 홈페이지", "category": "재단소식",
@@ -433,13 +428,63 @@ def _crawl_projectory(cfg, max_items):
     return out
 
 
+def _crawl_fairai(cfg, max_items):
+    """FAIR AI(Nuxt SPA): POST API로 목록 JSON을 받는다.
+    body {page, rowsPerPage, sortBy, sortType, keyword} → {items:[{id, title, contents, createdAt}]}."""
+    import json as _json
+    label = f"{cfg['service']} · {cfg['category']}"
+    t0 = time.time()
+    api, dbase = cfg["fairai_api"], cfg["detail_base"]
+    hdr = {"Content-Type": "application/json", "Accept": "application/json, text/plain, */*"}
+    rows_per = 20
+    cap = max(max_items, 300)
+    out, seen = [], set()
+    for pg in range(1, 16):
+        body = _json.dumps({"page": pg, "rowsPerPage": rows_per,
+                            "sortBy": "createdAt", "sortType": "desc", "keyword": None})
+        try:
+            j = fetcher.post(api, data=body, headers=hdr, retries=0, timeout=12).json()
+        except Exception as e:  # noqa: BLE001
+            print(f"[board] {label} API 실패(pg={pg}): {e}", flush=True)
+            break
+        items = j.get("items") or (j.get("data") or {}).get("items") or []
+        if not items:
+            break
+        for it in items:
+            iid = it.get("id")
+            if iid in seen:
+                continue
+            seen.add(iid)
+            title = extractor.clean_text(str(it.get("title") or ""))
+            if not title:
+                continue
+            reg = it.get("createdAt") or it.get("regDate") or it.get("regDay") or ""
+            body_html = it.get("contents") or it.get("content") or ""
+            m = re.search(r'<img[^>]+src=["\'](https?://[^"\']+)["\']', body_html)
+            out.append({
+                "service": cfg["service"], "category": cfg["category"],
+                "title": title,
+                "published_at": extractor.parse_date(str(reg)) or (str(reg)[:16].replace("T", " ") or None),
+                "author": "FAIR AI",
+                "content": extractor.summarize(extractor.clean_text(body_html)) if body_html else "",
+                "url": f"{dbase}{iid}",
+                "image_url": m.group(1) if m else None,
+            })
+        if len(items) < rows_per or len(out) >= cap:
+            break
+    print(f"[board] {label}: {len(out)}건 / {time.time() - t0:.1f}s", flush=True)
+    return out
+
+
 def crawl_source(cfg, max_items=8, max_workers=3):
     """게시판 1개 크롤링 → 글 dict 리스트.
 
-    내부 JSON API가 있는 사이트는 그걸 직접 호출한다(대표 홈페이지·프로젝토리).
+    내부 JSON API가 있는 사이트는 그걸 직접 호출한다(대표 홈페이지·프로젝토리·FAIR AI).
     그 외에는 목록 페이지에서 글 링크/제목/날짜/요약을 뽑고 상세로 본문을 보강한다.
     """
     label = f"{cfg['service']} · {cfg['category']}"
+    if cfg.get("fairai_api"):
+        return _crawl_fairai(cfg, max_items)
     if cfg.get("projectory_api"):
         return _crawl_projectory(cfg, max_items)
     if cfg.get("api"):
