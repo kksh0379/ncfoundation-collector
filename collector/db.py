@@ -43,9 +43,12 @@ if _PG:
     # 연결 타임아웃 여유. cold start를 견디도록 대기(timeout)를 넉넉히 준다.
     # timeout: 연결을 얻지 못하면 이만큼 기다렸다 실패. 너무 길면(예: 45s) DB가 죽었을 때
     # 웹 요청이 그만큼 멈춰 502가 난다. Neon cold start는 보통 10초 안에 깨므로 15초면 충분.
+    # prepare_threshold=None: 자동 프리페어드 스테이트먼트 비활성화. Neon/Supabase의
+    # 트랜잭션 풀러(PgBouncer, 예: Supabase 6543포트)에서 prepared statement가 깨지는
+    # 문제를 예방한다(어떤 Postgres로 바꿔도 안전). 성능 영향은 미미.
     _pool = ConnectionPool(
         _CONNINFO, min_size=0, max_size=5, timeout=15,
-        kwargs={"row_factory": dict_row, "connect_timeout": 10},
+        kwargs={"row_factory": dict_row, "connect_timeout": 10, "prepare_threshold": None},
         check=ConnectionPool.check_connection, open=True,
     )
 
