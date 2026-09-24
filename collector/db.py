@@ -12,6 +12,7 @@
 """
 import os
 import sqlite3
+import time
 from contextlib import contextmanager
 from datetime import datetime
 
@@ -26,7 +27,7 @@ if _PG:
 
     import psycopg
     from psycopg.rows import dict_row
-    from psycopg_pool import ConnectionPool
+    from psycopg_pool import ConnectionPool, PoolTimeout
 
     # 연결 문자열 정리:
     #  - channel_binding 파라미터 제거(Neon 등 pooler/PgBouncer 조합에서 연결 실패 유발)
@@ -39,10 +40,10 @@ if _PG:
 
     # 연결 풀: Neon 무료는 유휴 시 컴퓨트가 잠들어(cold start) 첫 연결이 느리고, 유휴
     # 연결이 끊길 수 있다. → min_size=0(유휴 연결 미보유), 사용 시 유효성 검사(check),
-    # 연결 타임아웃 여유(connect_timeout). 스레드(수집 워커/스케줄러) 안전.
+    # 연결 타임아웃 여유. cold start를 견디도록 대기(timeout)를 넉넉히 준다.
     _pool = ConnectionPool(
-        _CONNINFO, min_size=0, max_size=5, timeout=30,
-        kwargs={"row_factory": dict_row, "connect_timeout": 15},
+        _CONNINFO, min_size=0, max_size=5, timeout=45,
+        kwargs={"row_factory": dict_row, "connect_timeout": 20},
         check=ConnectionPool.check_connection, open=True,
     )
 
@@ -55,8 +56,17 @@ def _q(sql):
 @contextmanager
 def get_conn():
     if _PG:
-        with _pool.connection() as conn:  # 성공 시 자동 commit, 오류 시 rollback 후 반납
-            yield conn
+        # Neon cold start 등으로 연결 획득이 일시적으로 실패하면 잠깐 쉬고 재시도.
+        last = None
+        for attempt in range(3):
+            try:
+                with _pool.connection() as conn:  # 성공 시 자동 commit, 오류 시 rollback 후 반납
+                    yield conn
+                return
+            except PoolTimeout as e:  # 연결을 못 얻음(획득 단계) → 재시도
+                last = e
+                time.sleep(2 + 2 * attempt)
+        raise last
     else:
         os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
         conn = sqlite3.connect(DB_PATH)
