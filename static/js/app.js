@@ -519,8 +519,40 @@ function mdToHtml(md) {
   return html;
 }
 
+// 패치내역: 버전별 아코디언(한 줄 요약 → 펼치면 상세). '### v… — 요약' + 다음 줄들=상세, '## 날짜'=구분.
+function renderChangelog(md) {
+  const esc = (s) => s.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
+  let html = "", body = [], open = false;
+  const flush = () => {
+    if (open) { html += `<div class="cl-body">${esc(body.join(" ")).trim() || "(상세 없음)"}</div></details>`; open = false; body = []; }
+  };
+  (md || "").split(/\r?\n/).forEach((raw) => {
+    const t = raw.trim();
+    if (!t) return;
+    if (t.startsWith("### ")) {
+      flush();
+      html += `<details class="cl-item"><summary>${esc(t.slice(4))}</summary>`;
+      open = true;
+    } else if (t.startsWith("## ")) {
+      flush();
+      html += `<div class="cl-date">${esc(t.slice(3))}</div>`;
+    } else if (t.startsWith("# ")) {
+      /* 제목 줄 무시 */
+    } else if (open) {
+      body.push(t);
+    }
+  });
+  flush();
+  return html;
+}
+
 function showNotes(which) {
-  document.getElementById("notes-content").innerHTML = mdToHtml(_notesData[which] || "(내용 없음)");
+  const el = document.getElementById("notes-content");
+  if (which === "changelog") {
+    el.innerHTML = `<div class="changelog">${renderChangelog(_notesData.changelog || "")}</div>`;
+  } else {
+    el.innerHTML = mdToHtml(_notesData[which] || "(내용 없음)");
+  }
   document.querySelectorAll(".notes-tab").forEach((b) =>
     b.classList.toggle("active", b.dataset.notes === which));
 }

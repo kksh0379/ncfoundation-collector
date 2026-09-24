@@ -517,6 +517,20 @@ body.is-admin .admin-only { display: inline-flex !important; }
 }
 .notes-tab.active { background: var(--primary); color: #fff; border-color: var(--primary); }
 
+/* 패치내역 아코디언 */
+.changelog { max-height: 64vh; overflow: auto; }
+.cl-date { font-size: 12px; font-weight: 700; color: var(--muted); margin: 14px 0 6px; }
+.cl-item { border: 1px solid var(--border); border-radius: 8px; margin-bottom: 6px; background: #fff; }
+.cl-item summary {
+  cursor: pointer; padding: 10px 12px; font-size: 13px; font-weight: 600; color: var(--text);
+  list-style: none; display: flex; align-items: center; gap: 6px;
+}
+.cl-item summary::-webkit-details-marker { display: none; }
+.cl-item summary::before { content: "▸"; color: var(--primary); font-size: 11px; }
+.cl-item[open] summary::before { content: "▾"; }
+.cl-item[open] summary { border-bottom: 1px solid var(--border); }
+.cl-body { padding: 10px 12px; font-size: 12.5px; line-height: 1.65; color: #4b5563; }
+
 /* 관리자 전용 드롭다운(수집 기간)은 노출 시 전체 폭 블록으로 */
 body.is-admin .dropdown.admin-only { display: block !important; }
 
