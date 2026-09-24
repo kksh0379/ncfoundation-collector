@@ -230,6 +230,22 @@ def _save_news(items):
     return {"new": new, "updated": updated, "duplicates": 0, "groups": groups}
 
 
+def _purge_news_noise(progress=None):
+    """이미 저장된 뉴스 중 본사 카테고리의 노이즈(야구·백화점 등, 게임 문맥 없는 NC)를
+    현재 필터 기준으로 재평가해 삭제한다. (필터 강화 이전에 쌓인 것 정리용)"""
+    try:
+        rows = db.all_news_for_filter()
+        bad = [r["url"] for r in rows
+               if r.get("category") == "본사" and not google_news._passes_filters(r, days=10 ** 6)]
+        if bad:
+            db.delete_news_by_urls(bad)
+            print(f"[crawl] 본사 노이즈 {len(bad)}건 정리", flush=True)
+            if progress:
+                progress(f"노이즈 {len(bad)}건 정리")
+    except Exception as e:  # noqa: BLE001
+        print(f"[crawl] 노이즈 정리 실패: {e}", flush=True)
+
+
 def _save_boards(items):
     new, updated = db.upsert_board_many(items)
     return {"new": new, "updated": updated, "duplicates": 0}
@@ -264,6 +280,8 @@ def _do_crawl(group, progress=None, days=None):
         progress("저장·그룹화 중…")
         counts = save_fn(items)
         result = {"crawled": len(items), **counts}
+        if group == "news":
+            _purge_news_noise(progress)  # 기존에 쌓인 본사 노이즈(야구/백화점 등) 정리
         progress(f"완료 · 신규 {result.get('new', 0)}건 · 갱신 {result.get('updated', 0)}건")
     except Exception as e:  # noqa: BLE001
         print(f"[crawl] {group} 오류: {e}", flush=True)

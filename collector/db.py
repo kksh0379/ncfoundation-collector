@@ -201,6 +201,24 @@ def all_news_urls():
         return {r["url"] for r in rows}
 
 
+def all_news_for_filter():
+    """기존 뉴스 노이즈 정리용으로 (url, title, content, category) 로드."""
+    with get_conn() as conn:
+        rows = conn.execute("SELECT url, title, content, category FROM news").fetchall()
+        return [dict(r) for r in rows]
+
+
+def delete_news_by_urls(urls):
+    """url 목록에 해당하는 뉴스 삭제. 반환: 시도한 개수."""
+    urls = [u for u in urls if u]
+    if not urls:
+        return 0
+    with get_conn() as conn:
+        cur = conn.cursor()
+        cur.executemany(_q("DELETE FROM news WHERE url=?"), [(u,) for u in urls])
+    return len(urls)
+
+
 def news_count():
     with get_conn() as conn:
         row = conn.execute("SELECT COUNT(*) AS n FROM news").fetchone()
