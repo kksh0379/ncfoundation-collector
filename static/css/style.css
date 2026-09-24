@@ -349,9 +349,9 @@ body.is-admin .guest-only { display: none !important; }
   overflow: hidden;
 }
 
-/* 뉴스 카드: 위쪽 썸네일 + 아래 본문(모바일에서 이미지가 크게 보이도록 상단 배치) */
-.card-news .card-main { display: flex; flex-direction: column; gap: 10px; }
-.card-news .card-body { min-width: 0; }
+/* 카드: 위쪽 썸네일 + 아래 본문(모바일에서 이미지가 크게 보이도록 상단 배치) */
+.card-main { display: flex; flex-direction: column; gap: 10px; }
+.card-body { min-width: 0; }
 .card-thumb {
   width: 100%;
   height: 160px;

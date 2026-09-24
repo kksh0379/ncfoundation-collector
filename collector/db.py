@@ -123,7 +123,7 @@ _DDL = [
     )""",
     f"""CREATE TABLE IF NOT EXISTS boards (
         id {_AUTO_PK}, service TEXT, category TEXT, title TEXT, published_at TEXT,
-        author TEXT, content TEXT, url TEXT UNIQUE, collected_at TEXT
+        author TEXT, content TEXT, url TEXT UNIQUE, image_url TEXT, collected_at TEXT
     )""",
     f"""CREATE TABLE IF NOT EXISTS social (
         id {_AUTO_PK}, channel TEXT, account TEXT, title TEXT, published_at TEXT,
@@ -153,6 +153,7 @@ def init_db():
             conn.execute("ALTER TABLE news ADD COLUMN IF NOT EXISTS source_url TEXT")
             conn.execute("ALTER TABLE news ADD COLUMN IF NOT EXISTS category TEXT")
             conn.execute("ALTER TABLE news ADD COLUMN IF NOT EXISTS image_url TEXT")
+            conn.execute("ALTER TABLE boards ADD COLUMN IF NOT EXISTS image_url TEXT")
         else:
             cols = {r["name"] for r in conn.execute("PRAGMA table_info(news)").fetchall()}
             if "group_key" not in cols:
@@ -163,6 +164,9 @@ def init_db():
                 conn.execute("ALTER TABLE news ADD COLUMN category TEXT")
             if "image_url" not in cols:
                 conn.execute("ALTER TABLE news ADD COLUMN image_url TEXT")
+            bcols = {r["name"] for r in conn.execute("PRAGMA table_info(boards)").fetchall()}
+            if "image_url" not in bcols:
+                conn.execute("ALTER TABLE boards ADD COLUMN image_url TEXT")
 
 
 def set_meta(key, value):
@@ -233,7 +237,7 @@ def _now():
 _NEWS_COLS = ("title", "published_at", "author", "content", "url",
               "content_hash", "group_key", "source_url", "category", "image_url", "collected_at")
 _BOARD_COLS = ("service", "category", "title", "published_at", "author",
-               "content", "url", "collected_at")
+               "content", "url", "image_url", "collected_at")
 _SOCIAL_COLS = ("channel", "account", "title", "published_at", "content", "url", "collected_at")
 
 
@@ -381,7 +385,7 @@ def clear_tables(tables):
 def existing_board_urls(service=None):
     """본문 요약이 이미 채워진 게시판 글 URL 집합(증분용). service 지정 시 해당 서비스만.
     본문이 빈 글은 제외 → 다음 수집 때 상세를 다시 시도해 채운다(자가 복구)."""
-    cond = "content IS NOT NULL AND content != ''"
+    cond = "(content IS NOT NULL AND content != '') OR (image_url IS NOT NULL AND image_url != '')"
     with get_conn() as conn:
         if service:
             rows = conn.execute(
@@ -390,6 +394,15 @@ def existing_board_urls(service=None):
         else:
             rows = conn.execute(f"SELECT url FROM boards WHERE {cond}").fetchall()
         return {r["url"] for r in rows}
+
+
+def board_content_map(service):
+    """게시판 기존 글의 {url: content} 맵(증분용 — 이미 본문 있는 글은 재요청 안 하려고)."""
+    with get_conn() as conn:
+        rows = conn.execute(
+            _q("SELECT url, content FROM boards WHERE service = ?"), (service,)
+        ).fetchall()
+        return {r["url"]: (r["content"] or "") for r in rows}
 
 
 def existing_board_titles(service):

@@ -96,14 +96,23 @@ function renderCard(item, opts) {
   const t = escapeHtml(item.title || "(제목 없음)");
   const titleHtml = item.url
     ? `<a href="${escapeHtml(item.url)}" target="_blank" rel="noopener">${t}</a>` : t;
+  // 요약이 있으면 표시, 없고 이미지도 없으면 '요약 없음', 이미지만 있으면 요약 줄 생략
+  const summaryHtml = item.content
+    ? `<p class="card-summary">${escapeHtml(item.content)}</p>`
+    : (item.image_url ? "" : `<p class="card-summary">요약 없음</p>`);
   const li = document.createElement("li");
-  li.className = "card";
+  li.className = "card card-news";
   li.innerHTML = `
-    <h3 class="card-title">${titleHtml}</h3>
-    <div class="card-meta">${meta.join(" · ")}</div>
-    <p class="card-summary">${escapeHtml(item.content || "요약 없음")}</p>
-    <div class="card-actions">
-      ${item.url ? `<a href="${escapeHtml(item.url)}" target="_blank" rel="noopener">원문 보기 ↗</a>` : ""}
+    <div class="card-main">
+      ${newsThumb(item)}
+      <div class="card-body">
+        <h3 class="card-title">${titleHtml}</h3>
+        <div class="card-meta">${meta.join(" · ")}</div>
+        ${summaryHtml}
+        <div class="card-actions">
+          ${item.url ? `<a href="${escapeHtml(item.url)}" target="_blank" rel="noopener">원문 보기 ↗</a>` : ""}
+        </div>
+      </div>
     </div>`;
   return li;
 }

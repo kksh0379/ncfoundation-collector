@@ -272,9 +272,7 @@ def _ncf_detail_summary(api_base, dtype, pid):
             text = extractor.clean_text(raw)
             if text and len(text) >= 10:
                 return extractor.summarize(text)
-            # 본문 텍스트가 없고 이미지만 있는 게시물 → '요약 없음' 대신 안내 문구
-            if "<img" in raw.lower():
-                return "🖼 이미지로 구성된 게시물입니다. 원문에서 확인하세요."
+        # 본문 텍스트가 없으면 빈 문자열(이미지 글은 카드에 썸네일이 대신 표시됨)
     except Exception:  # noqa: BLE001
         pass
     return ""
@@ -300,9 +298,9 @@ def _crawl_json_api(cfg, max_items, max_workers=5):
     api_base = f"{sp.scheme}://{sp.netloc}"
 
     try:
-        known = db.existing_board_urls(cfg["service"])
+        known_content = db.board_content_map(cfg["service"])
     except Exception:  # noqa: BLE001
-        known = set()
+        known_content = {}
 
     entries = []
     for it in rows[:cap]:
@@ -314,31 +312,39 @@ def _crawl_json_api(cfg, max_items, max_workers=5):
         url = urljoin(cfg["base_url"], f"/community/{dtype}/{pid}") if pid is not None else cfg["list_url"]
         pub = it.get("createDt") or it.get("modifyDt") or ""
         published = extractor.parse_date(str(pub)) or (str(pub)[:16].replace("T", " ") if pub else None)
-        entries.append({"subject": subject, "url": url, "dtype": dtype, "pid": pid, "pub": published})
+        # 썸네일 이미지(목록 API가 제공) → 카드에 표시
+        th = it.get("thumbnail") or {}
+        fp = th.get("fullPath") if isinstance(th, dict) else None
+        image = urljoin(api_base, fp) if fp else None
+        entries.append({"subject": subject, "url": url, "dtype": dtype, "pid": pid,
+                        "pub": published, "image_url": image})
 
-    # 새 글만 상세 본문 보강(이미 저장된 글은 그대로 두어 재요청/덮어쓰기 방지)
-    new_entries = [e for e in entries if e["url"] not in known]
+    # 본문이 아직 없는 글만 상세 API로 요약 보강(이미 요약된 글은 재요청 안 함).
+    # 썸네일은 목록에서 오므로 전 글에 채워진다. 전 글을 upsert(기존 요약은 보존).
+    need = [e for e in entries if not (known_content.get(e["url"]) or "").strip() and e["pid"] is not None]
 
     def _summ(e):
-        return _ncf_detail_summary(api_base, e["dtype"], e["pid"]) if e["pid"] is not None else ""
-    summaries = {}
-    if new_entries:
+        return _ncf_detail_summary(api_base, e["dtype"], e["pid"])
+    fetched = {}
+    if need:
         with ThreadPoolExecutor(max_workers=max_workers) as pool:
-            for e, s in zip(new_entries, pool.map(_summ, new_entries)):
-                summaries[e["url"]] = s
+            for e, s in zip(need, pool.map(_summ, need)):
+                fetched[e["url"]] = s
 
     items = []
-    for e in new_entries:
+    for e in entries:
+        content = (known_content.get(e["url"]) or "").strip() or fetched.get(e["url"], "")
         items.append({
             "service": cfg["service"],
             "category": cfg["category"],
             "title": e["subject"],
             "published_at": e["pub"],
             "author": "NC문화재단",
-            "content": summaries.get(e["url"], ""),
+            "content": content,
             "url": e["url"],
+            "image_url": e.get("image_url"),
         })
-    print(f"[board] {label}: 신규 {len(items)}건(전체 {len(entries)}) / {time.time() - t0:.1f}s", flush=True)
+    print(f"[board] {label}: {len(items)}건(본문보강 {len(need)}) / {time.time() - t0:.1f}s", flush=True)
     return items
 
 
