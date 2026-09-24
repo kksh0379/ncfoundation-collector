@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>NC 스코프</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css', v='93') }}" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css', v='94') }}" />
 </head>
 <body>
   <header class="app-header">
@@ -116,6 +116,7 @@
       <span class="chip chip-{{ 'done' if s.status=='완료' else ('wip' if s.status=='구현 중' else 'plan') }}">{{ s.name }} · {{ s.status }}</span>
       {% endfor %}
     </div>
+    <div class="ig-note">인스타그램 <span class="ig-red">(수집하려면 공식 Instagram Graph API 연동 필요)</span></div>
     <div class="last-crawl" id="last-social"></div>
     <div class="result-msg" id="msg-social"></div>
     <ul class="list" id="list-social"></ul>
@@ -185,12 +186,12 @@
 
   <footer class="app-footer">
     <span class="foot-copy">© 2026 김상화</span>
-    <span class="ver">v0.92 · build 260924</span>
+    <span class="ver">v0.93 · build 260924</span>
     <span class="ver" id="storage-badge"></span>
   </footer>
 
   <button id="to-top" aria-label="맨 위로" hidden>↑</button>
 
-  <script src="{{ url_for('static', filename='js/app.js', v='93') }}"></script>
+  <script src="{{ url_for('static', filename='js/app.js', v='94') }}"></script>
 </body>
 </html>

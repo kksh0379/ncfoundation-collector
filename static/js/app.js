@@ -62,8 +62,33 @@ function setView(mode) {
 })();
 
 // ----------------------------- 로딩 표시 / 무한 스크롤 -----------------------------
+// 🐱 한복 고양이 로딩 스피너: 흰 고양이 얼굴 둘레로 한복색 링이 회전
+function catSpin(label) {
+  return `<div class="cat-load">
+    <span class="cat-spin"><svg viewBox="0 0 40 40" width="52" height="52" aria-hidden="true">
+      <defs><linearGradient id="hanbokGrad" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0" stop-color="#f2789f"/><stop offset=".5" stop-color="#3fd0c6"/><stop offset="1" stop-color="#2d6cdf"/>
+      </linearGradient></defs>
+      <circle class="cat-ring" cx="20" cy="20" r="17" fill="none" stroke="url(#hanbokGrad)"
+        stroke-width="3" stroke-linecap="round" stroke-dasharray="62 45"/>
+      <g class="cat-face">
+        <path d="M12 13 L14.5 6 L18.5 12 Z" fill="#fff" stroke="#ead8b0" stroke-width=".7"/>
+        <path d="M28 13 L25.5 6 L21.5 12 Z" fill="#fff" stroke="#ead8b0" stroke-width=".7"/>
+        <circle cx="20" cy="22" r="9" fill="#fff" stroke="#e9e9e9" stroke-width=".6"/>
+        <circle cx="16.7" cy="21" r="1.35" fill="#6f9457"/>
+        <circle cx="23.3" cy="21" r="1.35" fill="#6f9457"/>
+        <path d="M20 23.2 l-1 1.2 h2 z" fill="#f2a6bb"/>
+        <path d="M20 24.4 q0 1.4 -1.6 1.6 M20 24.4 q0 1.4 1.6 1.6" fill="none" stroke="#d98fa6" stroke-width=".55"/>
+        <path d="M12.5 22 H8 M12.6 24 H8.4" stroke="#d7d7d7" stroke-width=".5"/>
+        <path d="M27.5 22 H32 M27.4 24 H31.6" stroke="#d7d7d7" stroke-width=".5"/>
+      </g>
+    </svg></span>
+    <span class="cat-load-label">${escapeHtml(label || "불러오는 중…")}</span>
+  </div>`;
+}
+
 function showLoading(el) {
-  el.innerHTML = `<li class="empty"><span class="mini-spin"></span> 불러오는 중…</li>`;
+  el.innerHTML = `<li class="empty">${catSpin("불러오는 중…")}</li>`;
 }
 
 // units 배열을 15개씩 렌더하고, 끝 센티넬이 화면에 들어오면 다음 묶음을 이어붙인다.

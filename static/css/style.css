@@ -141,6 +141,18 @@ body.is-admin .guest-only { display: none !important; }
   margin-right: 4px;
 }
 
+/* 🐱 고양이 로딩 스피너 (한복 입은 하얀 고양이 모티프) */
+.cat-load { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 26px 0; }
+.cat-spin { display: inline-block; width: 52px; height: 52px; }
+.cat-spin .cat-ring { transform-origin: 20px 20px; animation: spin 0.9s linear infinite; }
+.cat-spin .cat-face { transform-origin: 20px 22px; animation: catbob 0.9s ease-in-out infinite; }
+.cat-load-label { font-size: 13px; color: var(--muted); font-weight: 600; }
+@keyframes catbob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-1.5px); } }
+
+/* 인스타 안내 메모 */
+.ig-note { font-size: 12.5px; color: var(--muted); margin: 2px 0 4px; }
+.ig-red { color: #dc2626; font-weight: 600; }
+
 .tabs {
   display: flex;
   position: sticky;
