@@ -110,7 +110,10 @@ def _parse_detail(url):
     except Exception as e:  # noqa: BLE001
         print(f"[board] 상세 요청 실패: {url} ({e})", flush=True)
         return {}
-    return extractor.extract_article(BeautifulSoup(resp.text, "lxml"), url)
+    soup = BeautifulSoup(resp.text, "lxml")
+    art = extractor.extract_article(soup, url)
+    art["image_url"] = extractor.extract_image(soup)  # 대표 이미지(og:image)
+    return art
 
 
 def _resolve_url(a, cfg):
@@ -203,6 +206,7 @@ def _build_entry(e, cfg):
     content = e["desc"]
     published = e["published_at"]
     author = None
+    image = None
     if e["url"]:
         link = e["url"]
         detail = _parse_detail(e["url"])
@@ -210,6 +214,7 @@ def _build_entry(e, cfg):
             content = detail["content"]
         published = published or detail.get("published_at")
         author = detail.get("author")
+        image = detail.get("image_url")
     else:
         # 원문 링크를 못 풀면 저장 키(url)가 목록 URL로 겹쳐 글들이 뭉개지므로,
         # 목록 URL + 제목 해시로 고유 키를 만든다.
@@ -225,6 +230,7 @@ def _build_entry(e, cfg):
         "author": author,
         "content": extractor.summarize(content or ""),  # 카드용 요약
         "url": link,
+        "image_url": image,
     }
 
 
@@ -249,7 +255,8 @@ def _find_str_by_keys(node, keys, depth=0):
 
 
 _DETAIL_KEYS = {"contents", "content", "body", "contenthtml", "html",
-                "desc", "description", "text", "bodyhtml"}
+                "desc", "description", "text", "bodyhtml",
+                "boardcontents", "boardcontent", "cont", "detail", "memo"}
 
 
 def _ncf_detail_summary(api_base, dtype, pid):
@@ -381,6 +388,7 @@ def _crawl_projectory(cfg, max_items):
             image = urljoin(base, fu) if fu else None
             reg = b.get("regDay") or b.get("regDate") or b.get("createDt") or ""
             out.append({
+                "idx": idx,
                 "service": cfg["service"], "category": cfg["category"],
                 "title": extractor.clean_text(title),
                 "published_at": extractor.parse_date(str(reg)) or (str(reg)[:16].replace("T", " ") or None),
@@ -395,8 +403,41 @@ def _crawl_projectory(cfg, max_items):
         total = (j.get("search") or {}).get("totalCnt")
         if len(blist) < list_count or len(out) >= cap or (total and len(out) >= total):
             break
-    print(f"[board] {label}: API에서 {len(out)}건 / {time.time() - t0:.1f}s", flush=True)
+
+    # 본문 요약 보강: 이미 요약 있는 글은 건너뛰고, 없는 글만 상세 API에서 가져온다(증분).
+    try:
+        known_content = db.board_content_map(cfg["service"])
+    except Exception:  # noqa: BLE001
+        known_content = {}
+    need = [e for e in out if not (known_content.get(e["url"]) or "").strip()]
+
+    def _summ(e):
+        return _projectory_detail_summary(base, e["idx"])
+    fetched = {}
+    if need:
+        with ThreadPoolExecutor(max_workers=5) as pool:
+            for e, s in zip(need, pool.map(_summ, need)):
+                fetched[e["url"]] = s
+    for e in out:
+        e["content"] = (known_content.get(e["url"]) or "").strip() or fetched.get(e["url"], "")
+        e.pop("idx", None)
+
+    print(f"[board] {label}: {len(out)}건(본문보강 {len(need)}) / {time.time() - t0:.1f}s", flush=True)
     return out
+
+
+def _projectory_detail_summary(base, board_idx):
+    """프로젝토리 상세 API(news-view?boardIdx=)에서 본문을 받아 요약. 실패 시 빈 문자열."""
+    try:
+        j = fetcher.get(f"{base}/news/news-view", params={"boardIdx": board_idx},
+                        headers={"Accept": "application/json, text/plain, */*"},
+                        retries=0, timeout=8).json()
+        raw = _find_str_by_keys(j, _DETAIL_KEYS)
+        if raw:
+            return extractor.summarize(extractor.clean_text(raw))
+    except Exception:  # noqa: BLE001
+        pass
+    return ""
 
 
 def crawl_source(cfg, max_items=8, max_workers=3):
