@@ -405,35 +405,38 @@ document.getElementById("collect-boards").addEventListener("click", (e) =>
 document.getElementById("collect-social").addEventListener("click", (e) =>
   runCrawl(e.currentTarget, "social", document.getElementById("msg-social"), loadSocial)
 );
-// ----------------------------- DB 비우기(관리자) -----------------------------
+// ----------------------------- DB 비우기(관리자, 현재 탭만) -----------------------------
+const TAB_KO = { cat: "냥정보", news: "NC뉴스", boards: "재단게시판", social: "재단소셜" };
+function activeTab() {
+  const t = document.querySelector(".tab.active");
+  return (t && t.dataset.tab) || "cat";
+}
 async function purgeDb() {
-  const days = 1825;  // 최근 5년(서버 기본값과 동일)
+  const scope = activeTab();               // 현재 보고 있는 탭만 초기화
+  const label = TAB_KO[scope] || scope;
+  const days = 1825;                        // 뉴스/냥정보 재수집 기간(5년)
   if (!confirm(
-    "수집한 데이터(뉴스·게시판·소셜)를 모두 삭제합니다.\n" +
-    "삭제 후 곧바로 최근 5년치로 새로 수집을 시작합니다.\n\n계속할까요?"
+    `[${label}] 탭의 수집 데이터를 모두 삭제합니다.\n` +
+    "삭제 후 곧바로 새로 수집을 시작합니다.\n\n계속할까요?"
   )) return;
   const btn = document.getElementById("purge-db-btn");
-  const msgEl = document.getElementById("msg-news");
+  const msgEl = document.getElementById("msg-" + scope) || document.getElementById("msg-cat");
   btn.disabled = true;
   msgEl.style.color = "";
-  msgEl.innerHTML = '<span class="mini-spin"></span> DB 비우는 중…';
+  msgEl.innerHTML = catSpin(`[${label}] DB 비우는 중…`);
   try {
     const r = await fetch("/api/admin/purge", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ scope: "all", recollect: true, days: Number(days) }),
+      body: JSON.stringify({ scope: scope, recollect: true, days: Number(days) }),
     });
     let j = {};
     try { j = await r.json(); } catch (_) { /* 응답이 JSON이 아닐 때 대비 */ }
     if (!r.ok || !j.ok) throw new Error(j.error || ("서버 오류 " + r.status));
-    const d = j.deleted || {};
-    msgEl.innerHTML = "🗑 삭제 완료(뉴스 " + (d.news || 0) + "·게시판 " +
-      (d.boards || 0) + "·소셜 " + (d.social || 0) + "건). 새 수집을 시작했어요.";
-    // 목록 즉시 비우고, 재수집 폴링 시작
-    ["news", "boards", "social"].forEach((g) => {
-      const el = document.getElementById("list-" + g);
-      if (el) el.innerHTML = "";
-    });
+    const total = Object.values(j.deleted || {}).reduce((a, b) => a + (b || 0), 0);
+    msgEl.innerHTML = `🗑 [${label}] 삭제 완료(${total}건). 새 수집을 시작했어요.`;
+    const el = document.getElementById("list-" + scope);
+    if (el) el.innerHTML = "";
     (j.recollect_started || []).forEach((g) => _startPolling(g));
   } catch (e) {
     msgEl.style.color = "#c0392b";

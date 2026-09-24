@@ -378,6 +378,16 @@ def _count(table):
         return int(row["n"]) if row else 0
 
 
+def clear_news_section(section):
+    """news 테이블에서 특정 섹션(nc/cat)만 삭제. 반환: 삭제된 행 수."""
+    sec_sql = "section = 'cat'" if section == "cat" else "COALESCE(section,'nc') = 'nc'"
+    with get_conn() as conn:
+        row = conn.execute(f"SELECT COUNT(*) AS n FROM news WHERE {sec_sql}").fetchone()
+        n = int(row["n"]) if row else 0
+        conn.execute(f"DELETE FROM news WHERE {sec_sql}")
+    return n
+
+
 def clear_tables(tables):
     """지정한 테이블(news/boards/social)을 통째로 비운다. 반환: {테이블: 삭제된 행 수}.
     관리자 'DB 비우기' 기능용. meta(마지막 수집 일시 등)는 건드리지 않는다."""

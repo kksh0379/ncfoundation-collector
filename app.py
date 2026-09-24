@@ -121,27 +121,34 @@ def logout():
 
 @app.post("/api/admin/purge")
 def admin_purge():
-    """수집 데이터(DB)를 비운다(관리자 전용).
-    body: {"scope": "all"|"news"|"boards"|"social", "recollect": true|false}
-    recollect=true면 비운 뒤 즉시 재수집 시작(뉴스는 days 파라미터, 기본 RECENT_DAYS=2년)."""
+    """수집 데이터(DB)를 비운다(관리자 전용). 선택한 탭(scope)만 비우고 재수집한다.
+    body: {"scope": "cat"|"news"|"boards"|"social"(|"all"), "recollect": bool, "days": int}
+    - cat  : news 테이블의 section='cat'만 삭제 → crawl_cat 재수집
+    - news : news 테이블의 section='nc'만 삭제 → 뉴스 재수집
+    - boards/social : 해당 테이블 삭제 → 재수집"""
     if not _admin_ok():
         return jsonify({"error": "unauthorized"}), 401
-    if not _ensure_db(force=True):  # 실제로 접속을 기다려 Neon 깨우기(안 되면 JSON 에러)
+    if not _ensure_db(force=True):
         return jsonify({"ok": False, "error": "DB에 연결할 수 없어요(Neon 깨는 중일 수 있음). 20초 뒤 다시 시도해 주세요."}), 503
     data = request.get_json(silent=True) or {}
     scope = data.get("scope", "all")
-    tables = ["news", "boards", "social"] if scope == "all" else [scope]
+    groups = ["cat", "news", "boards", "social"] if scope == "all" else [scope]
+    deleted = {}
     try:
-        deleted = db.clear_tables(tables)
+        for g in groups:
+            if g in ("cat", "news"):
+                deleted[g] = db.clear_news_section("cat" if g == "cat" else "nc")
+            elif g in ("boards", "social"):
+                deleted.update(db.clear_tables([g]))
     except Exception as e:  # noqa: BLE001
         print(f"[purge] 삭제 실패: {e}", flush=True)
         return jsonify({"ok": False, "error": f"삭제 실패: {e}"}), 500
     started = []
     if data.get("recollect"):
         days = data.get("days")
-        for group in ("news", "boards", "social"):
-            if group in tables and _start_job(group, days=days if group == "news" else None):
-                started.append(group)
+        for g in groups:
+            if _start_job(g, days=days if g in ("cat", "news") else None):
+                started.append(g)
     return jsonify({"ok": True, "deleted": deleted, "recollect_started": started})
 
 
