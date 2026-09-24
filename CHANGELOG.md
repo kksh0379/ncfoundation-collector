@@ -5,6 +5,7 @@
 > 예: `v0.39 · build 260924`. (아래 과거 항목의 vNN 은 v0.NN 과 같은 번호예요: v38 = v0.38)
 
 ## 2026-09-24
+- **v0.58 · build 260924** — 연결 방식을 풀(psycopg_pool)에서 **요청마다 직접 접속**으로 변경. 같은 문자열로 직접 접속은 되는데 풀만 "couldn't get a connection"으로 계속 실패하던 문제 해결(트래픽 적은 앱엔 직접 접속이 더 단순·확실). cold start 재시도 3회.
 - **v0.57 · build 260924** — DB keep-alive 추가: 앱이 4분마다 DB에 가벼운 쿼리를 날려 Neon이 잠들지 않게 유지(Render 상시가동과 세트). 방문자가 잠든 DB를 안 만나 응답이 항상 빠름. `DB_KEEPALIVE_SEC`로 조절/해제.
 - **v0.56 · build 260924** — 어떤 Postgres(특히 Supabase 트랜잭션 풀러)에도 안전하게 붙도록 prepared statement 자동생성 비활성화(prepare_threshold=None). DB 교체(예: Neon→Supabase) 대비.
 - **v0.55 · build 260924** — 킵얼라이브용 초경량 `/healthz` 추가(DB 미접속). 외부 크론이 주기 호출하면 Render 무료 앱이 안 잠들어 방문자 cold start 감소.
