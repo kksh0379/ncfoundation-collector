@@ -410,12 +410,14 @@ def _crawl_projectory(cfg, max_items):
             fu = b.get("fileUrl") or b.get("thumbnail")
             image = urljoin(base, fu) if fu else None
             reg = b.get("regDay") or b.get("regDate") or b.get("createDt") or ""
+            # 본문(contents)이 목록 응답에 그대로 들어있음 → HTML 벗겨 요약
+            body = b.get("contents") or b.get("content") or ""
             out.append({
-                "idx": idx,
                 "service": cfg["service"], "category": cfg["category"],
                 "title": extractor.clean_text(title),
                 "published_at": extractor.parse_date(str(reg)) or (str(reg)[:16].replace("T", " ") or None),
-                "author": "프로젝토리", "content": "",
+                "author": "프로젝토리",
+                "content": extractor.summarize(extractor.clean_text(body)) if body else "",
                 "url": f"{base}/news/news-view?boardIdx={idx}",
                 "image_url": image,
             })
@@ -427,40 +429,8 @@ def _crawl_projectory(cfg, max_items):
         if len(blist) < list_count or len(out) >= cap or (total and len(out) >= total):
             break
 
-    # 본문 요약 보강: 이미 요약 있는 글은 건너뛰고, 없는 글만 상세 API에서 가져온다(증분).
-    try:
-        known_content = db.board_content_map(cfg["service"])
-    except Exception:  # noqa: BLE001
-        known_content = {}
-    need = [e for e in out if not (known_content.get(e["url"]) or "").strip()]
-
-    def _summ(e):
-        return _projectory_detail_summary(base, e["idx"])
-    fetched = {}
-    if need:
-        with ThreadPoolExecutor(max_workers=5) as pool:
-            for e, s in zip(need, pool.map(_summ, need)):
-                fetched[e["url"]] = s
-    for e in out:
-        e["content"] = (known_content.get(e["url"]) or "").strip() or fetched.get(e["url"], "")
-        e.pop("idx", None)
-
-    print(f"[board] {label}: {len(out)}건(본문보강 {len(need)}) / {time.time() - t0:.1f}s", flush=True)
+    print(f"[board] {label}: {len(out)}건 / {time.time() - t0:.1f}s", flush=True)
     return out
-
-
-def _projectory_detail_summary(base, board_idx):
-    """프로젝토리 상세 API(news-view?boardIdx=)에서 본문을 받아 요약. 실패 시 빈 문자열."""
-    try:
-        j = fetcher.get(f"{base}/news/news-view", params={"boardIdx": board_idx},
-                        headers={"Accept": "application/json, text/plain, */*"},
-                        retries=0, timeout=8).json()
-        raw = _find_str_by_keys(j, _DETAIL_KEYS)
-        if raw:
-            return extractor.summarize(extractor.clean_text(raw))
-    except Exception:  # noqa: BLE001
-        pass
-    return ""
 
 
 def crawl_source(cfg, max_items=8, max_workers=3):
