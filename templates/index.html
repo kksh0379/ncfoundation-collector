@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>휴 스코프</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css', v='95') }}" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css', v='96') }}" />
 </head>
 <body>
   <header class="app-header">
@@ -27,7 +27,8 @@
   </header>
 
   <nav class="tabs">
-    <button class="tab active" data-tab="news">뉴스 · 기사</button>
+    <button class="tab active" data-tab="cat">🐱 고양이 뉴스</button>
+    <button class="tab" data-tab="news">뉴스 · 기사</button>
     <button class="tab" data-tab="boards">서비스 게시판</button>
     <button class="tab" data-tab="social">소셜 채널</button>
   </nav>
@@ -40,8 +41,34 @@
     </div>
   </div>
 
+  <!-- 탭0: 고양이(반려묘) 뉴스 -->
+  <section class="panel active" id="panel-cat">
+    <div class="toolbar">
+      <div class="dropdown" id="dd-cat-category" data-value="all">
+        <button type="button" class="dropdown-btn" aria-haspopup="listbox" aria-expanded="false">
+          <span class="dropdown-label">전체</span><span class="dropdown-caret">▾</span>
+        </button>
+        <ul class="dropdown-menu" role="listbox" hidden>
+          <li role="option" data-value="all" class="selected">전체</li>
+          {% for c in cat_categories %}
+          <li role="option" data-value="{{ c }}">{{ c }}</li>
+          {% endfor %}
+        </ul>
+      </div>
+      <button class="btn-status admin-only" id="status-cat-btn">상태 확인</button>
+      <button class="btn-collect admin-only" id="collect-cat">수집 실행</button>
+    </div>
+    <div class="legend admin-only">
+      <span class="chip chip-done">사료·영양 / 행동·심리 / 업계 트렌드 / 사회·제도 / 반려묘 보험</span>
+      <span class="chip chip-plan">최근 5년 · 구글 뉴스(RSS)</span>
+    </div>
+    <div class="last-crawl" id="last-cat"></div>
+    <div class="result-msg" id="msg-cat"></div>
+    <ul class="list" id="list-cat"></ul>
+  </section>
+
   <!-- 탭1: 뉴스 -->
-  <section class="panel active" id="panel-news">
+  <section class="panel" id="panel-news">
     <div class="toolbar">
       <div class="dropdown" id="dd-news-category" data-value="재단">
         <button type="button" class="dropdown-btn" aria-haspopup="listbox" aria-expanded="false">
@@ -186,12 +213,12 @@
 
   <footer class="app-footer">
     <span class="foot-copy">© 2026 김상화</span>
-    <span class="ver">v0.94 · build 260924</span>
+    <span class="ver">v0.95 · build 260924</span>
     <span class="ver" id="storage-badge"></span>
   </footer>
 
   <button id="to-top" aria-label="맨 위로" hidden>↑</button>
 
-  <script src="{{ url_for('static', filename='js/app.js', v='95') }}"></script>
+  <script src="{{ url_for('static', filename='js/app.js', v='96') }}"></script>
 </body>
 </html>

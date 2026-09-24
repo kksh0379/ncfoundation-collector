@@ -159,6 +159,16 @@ async function loadNews() {
   } catch (e) { el.innerHTML = `<li class="empty">불러오기 실패</li>`; }
 }
 
+async function loadCat() {
+  const el = document.getElementById("list-cat");
+  showLoading(el);
+  const category = ddValue("dd-cat-category");
+  try {
+    const res = await fetch("/api/catnews?category=" + encodeURIComponent(category));
+    renderNewsGroups(el, await res.json());
+  } catch (e) { el.innerHTML = `<li class="empty">불러오기 실패</li>`; }
+}
+
 // 뉴스 카드 썸네일 HTML. 대표 이미지(og:image)가 있을 때만 표시(없으면 아무것도 안 보임).
 function newsThumb(rep) {
   if (!rep.image_url) return "";
@@ -301,6 +311,7 @@ async function runStatus(group) {
   }
 }
 
+document.getElementById("status-cat-btn").addEventListener("click", () => runStatus("cat"));
 document.getElementById("status-news-btn").addEventListener("click", () => runStatus("news"));
 document.getElementById("status-boards-btn").addEventListener("click", () => runStatus("boards"));
 document.getElementById("status-social-btn").addEventListener("click", () => runStatus("social"));
@@ -310,6 +321,7 @@ document.getElementById("status-social-btn").addEventListener("click", () => run
 // → 휴대폰 화면이 꺼지거나 브라우저가 백그라운드로 가도 서버 수집은 끊기지 않으며,
 //   돌아오면(또는 새로고침해도) 진행 상태에 자동으로 다시 붙는다.
 const CRAWL_UI = {
+  cat: { btn: "collect-cat", msg: "msg-cat", reload: () => loadCat() },
   news: { btn: "collect-news", msg: "msg-news", reload: () => loadNews() },
   boards: { btn: "collect-boards", msg: "msg-boards", reload: () => loadBoards() },
   social: { btn: "collect-social", msg: "msg-social", reload: () => loadSocial() },
@@ -381,6 +393,9 @@ async function resumeCrawls() {
 }
 document.addEventListener("visibilitychange", () => { if (!document.hidden) resumeCrawls(); });
 
+document.getElementById("collect-cat").addEventListener("click", (e) =>
+  runCrawl(e.currentTarget, "cat", document.getElementById("msg-cat"), loadCat)
+);
 document.getElementById("collect-news").addEventListener("click", (e) =>
   runCrawl(e.currentTarget, "news", document.getElementById("msg-news"), loadNews)
 );
@@ -459,6 +474,7 @@ function setupDropdown(id, onChange) {
 document.addEventListener("click", () =>
   document.querySelectorAll(".dropdown-menu").forEach((m) => (m.hidden = true))
 );
+setupDropdown("dd-cat-category", loadCat);
 setupDropdown("dd-news-category", loadNews);
 setupDropdown("dd-service", loadBoards);
 setupDropdown("dd-channel", loadSocial);
@@ -679,6 +695,7 @@ if (toTop) {
 // ----------------------------- 초기 로드 -----------------------------
 initAdmin();
 loadMeta();
+loadCat();
 loadNews();
 loadBoards();
 loadSocial();

@@ -319,27 +319,39 @@ def _passes_filters(item, days=RECENT_DAYS):
     return True
 
 
-def crawl(max_workers=24, max_items=0, progress=None, known_urls=None, days=None):
-    """뉴스 수집 실행. 파싱된 기사 리스트 반환(그룹화/저장은 호출측).
-    재단/본사 카테고리별로 수집하고 각 기사에 category를 태그한다. 동일 기사가 여러
-    매체에 배포된 것도 전부 수집한다(중복 제거 X, 저장측에서 그룹화).
+def _passes_date(item, days=RECENT_DAYS):
+    """날짜 필터만(키워드 필터 없음). 고양이 뉴스처럼 쿼리 자체가 조건인 경우용."""
+    pub = item.get("published_at")
+    if pub:
+        try:
+            when = datetime.fromisoformat(pub.replace(" ", "T"))
+            if when < datetime.now() - timedelta(days=days):
+                return False
+        except ValueError:
+            pass
+    return True
 
-    days: 수집 기간(최근 N일). 미지정 시 기본 RECENT_DAYS(5년).
-    max_items=0이면 개수 제한 없이 전부 수집. 속도를 위해 원문 해석을 높은 병렬도로
-    처리하고(각 요청은 짧은 타임아웃으로 빨리 실패→스냅샷 폴백), 증분 수집으로
-    이미 저장된 URL은 재해석하지 않는다(재수집은 새 기사만).
+
+def crawl(max_workers=24, max_items=0, progress=None, known_urls=None, days=None,
+          categories=None, keyword_filter=True):
+    """뉴스 수집 실행. 파싱된 기사 리스트 반환(그룹화/저장은 호출측).
+    categories: {카테고리명: [검색어...]} (기본 CATEGORIES=재단/본사).
+    keyword_filter=True면 NC 키워드/노이즈 필터를 적용하고, False면 날짜만 필터
+    (고양이 뉴스처럼 검색어 자체가 조건인 경우).
+    days: 수집 기간(최근 N일). 미지정 시 기본 RECENT_DAYS.
     progress(msg): 진행상황 콜백(선택).
     """
     progress = progress or (lambda m: None)
     known_urls = known_urls or set()
     days = int(days) if days else RECENT_DAYS
+    categories = categories or CATEGORIES
     t0 = time.time()
 
-    # 기간을 구간으로 쪼개 (키워드 × 구간)마다 RSS 수집 → 구글 100건 제한 우회(깊은 과거까지).
+    # 기간을 구간으로 쪼개 (검색어 × 구간)마다 RSS 수집 → 구글 100건 제한 우회(깊은 과거까지).
     windows = _date_windows(days)
-    tasks = [(cat, kw, af, bf) for cat, kws in CATEGORIES.items()
+    tasks = [(cat, kw, af, bf) for cat, kws in categories.items()
              for kw in kws for (af, bf) in windows]
-    progress(f"RSS 수집 중… (키워드 {sum(len(v) for v in CATEGORIES.values())}개 × 구간 {len(windows)}개)")
+    progress(f"RSS 수집 중… (검색어 {sum(len(v) for v in categories.values())}개 × 구간 {len(windows)}개)")
 
     def _fetch(task):
         cat, kw, af, bf = task
@@ -396,13 +408,31 @@ def crawl(max_workers=24, max_items=0, progress=None, known_urls=None, days=None
                     done += 1
                     if done % 5 == 0 or done == n:
                         progress(f"새 기사 요약 처리 {done}/{n}")
+        _flt = _passes_filters if keyword_filter else _passes_date
         items = [
             {k: e.get(k) for k in ("title", "published_at", "author", "content",
                                     "url", "source_url", "category", "image_url")}
-            for e in processed if _passes_filters(e, days)
+            for e in processed if _flt(e, days)
         ]
 
     msg = f"구글뉴스 수집 {len(items)}건 / {time.time() - t0:.1f}s"
     print("[google] " + msg, flush=True)
     progress(msg)
     return items
+
+
+# ---- 고양이(반려묘) 뉴스: 별도 카테고리·검색어(구글 불리언 쿼리) ----
+CAT_CATEGORIES = {
+    "사료·영양": ["(고양이 OR 반려묘) (사료 OR 캔 OR 간식) (리콜 OR 성분 OR 부작용)"],
+    "행동·심리": ["(고양이 OR 반려묘) (행동학 OR 스트레스 OR 시그널 OR 공격성)"],
+    "업계 트렌드": ["(고양이 OR 반려묘) (펫테크 OR 헬스케어 OR AI OR 신제품)"],
+    "사회·제도": ["(고양이 OR 길고양이) (동물보호법 OR 학대 OR TNR OR 등록제)"],
+    "반려묘 보험": ["(고양이 OR 반려묘) (펫보험 OR 실손보험 OR 보장)"],
+}
+
+
+def crawl_cat(max_workers=24, max_items=0, progress=None, known_urls=None, days=None):
+    """고양이(반려묘) 뉴스 수집. 뉴스와 같은 방식이나 검색어가 곧 조건이라 키워드 필터는 끈다."""
+    return crawl(max_workers=max_workers, max_items=max_items, progress=progress,
+                 known_urls=known_urls, days=days,
+                 categories=CAT_CATEGORIES, keyword_filter=False)

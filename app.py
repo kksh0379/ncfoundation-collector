@@ -423,10 +423,11 @@ def index():
     board_status = [{"name": n, "status": BOARD_STATUS.get(n, "완료")} for n in services]
     social_status = [{"name": n, "status": SOCIAL_STATUS.get(n, "완료")} for n in channels]
     news_categories = list(google_news.CATEGORIES.keys())  # 재단 / 본사
+    cat_categories = list(google_news.CAT_CATEGORIES.keys())  # 고양이 뉴스 카테고리
     return render_template(
         "index.html", services=services, channels=channels,
         board_status=board_status, social_status=social_status,
-        news_categories=news_categories,
+        news_categories=news_categories, cat_categories=cat_categories,
     )
 
 
@@ -446,7 +447,13 @@ def _safe_list(fetch):
 @app.get("/api/news")
 def get_news():
     category = request.args.get("category", "all")
-    return _safe_list(lambda: db.list_news(category=category))
+    return _safe_list(lambda: db.list_news(category=category, section="nc"))
+
+
+@app.get("/api/catnews")
+def get_catnews():
+    category = request.args.get("category", "all")
+    return _safe_list(lambda: db.list_news(category=category, section="cat"))
 
 
 @app.get("/api/boards")
@@ -477,6 +484,11 @@ def diag():
     if group in ("all", "news"):
         targets.append(
             ("구글 뉴스(RSS)", google_news.RSS_URL + "?q=NC%EB%AC%B8%ED%99%94%EC%9E%AC%EB%8B%A8&hl=ko&gl=KR&ceid=KR:ko", None)
+        )
+    if group in ("all", "cat"):
+        from urllib.parse import quote as _quote
+        targets.append(
+            ("구글 뉴스(RSS) · 고양이", google_news.RSS_URL + "?q=" + _quote("고양이 반려묘") + "&hl=ko&gl=KR&ceid=KR:ko", None)
         )
     if group in ("all", "boards"):
         seen = set()
@@ -549,24 +561,29 @@ def inspect():
 # 수집은 요청 한 번에 끝까지 처리하고 결과를 바로 반환한다. (구조가 단순해 어떤
 # 버전의 프론트엔드 JS가 캐시돼 있어도 호환되며, 무료 호스팅 재시작에도 안전)
 # 마지막 결과는 /api/crawl/status 폴링형 프론트와의 호환을 위해 보관한다.
-_last_result = {"news": None, "boards": None, "social": None}
+_last_result = {"news": None, "cat": None, "boards": None, "social": None}
 
 
 # 저장 정책: 키 = 원문 URL.
 #  - 뉴스는 '동일 기사(여러 매체 배포)'도 전부 저장한다(중복 제거 X). 대신 저장 후
 #    전체를 본문/제목 유사도로 클러스터링해 group_key를 부여 → 화면에서 아코디언 묶음.
-def _save_news(items):
+def _save_news(items, section="nc"):
     for item in items:
         item["content_hash"] = dedup.content_hash(item.get("content", ""))
+        item["section"] = section
     new, updated = db.upsert_news_many(items)
 
-    # 저장된 전체 뉴스를 대상으로 '같은 기사' 그룹화(group_key 부여)
-    rows = db.all_news_min()
+    # 같은 섹션(nc/cat) 안에서만 '같은 기사' 그룹화(group_key 부여)
+    rows = db.all_news_min(section)
     keys = dedup.cluster_items(rows)
     url_to_key = {r["url"]: k for r, k in zip(rows, keys) if r.get("url")}
     db.set_news_group_keys(url_to_key)
     groups = len(set(url_to_key.values()))
     return {"new": new, "updated": updated, "duplicates": 0, "groups": groups}
+
+
+def _save_cat(items):
+    return _save_news(items, section="cat")
 
 
 def _purge_news_noise(progress=None):
@@ -617,6 +634,7 @@ def _save_social(items):
 
 _CRAWLERS = {
     "news": (google_news.crawl, _save_news),
+    "cat": (google_news.crawl_cat, _save_cat),
     "boards": (boards.crawl_all, _save_boards),
     "social": (social.crawl_all, _save_social),
 }
@@ -630,10 +648,8 @@ def _do_crawl(group, progress=None, days=None):
     progress("DB 연결 중…")
     _ensure_db(force=True)  # 실제로 접속을 기다려 Neon을 깨운다(수집은 DB가 꼭 필요)
     try:
-        if group == "news":
-            # 예전엔 여기서 기존 URL을 전부 로드해 증분 비교했는데, 큰 테이블 + Neon
-            # cold start에서 이 '기존 데이터 확인'이 너무 느렸다. 이제는 그 단계를 없애고,
-            # 저장 시 ON CONFLICT로 중복을 걸러 새 기사만 추가한다(신규 건수는 COUNT 차이).
+        if group in ("news", "cat"):
+            # 뉴스/고양이뉴스: 수집 기간(days) 전달. 저장 시 ON CONFLICT로 중복 처리.
             items = crawl_fn(progress=progress, days=days)
         else:
             items = crawl_fn(progress=progress)
@@ -642,6 +658,7 @@ def _do_crawl(group, progress=None, days=None):
         result = {"crawled": len(items), **counts}
         if group == "news":
             _purge_news_noise(progress)  # 기존에 쌓인 본사 노이즈(야구/백화점 등) 정리
+        if group in ("news", "cat"):
             _enrich_news_images(progress)  # 이미지 없는 최근 기사에 대표 이미지(og:image) 보강
         progress(f"완료 · 신규 {result.get('new', 0)}건 · 갱신 {result.get('updated', 0)}건")
     except Exception as e:  # noqa: BLE001

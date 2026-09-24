@@ -119,7 +119,7 @@ _DDL = [
     f"""CREATE TABLE IF NOT EXISTS news (
         id {_AUTO_PK}, title TEXT, published_at TEXT, author TEXT, content TEXT,
         url TEXT UNIQUE, content_hash TEXT, group_key TEXT, source_url TEXT,
-        category TEXT, image_url TEXT, collected_at TEXT
+        category TEXT, image_url TEXT, section TEXT, collected_at TEXT
     )""",
     f"""CREATE TABLE IF NOT EXISTS boards (
         id {_AUTO_PK}, service TEXT, category TEXT, title TEXT, published_at TEXT,
@@ -153,6 +153,7 @@ def init_db():
             conn.execute("ALTER TABLE news ADD COLUMN IF NOT EXISTS source_url TEXT")
             conn.execute("ALTER TABLE news ADD COLUMN IF NOT EXISTS category TEXT")
             conn.execute("ALTER TABLE news ADD COLUMN IF NOT EXISTS image_url TEXT")
+            conn.execute("ALTER TABLE news ADD COLUMN IF NOT EXISTS section TEXT")
             conn.execute("ALTER TABLE boards ADD COLUMN IF NOT EXISTS image_url TEXT")
             conn.execute("ALTER TABLE social ADD COLUMN IF NOT EXISTS image_url TEXT")
         else:
@@ -165,6 +166,8 @@ def init_db():
                 conn.execute("ALTER TABLE news ADD COLUMN category TEXT")
             if "image_url" not in cols:
                 conn.execute("ALTER TABLE news ADD COLUMN image_url TEXT")
+            if "section" not in cols:
+                conn.execute("ALTER TABLE news ADD COLUMN section TEXT")
             bcols = {r["name"] for r in conn.execute("PRAGMA table_info(boards)").fetchall()}
             if "image_url" not in bcols:
                 conn.execute("ALTER TABLE boards ADD COLUMN image_url TEXT")
@@ -239,7 +242,7 @@ def _now():
 
 # ---- 배치 upsert (키=url, ON CONFLICT로 한 번에 처리 → 원격 DB에서도 빠름) ----
 _NEWS_COLS = ("title", "published_at", "author", "content", "url",
-              "content_hash", "group_key", "source_url", "category", "image_url", "collected_at")
+              "content_hash", "group_key", "source_url", "category", "image_url", "section", "collected_at")
 _BOARD_COLS = ("service", "category", "title", "published_at", "author",
                "content", "url", "image_url", "collected_at")
 _SOCIAL_COLS = ("channel", "account", "title", "published_at", "content", "url", "image_url", "collected_at")
@@ -280,10 +283,14 @@ def upsert_social_many(items):
     return _upsert_many("social", _SOCIAL_COLS, items)
 
 
-def all_news_min():
-    """클러스터링용으로 전체 뉴스의 (url, title, content)만 가볍게 로드."""
+def all_news_min(section="nc"):
+    """클러스터링용으로 뉴스의 (url, title, content)만 가볍게 로드. section별(nc/cat)."""
     with get_conn() as conn:
-        rows = conn.execute("SELECT url, title, content FROM news").fetchall()
+        if section == "cat":
+            rows = conn.execute("SELECT url, title, content FROM news WHERE section = 'cat'").fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT url, title, content FROM news WHERE COALESCE(section,'nc') = 'nc'").fetchall()
         return [dict(r) for r in rows]
 
 
@@ -415,16 +422,19 @@ def existing_board_titles(service):
         return {r["title"] for r in rows}
 
 
-def list_news(limit=3000, category=None):
+def list_news(limit=3000, category=None, section="nc"):
+    sec_sql = "section = 'cat'" if section == "cat" else "COALESCE(section,'nc') = 'nc'"
     with get_conn() as conn:
         if category and category != "all":
             rows = conn.execute(
-                _q("SELECT * FROM news WHERE category = ? ORDER BY published_at DESC, id DESC LIMIT ?"),
+                _q(f"SELECT * FROM news WHERE {sec_sql} AND category = ? "
+                   "ORDER BY published_at DESC, id DESC LIMIT ?"),
                 (category, limit),
             ).fetchall()
         else:
             rows = conn.execute(
-                _q("SELECT * FROM news ORDER BY published_at DESC, id DESC LIMIT ?"), (limit,)
+                _q(f"SELECT * FROM news WHERE {sec_sql} ORDER BY published_at DESC, id DESC LIMIT ?"),
+                (limit,),
             ).fetchall()
         return [dict(r) for r in rows]
 
