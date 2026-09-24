@@ -410,6 +410,7 @@ def meta():
         return jsonify({"news": None, "boards": None, "social": None,
                         "storage": db.BACKEND, "db_down": True})
     return jsonify({
+        "cat": m.get("last_crawl_cat"),
         "news": m.get("last_crawl_news"),
         "boards": m.get("last_crawl_boards"),
         "social": m.get("last_crawl_social"),

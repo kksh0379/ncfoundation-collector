@@ -490,6 +490,7 @@ async function loadMeta() {
   try {
     const r = await fetch("/api/meta");
     const m = await r.json();
+    document.getElementById("last-cat").textContent = fmtLast(m.cat);
     document.getElementById("last-news").textContent = fmtLast(m.news);
     document.getElementById("last-boards").textContent = fmtLast(m.boards);
     document.getElementById("last-social").textContent = fmtLast(m.social);
