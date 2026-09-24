@@ -101,7 +101,9 @@ def extract_image(soup):
         img = img.strip()
         if img.startswith("//"):
             img = "https:" + img
-        if img.startswith("http"):
+        elif img.startswith("http://"):
+            img = "https://" + img[len("http://"):]  # 혼합콘텐츠 차단 방지: https로 승격
+        if img.startswith("https://"):
             return img
     return None
 

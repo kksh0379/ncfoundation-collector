@@ -323,7 +323,8 @@ def news_needs_enrich(limit=200):
     with get_conn() as conn:
         rows = conn.execute(
             _q("SELECT url, source_url, content FROM news "
-               "WHERE image_url IS NULL OR image_url = '' OR content IS NULL OR LENGTH(content) < 80 "
+               "WHERE image_url IS NULL OR image_url = '' OR image_url LIKE 'http://%' "
+               "OR content IS NULL OR LENGTH(content) < 80 "
                "ORDER BY published_at DESC, id DESC LIMIT ?"), (limit,)
         ).fetchall()
         return [dict(r) for r in rows]
