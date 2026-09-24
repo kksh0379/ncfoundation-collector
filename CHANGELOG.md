@@ -5,6 +5,7 @@
 > 예: `v0.39 · build 260924`. (아래 과거 항목의 vNN 은 v0.NN 과 같은 번호예요: v38 = v0.38)
 
 ## 2026-09-24
+- **v0.80 · build 260924** — 나의AAC 링크 수정: 글 링크가 `javascript:goDetail(270)` 형태라 seq를 못 뽑아 목록으로 떨어지던 것 해결(goDetail·괄호 안 따옴표 패턴 추출). 이제 상세글(announcementDetail.do?seq=)로 정확히 이동.
 - **v0.79 · build 260924** — 프로젝토리 게시판 **수집 완료**: 모바일 사이트의 axios API(`/news/notice-list` 등, params 페이지네이션)를 직접 호출해 공지·이야기·갤러리 수집. 제목·작성일·썸네일(fileUrl)·글링크(boardIdx). 상태 "완료".
 - **v0.78 · build 260924** — 파일 내용 검색 진단 `/api/grep?url=&q=` 추가(JS에서 특정 함수/문자열 주변 코드 확인). 프로젝토리 _sendAxios 호출 방식 분석용.
 - **v0.77 · build 260924** — /api/peek에 xhr=1 옵션 추가(X-Requested-With 헤더로 AJAX 응답 유도). 프로젝토리처럼 같은 URL이 XHR일 때 JSON을 주는 사이트 확인용.

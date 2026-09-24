@@ -123,7 +123,9 @@ def _resolve_url(a, cfg):
     # javascript 링크: onclick/href/data-* 에서 글 번호(seq)를 찾아 상세 URL 구성
     if cfg.get("detail_url"):
         blob = " ".join([href, a.get("onclick") or "", " ".join(str(v) for v in a.attrs.values())])
-        m = re.search(r"seq['\"=:\s]*?(\d{1,9})", blob) or re.search(r"\((\d{1,9})\)", blob)
+        m = (re.search(r"goDetail\(\s*['\"]?(\d{1,9})", blob)   # goDetail('270')
+             or re.search(r"seq['\"=:\s]*?(\d{1,9})", blob)     # seq=270 / seq:270
+             or re.search(r"\(\s*['\"]?(\d{1,9})['\"]?\s*\)", blob))  # ('270') / (270)
         if m:
             return cfg["detail_url"].format(seq=m.group(1))
     return None
