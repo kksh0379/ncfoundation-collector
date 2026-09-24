@@ -41,26 +41,32 @@ def _now_kst():
 # DB와 무관하게 즉시 끝내고, 첫 요청 때 한 번만 테이블을 준비한다.
 _db_ready = False
 _db_lock = threading.Lock()
+_db_last_try = 0.0
+_DB_RETRY_COOLDOWN = 30  # 초: DB 연결 실패 시 이 시간 동안은 재시도 안 함(요청을 매번 막지 않게)
 
 
 def _ensure_db():
-    global _db_ready
+    """DB 테이블 준비를 보장하되, '요청을 절대 오래 막지 않는다'.
+    Neon이 죽어 있으면 연결이 수십 초 걸리는데, 그걸 매 요청마다 시도하면 스레드가 다
+    막혀 502가 난다. → 실패하면 쿨다운 동안은 그냥 넘어가고(요청 즉시 반환), 다른 스레드가
+    시도 중이면 나는 기다리지 않는다. 반환값: 준비됐으면 True."""
+    global _db_ready, _db_last_try
     if _db_ready:
-        return
-    with _db_lock:
-        if _db_ready:
-            return
-        try:
-            db.init_db()
-            _db_ready = True
-        except Exception as e:  # noqa: BLE001
-            # 실패해도 부팅/응답은 계속(테이블은 대개 이미 존재). 다음 요청에서 재시도.
-            print(f"[startup] init_db 지연 실패(다음 요청에서 재시도): {e}", flush=True)
-
-
-@app.before_request
-def _before():
-    _ensure_db()
+        return True
+    if time.time() - _db_last_try < _DB_RETRY_COOLDOWN:
+        return False  # 최근에 실패 → 지금은 시도 안 함(빠르게 반환)
+    if not _db_lock.acquire(blocking=False):
+        return False  # 다른 스레드가 시도 중 → 안 막고 그냥 반환
+    try:
+        _db_last_try = time.time()
+        db.init_db()
+        _db_ready = True
+        return True
+    except Exception as e:  # noqa: BLE001
+        print(f"[startup] init_db 실패(쿨다운 후 재시도): {e}", flush=True)
+        return False
+    finally:
+        _db_lock.release()
 
 
 @app.get("/api/me")
@@ -122,7 +128,14 @@ def admin_purge():
 
 @app.get("/api/meta")
 def meta():
-    m = db.get_all_meta()
+    if not _ensure_db():
+        return jsonify({"news": None, "boards": None, "social": None,
+                        "storage": db.BACKEND, "db_down": True})
+    try:
+        m = db.get_all_meta()
+    except Exception:  # noqa: BLE001
+        return jsonify({"news": None, "boards": None, "social": None,
+                        "storage": db.BACKEND, "db_down": True})
     return jsonify({
         "news": m.get("last_crawl_news"),
         "boards": m.get("last_crawl_boards"),
@@ -151,22 +164,34 @@ def index():
 
 
 # ---------------------------- 조회 API ----------------------------
+# DB가 죽어 있으면(_ensure_db 실패) 빈 목록을 '즉시' 반환한다. 그래야 화면이 45초씩
+# 멈추거나 502가 나지 않고, 목록만 비어 보인다(Neon 복구되면 자동으로 채워짐).
+def _safe_list(fetch):
+    if not _ensure_db():
+        return jsonify([])
+    try:
+        return jsonify(fetch())
+    except Exception as e:  # noqa: BLE001
+        print(f"[api] 조회 실패(DB): {e}", flush=True)
+        return jsonify([])
+
+
 @app.get("/api/news")
 def get_news():
     category = request.args.get("category", "all")
-    return jsonify(db.list_news(category=category))
+    return _safe_list(lambda: db.list_news(category=category))
 
 
 @app.get("/api/boards")
 def get_boards():
     service = request.args.get("service", "all")
-    return jsonify(db.list_boards(service=service))
+    return _safe_list(lambda: db.list_boards(service=service))
 
 
 @app.get("/api/social")
 def get_social():
     channel = request.args.get("channel", "all")
-    return jsonify(db.list_social(channel=channel))
+    return _safe_list(lambda: db.list_social(channel=channel))
 
 
 # ---------------------------- 진단 API ----------------------------

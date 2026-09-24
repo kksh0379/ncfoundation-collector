@@ -405,7 +405,10 @@ async function loadMeta() {
     document.getElementById("last-social").textContent = fmtLast(m.social);
     const badge = document.getElementById("storage-badge");
     if (badge) {
-      if (m.storage === "postgres") {
+      if (m.db_down) {
+        badge.textContent = "⛔ DB 연결 안 됨";
+        badge.style.color = "#dc2626";
+      } else if (m.storage === "postgres") {
         badge.textContent = "☁ 영구저장";
         badge.style.color = "#16a34a";
       } else {

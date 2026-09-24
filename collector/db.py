@@ -41,9 +41,11 @@ if _PG:
     # 연결 풀: Neon 무료는 유휴 시 컴퓨트가 잠들어(cold start) 첫 연결이 느리고, 유휴
     # 연결이 끊길 수 있다. → min_size=0(유휴 연결 미보유), 사용 시 유효성 검사(check),
     # 연결 타임아웃 여유. cold start를 견디도록 대기(timeout)를 넉넉히 준다.
+    # timeout: 연결을 얻지 못하면 이만큼 기다렸다 실패. 너무 길면(예: 45s) DB가 죽었을 때
+    # 웹 요청이 그만큼 멈춰 502가 난다. Neon cold start는 보통 10초 안에 깨므로 15초면 충분.
     _pool = ConnectionPool(
-        _CONNINFO, min_size=0, max_size=5, timeout=45,
-        kwargs={"row_factory": dict_row, "connect_timeout": 20},
+        _CONNINFO, min_size=0, max_size=5, timeout=15,
+        kwargs={"row_factory": dict_row, "connect_timeout": 10},
         check=ConnectionPool.check_connection, open=True,
     )
 
@@ -56,16 +58,16 @@ def _q(sql):
 @contextmanager
 def get_conn():
     if _PG:
-        # Neon cold start 등으로 연결 획득이 일시적으로 실패하면 잠깐 쉬고 재시도.
+        # Neon cold start 등으로 연결 획득이 일시적으로 실패하면 한 번 더 시도.
         last = None
-        for attempt in range(3):
+        for attempt in range(2):
             try:
                 with _pool.connection() as conn:  # 성공 시 자동 commit, 오류 시 rollback 후 반납
                     yield conn
                 return
             except PoolTimeout as e:  # 연결을 못 얻음(획득 단계) → 재시도
                 last = e
-                time.sleep(2 + 2 * attempt)
+                time.sleep(1)
         raise last
     else:
         os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
