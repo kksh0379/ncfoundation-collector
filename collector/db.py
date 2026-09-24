@@ -55,6 +55,36 @@ def _q(sql):
     return sql.replace("?", "%s") if _PG else sql
 
 
+def diagnose():
+    """DB 연결을 '풀을 거치지 않고' 직접 한 번 시도해서 실제 원인을 돌려준다.
+    반환: {ok, backend, host, error}. 비밀번호는 마스킹. (관리자 진단용)"""
+    import re as _re
+    info = {"ok": False, "backend": BACKEND}
+    if not _PG:
+        # SQLite: 파일 열기만 확인
+        try:
+            with get_conn() as conn:
+                conn.execute("SELECT 1")
+            info["ok"] = True
+        except Exception as e:  # noqa: BLE001
+            info["error"] = f"{type(e).__name__}: {e}"
+        return info
+    info["host"] = urlsplit(_CONNINFO).hostname
+    try:
+        # 풀/재시도 없이 딱 한 번, 짧은 타임아웃으로 직접 접속 → 진짜 에러가 그대로 나옴
+        conn = psycopg.connect(_CONNINFO, connect_timeout=8)
+        try:
+            conn.execute("SELECT 1")
+            info["ok"] = True
+        finally:
+            conn.close()
+    except Exception as e:  # noqa: BLE001
+        msg = str(e)
+        msg = _re.sub(r":npg_[^@]+@", ":***@", msg)  # 혹시 모를 비번 노출 마스킹
+        info["error"] = f"{type(e).__name__}: {msg}"
+    return info
+
+
 @contextmanager
 def get_conn():
     if _PG:

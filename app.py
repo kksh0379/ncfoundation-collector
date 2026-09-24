@@ -126,6 +126,15 @@ def admin_purge():
     return jsonify({"ok": True, "deleted": deleted, "recollect_started": started})
 
 
+@app.get("/api/dbcheck")
+def dbcheck():
+    """DB 연결을 직접 시도해 실제 에러 원문을 반환(관리자 전용, 진단용).
+    로그인은 DB 없이도 되므로, DB가 죽어도 이 진단은 볼 수 있다."""
+    if not _admin_ok():
+        return jsonify({"error": "unauthorized"}), 401
+    return jsonify(db.diagnose())
+
+
 @app.get("/api/meta")
 def meta():
     if not _ensure_db():
