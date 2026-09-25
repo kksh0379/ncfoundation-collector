@@ -69,10 +69,16 @@ body {
 }
 .auth-btn:active { background: rgba(255, 255, 255, 0.15); }
 
-/* 관리자 전용 요소: 기본 숨김, 로그인 시 노출 */
+/* 관리자 전용 요소: 기본 숨김, 관리자 로그인 시 노출 */
 .admin-only { display: none !important; }
 body.is-admin .admin-only { display: inline-block !important; }
 body.is-admin .guest-only { display: none !important; }
+
+/* 로그인 상태(아이디 로그인=일반/관리자 공통)에 따른 노출 */
+.loggedin-only { display: none !important; }
+body.is-loggedin .loggedin-only { display: inline-block !important; }
+.loggedout-only { display: inline-block !important; }
+body.is-loggedin .loggedout-only { display: none !important; }
 
 .last-crawl {
   font-size: 12px;
@@ -769,3 +775,12 @@ body.modal-open { overflow: hidden; }
 .fullmodal-close:active { background: #e0e4ec; }
 .fullmodal-body { flex: 1; overflow: auto; -webkit-overflow-scrolling: touch; padding: 10px 12px calc(24px + env(safe-area-inset-bottom, 0px)); }
 .scrap-list { list-style: none; margin: 0; padding: 0; }
+
+/* 로그인 유형 토글(일반/관리자) + 힌트 */
+.login-role { display: flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; margin-bottom: 14px; }
+.login-role button { flex: 1; padding: 10px 0; border: none; background: #fff; color: var(--muted); font-size: 14px; font-weight: 700; cursor: pointer; }
+.login-role button.active { background: var(--primary); color: #fff; }
+#login-id-wrap[hidden] { display: none; }
+.login-hint { margin-top: 14px; font-size: 12px; color: var(--muted); text-align: center; line-height: 1.6; }
+.login-hint b { color: var(--text); }
+.foot-user { color: var(--muted); font-weight: 700; margin-right: 2px; }

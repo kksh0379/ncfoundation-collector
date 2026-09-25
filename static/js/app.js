@@ -1,24 +1,21 @@
 "use strict";
 
-// 관리자 여부는 서버 세션(로그인)으로 판단. (뷰어는 조회만, 관리자만 상태확인/수집)
-function setAdmin(isAdmin) {
-  document.body.classList.toggle("is-admin", !!isAdmin);
+// ===== 인증 상태(아이디 기반) =====
+let CURRENT_USER = null;      // null=미로그인, "admin" 또는 "tester1"…
+function isLoggedIn() { return !!CURRENT_USER; }
+function applyAuthUI(user, admin) {
+  CURRENT_USER = user || null;
+  document.body.classList.toggle("is-admin", !!admin);
+  document.body.classList.toggle("is-loggedin", !!user);
+  const fu = document.getElementById("foot-user");
+  if (fu) fu.textContent = user ? (user === "admin" ? "관리자" : user) + " 님" : "";
 }
-function savedPw() { try { return localStorage.getItem("adminPw") || ""; } catch (e) { return ""; } }
-async function tryLogin(pw) {
-  try {
-    const d = await (await fetch("/api/login", {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ pw }),
-    })).json();
-    return !!d.ok;
-  } catch (e) { return false; }
-}
-// 세션이 살아있으면 관리자 유지. (자동 로그인은 하지 않음 — 비번은 입력창 자동채움용으로만 저장)
-async function initAdmin() {
-  let admin = false;
-  try { admin = (await (await fetch("/api/me")).json()).admin; } catch (e) {}
-  setAdmin(admin);
+// 세션 확인 → 로그인 상태면 개인 데이터(스크랩/읽음) 로드
+async function initAuth() {
+  let me = { user: null, admin: false };
+  try { me = await (await fetch("/api/me")).json(); } catch (e) { /* 무시 */ }
+  applyAuthUI(me.user, me.admin);
+  if (me.user) { await loadMyData(); }
 }
 
 function escapeHtml(s) {
@@ -33,19 +30,44 @@ function fmtDate(iso) {
   return iso.replace("T", " ");
 }
 
-// ===== 읽음 여부 / 스크랩 (로컬 저장) =====
-const LS_READ = "nv_read_v1", LS_SCRAP = "nv_scrap_v1";
-function lsGet(k, def) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : def; } catch (e) { return def; } }
-function lsSet(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* 무시 */ } }
-const READ = new Set(lsGet(LS_READ, []));
-let SCRAP = lsGet(LS_SCRAP, {});           // key -> 스냅샷
-function saveRead() { lsSet(LS_READ, Array.from(READ)); }
-function saveScrap() { lsSet(LS_SCRAP, SCRAP); }
+// ===== 읽음 여부 / 스크랩 (아이디 기반, 서버 저장) =====
+let READ = new Set();     // 읽은 글 key
+let SCRAP = {};           // key -> 스냅샷
+let pendingScrapKey = null;  // 미로그인 상태에서 스크랩 시도 → 로그인 후 이어서 처리
 // 게시글 고유키: 원문/URL 기준
 function keyOf(it) { return String(it.url || it.source_url || it.title || "").trim(); }
 function isRead(k) { return READ.has(k); }
-function markRead(k) { if (k && !READ.has(k)) { READ.add(k); saveRead(); } }
 function isScrapped(k) { return !!SCRAP[k]; }
+async function api(path, body) {
+  const r = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  return r.ok ? r.json() : Promise.reject(r);
+}
+// 로그인 시 개인 데이터 로드 → 화면 반영
+async function loadMyData() {
+  try {
+    const d = await (await fetch("/api/mydata")).json();
+    READ = new Set(d.reads || []);
+    SCRAP = {};
+    (d.scraps || []).forEach((s) => { if (s.key) SCRAP[s.key] = s; });
+  } catch (e) { READ = new Set(); SCRAP = {}; }
+  applyUserStateToDom();
+  updateScrapBadge();
+}
+// 이미 렌더된 카드에 읽음/스크랩 상태를 반영(로그인 직후 등)
+function applyUserStateToDom() {
+  document.querySelectorAll(".card[data-key]").forEach((c) => {
+    c.classList.toggle("is-read", isRead(c.dataset.key));
+  });
+  document.querySelectorAll(".scrap-btn[data-key]").forEach((b) => {
+    b.classList.toggle("on", isScrapped(b.dataset.key));
+  });
+}
+// 읽음 처리(로그인 사용자만, 서버 저장)
+function markRead(k) {
+  if (!k || !isLoggedIn() || READ.has(k)) return;
+  READ.add(k);
+  api("/api/read", { key: k }).catch(() => { /* 실패해도 화면은 유지 */ });
+}
 function todayStr() { const n = new Date(), p = (x) => String(x).padStart(2, "0"); return n.getFullYear() + "-" + p(n.getMonth() + 1) + "-" + p(n.getDate()); }
 function isToday(iso) { return !!iso && String(iso).slice(0, 10) === todayStr(); }
 
@@ -77,16 +99,30 @@ function toast(msg) {
   t.textContent = msg; t.classList.add("show");
   clearTimeout(_toastTimer); _toastTimer = setTimeout(() => t.classList.remove("show"), 1400);
 }
-// 스크랩 토글(+토스트, 로컬 저장, 화면 반영)
+// 스크랩 토글(로그인 필요, 서버 저장, +토스트)
 function toggleScrap(key) {
   if (!key) return;
-  if (SCRAP[key]) { delete SCRAP[key]; saveScrap(); toast("스크랩을 취소했어요"); }
-  else {
-    const snap = ITEM_INDEX[key] || SCRAP[key];
+  if (!isLoggedIn()) {            // 미로그인 → 로그인 유도(로그인 후 이어서 스크랩)
+    pendingScrapKey = key;
+    toast("로그인하면 스크랩할 수 있어요");
+    openLogin();
+    return;
+  }
+  const wasOn = isScrapped(key);
+  if (wasOn) {
+    const backup = SCRAP[key];
+    delete SCRAP[key];
+    syncScrapUI(key); toast("스크랩을 취소했어요");
+    api("/api/scrap", { op: "del", key }).catch(() => { SCRAP[key] = backup; syncScrapUI(key); toast("저장 실패 — 다시 시도해 주세요"); });
+  } else {
+    const snap = ITEM_INDEX[key];
     if (!snap) return;
     SCRAP[key] = Object.assign({}, snap, { ts: Date.now() });
-    saveScrap(); toast("스크랩했어요 ⭐");
+    syncScrapUI(key); toast("스크랩했어요 ⭐");
+    api("/api/scrap", { op: "add", key, item: snap }).catch(() => { delete SCRAP[key]; syncScrapUI(key); toast("저장 실패 — 다시 시도해 주세요"); });
   }
+}
+function syncScrapUI(key) {
   document.querySelectorAll('.scrap-btn[data-key]').forEach((b) => {
     if (b.dataset.key === key) b.classList.toggle("on", isScrapped(key));
   });
@@ -768,29 +804,63 @@ async function loadMeta() {
 // ----------------------------- 관리자 로그인 -----------------------------
 const loginModal = document.getElementById("login-modal");
 const loginErr = document.getElementById("login-err");
-document.getElementById("login-btn").addEventListener("click", () => {
+let loginRole = "user";   // 'user'(일반) | 'admin'(관리자)
+function setLoginRole(role) {
+  loginRole = role === "admin" ? "admin" : "user";
+  document.querySelectorAll("#login-role button").forEach((b) =>
+    b.classList.toggle("active", b.dataset.role === loginRole));
+  // 일반=아이디+비번, 관리자=비번만
+  const idWrap = document.getElementById("login-id-wrap");
+  if (idWrap) idWrap.hidden = (loginRole === "admin");
+  const pw = document.getElementById("login-pw");
+  if (pw) pw.placeholder = loginRole === "admin" ? "관리자 비밀번호" : "비밀번호";
   loginErr.textContent = "";
-  document.getElementById("login-pw").value = savedPw();  // 저장된 비번 미리 채움
+}
+function openLogin() {
+  loginErr.textContent = "";
+  document.getElementById("login-id").value = "";
+  document.getElementById("login-pw").value = "";
+  setLoginRole("user");
   loginModal.hidden = false;
-});
-document.getElementById("login-close").addEventListener("click", () => (loginModal.hidden = true));
-loginModal.addEventListener("click", (e) => { if (e.target === loginModal) loginModal.hidden = true; });
+  setTimeout(() => document.getElementById("login-id").focus(), 50);
+}
+function closeLogin() { loginModal.hidden = true; pendingScrapKey = null; }
+document.getElementById("login-btn").addEventListener("click", openLogin);
+document.getElementById("login-close").addEventListener("click", closeLogin);
+loginModal.addEventListener("click", (e) => { if (e.target === loginModal) closeLogin(); });
+document.querySelectorAll("#login-role button").forEach((b) =>
+  b.addEventListener("click", () => setLoginRole(b.dataset.role)));
+
 document.getElementById("login-form").addEventListener("submit", async (e) => {
   e.preventDefault();
   loginErr.textContent = "";
   const pw = document.getElementById("login-pw").value;
-  const ok = await tryLogin(pw);
-  if (ok) {
-    try { localStorage.setItem("adminPw", pw); } catch (e2) {}  // 비번 저장(다음에 입력창 자동채움용)
-    setAdmin(true);
+  const body = loginRole === "admin"
+    ? { role: "admin", pw }
+    : { role: "user", username: document.getElementById("login-id").value.trim(), pw };
+  let res = null;
+  try {
+    const r = await fetch("/api/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    res = await r.json();
+  } catch (err) { loginErr.textContent = "로그인 요청 실패. 잠시 후 다시 시도해 주세요."; return; }
+  if (res && res.ok) {
+    applyAuthUI(res.user, res.admin);
+    await loadMyData();
     loginModal.hidden = true;
+    toast((res.user === "admin" ? "관리자" : res.user) + " 님, 로그인되었어요");
+    if (pendingScrapKey) { const k = pendingScrapKey; pendingScrapKey = null; toggleScrap(k); }
   } else {
-    loginErr.textContent = "비밀번호가 올바르지 않습니다.";
+    loginErr.textContent = (res && res.error) || "로그인에 실패했습니다.";
   }
 });
 document.getElementById("logout-btn").addEventListener("click", async () => {
-  try { await fetch("/api/logout", { method: "POST" }); } catch (e) {}
-  setAdmin(false);
+  try { await fetch("/api/logout", { method: "POST" }); } catch (e) { /* 무시 */ }
+  applyAuthUI(null, false);
+  READ = new Set(); SCRAP = {};
+  applyUserStateToDom(); updateScrapBadge();
+  const m = document.getElementById("scrap-modal");
+  if (m && !m.hidden) closeScraps();
+  toast("로그아웃되었어요");
 });
 
 // ----------------------------- 개발노트/패치내역 -----------------------------
@@ -915,6 +985,7 @@ function renderScraps() {
   el.appendChild(frag);
 }
 function openScraps() {
+  if (!isLoggedIn()) { toast("로그인하면 스크랩을 볼 수 있어요"); openLogin(); return; }
   renderScraps();
   document.getElementById("scrap-modal").hidden = false;
   document.body.classList.add("modal-open");
@@ -1008,7 +1079,7 @@ if (toTop) {
 }
 
 // ----------------------------- 초기 로드 -----------------------------
-initAdmin();
+initAuth();
 loadMeta();
 loadCat();
 loadNews();

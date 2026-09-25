@@ -143,10 +143,16 @@ _DDL = [
     f"""CREATE TABLE IF NOT EXISTS visit_log (
         id {_AUTO_PK}, ts TEXT, ip TEXT, ua TEXT, path TEXT, referer TEXT, lang TEXT
     )""",
+    # 아이디별 개인 상태(스크랩/읽음). kind='scrap'|'read', snapshot=스크랩 스냅샷 JSON.
+    """CREATE TABLE IF NOT EXISTS user_state (
+        username TEXT, ukey TEXT, kind TEXT, snapshot TEXT, ts BIGINT,
+        PRIMARY KEY (username, ukey, kind)
+    )""",
     "CREATE INDEX IF NOT EXISTS idx_news_hash ON news(content_hash)",
     "CREATE INDEX IF NOT EXISTS idx_news_group ON news(group_key)",
     "CREATE INDEX IF NOT EXISTS idx_boards_title ON boards(service, title)",
     "CREATE INDEX IF NOT EXISTS idx_social_url ON social(url)",
+    "CREATE INDEX IF NOT EXISTS idx_userstate ON user_state(username, kind)",
 ]
 
 
@@ -409,6 +415,31 @@ def clear_tables(tables):
             conn.execute(f"DELETE FROM {t}")
             result[t] = n
     return result
+
+
+# ---------------------------- 개인 상태(스크랩/읽음) ----------------------------
+def user_state_upsert(username, ukey, kind, snapshot, ts):
+    """아이디별 스크랩/읽음 저장(있으면 갱신)."""
+    with get_conn() as conn:
+        conn.execute(_q(
+            "INSERT INTO user_state (username, ukey, kind, snapshot, ts) VALUES (?,?,?,?,?) "
+            "ON CONFLICT (username, ukey, kind) DO UPDATE SET snapshot=excluded.snapshot, ts=excluded.ts"),
+            (username, ukey, kind, snapshot, ts))
+
+
+def user_state_delete(username, ukey, kind):
+    with get_conn() as conn:
+        conn.execute(_q("DELETE FROM user_state WHERE username=? AND ukey=? AND kind=?"),
+                     (username, ukey, kind))
+
+
+def user_state_list(username, kind):
+    """해당 아이디의 kind(스크랩/읽음) 목록을 최신순으로."""
+    with get_conn() as conn:
+        rows = conn.execute(_q(
+            "SELECT ukey, snapshot, ts FROM user_state WHERE username=? AND kind=? ORDER BY ts DESC"),
+            (username, kind)).fetchall()
+        return [dict(r) for r in rows]
 
 
 def existing_board_urls(service=None):

@@ -14,23 +14,23 @@
   <meta property="og:title" content="휴 스코프" />
   <meta property="og:description" content="재단·업계 뉴스와 재단 게시판·소셜 채널을 한눈에" />
   <meta property="og:url" content="{{ og_base }}/" />
-  <meta property="og:image" content="{{ og_base }}{{ url_for('static', filename='og-image.png', v='118') }}" />
+  <meta property="og:image" content="{{ og_base }}{{ url_for('static', filename='og-image.png', v='119') }}" />
   <meta property="og:image:width" content="1200" />
   <meta property="og:image:height" content="630" />
   <meta property="og:locale" content="ko_KR" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="휴 스코프" />
   <meta name="twitter:description" content="재단·업계 뉴스와 재단 게시판·소셜 채널을 한눈에" />
-  <meta name="twitter:image" content="{{ og_base }}{{ url_for('static', filename='og-image.png', v='118') }}" />
+  <meta name="twitter:image" content="{{ og_base }}{{ url_for('static', filename='og-image.png', v='119') }}" />
 
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="휴 스코프" />
-  <link rel="icon" href="{{ url_for('static', filename='favicon.svg', v='118') }}" type="image/svg+xml" />
-  <link rel="icon" href="{{ url_for('static', filename='icon-192.png', v='118') }}" type="image/png" sizes="192x192" />
-  <link rel="apple-touch-icon" href="{{ url_for('static', filename='apple-touch-icon.png', v='118') }}" />
-  <link rel="manifest" href="{{ url_for('static', filename='site.webmanifest', v='118') }}" />
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css', v='118') }}" />
+  <link rel="icon" href="{{ url_for('static', filename='favicon.svg', v='119') }}" type="image/svg+xml" />
+  <link rel="icon" href="{{ url_for('static', filename='icon-192.png', v='119') }}" type="image/png" sizes="192x192" />
+  <link rel="apple-touch-icon" href="{{ url_for('static', filename='apple-touch-icon.png', v='119') }}" />
+  <link rel="manifest" href="{{ url_for('static', filename='site.webmanifest', v='119') }}" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css', v='119') }}" />
 </head>
 <body>
   <header class="app-header">
@@ -209,19 +209,27 @@
     </div>
   </div>
 
-  <!-- 관리자 로그인 팝업 -->
+  <!-- 로그인 팝업 (일반 / 관리자) -->
   <div class="modal" id="login-modal" hidden>
     <div class="modal-box">
       <div class="modal-head">
-        <span>관리자 로그인</span>
+        <span>로그인</span>
         <button class="modal-close" id="login-close" aria-label="닫기">✕</button>
       </div>
       <div class="modal-body">
+        <div class="login-role" id="login-role" role="group" aria-label="로그인 유형">
+          <button type="button" data-role="user" class="active">일반 사용자</button>
+          <button type="button" data-role="admin">관리자</button>
+        </div>
         <form id="login-form" class="login-form">
+          <div id="login-id-wrap">
+            <input type="text" id="login-id" placeholder="아이디 (tester1~tester10)" autocomplete="username" />
+          </div>
           <input type="password" id="login-pw" placeholder="비밀번호" autocomplete="current-password" />
           <div class="login-err" id="login-err"></div>
           <button type="submit" class="btn-collect" id="login-submit">로그인</button>
         </form>
+        <div class="login-hint">테스트 계정: <b>tester1 ~ tester10</b> / 비밀번호 <b>1234</b></div>
       </div>
     </div>
   </div>
@@ -274,17 +282,18 @@
   <footer class="app-footer">
     <div class="foot-left">
       <span class="foot-copy">© 2026 김상화</span>
-      <span class="ver">v1.16 · build 260925</span>
+      <span class="ver">v1.17 · build 260925</span>
       <span class="ver" id="storage-badge"></span>
     </div>
     <div class="foot-right">
-      <button class="foot-auth guest-only" id="login-btn">관리자 로그인</button>
-      <button class="foot-auth admin-only" id="logout-btn">로그아웃</button>
+      <span class="foot-user loggedin-only" id="foot-user"></span>
+      <button class="foot-auth loggedout-only" id="login-btn">로그인</button>
+      <button class="foot-auth loggedin-only" id="logout-btn">로그아웃</button>
     </div>
   </footer>
 
   <button id="to-top" aria-label="맨 위로" hidden>↑</button>
 
-  <script src="{{ url_for('static', filename='js/app.js', v='118') }}"></script>
+  <script src="{{ url_for('static', filename='js/app.js', v='119') }}"></script>
 </body>
 </html>

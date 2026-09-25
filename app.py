@@ -25,10 +25,16 @@ KST = timezone(timedelta(hours=9))  # 마지막 수집 일시는 서버에서 KS
 
 # 관리자 로그인: 로그인해야 상태확인/수집 실행이 보이고 동작한다(뷰어는 조회만).
 ADMIN_PW = os.environ.get("ADMIN_PW", "rlatkdghk12#")
+# 일반 사용자(테스트용) 계정: tester1~tester10 / 비번 1234
+TEST_USERS = {f"tester{i}": "1234" for i in range(1, 11)}
 
 
 def _admin_ok():
     return bool(session.get("admin"))
+
+
+def _current_user():
+    return session.get("user")
 
 
 def _now_kst():
@@ -84,7 +90,8 @@ def healthz():
 
 @app.get("/api/me")
 def me():
-    return jsonify({"admin": _admin_ok()})
+    return jsonify({"user": session.get("user"), "admin": _admin_ok(),
+                    "logged_in": bool(session.get("user"))})
 
 
 @app.get("/api/notes")
@@ -106,16 +113,86 @@ def notes():
 
 @app.post("/api/login")
 def login():
+    """role='admin'(관리자, 비번만) 또는 role='user'(일반, 아이디+비번). 세션에 user/admin 기록."""
     data = request.get_json(silent=True) or {}
-    if data.get("pw") == ADMIN_PW:
-        session["admin"] = True
-        return jsonify({"ok": True})
-    return jsonify({"ok": False, "error": "비밀번호가 올바르지 않습니다."}), 401
+    role = data.get("role", "admin")
+    pw = data.get("pw", "")
+    if role == "admin":
+        if pw == ADMIN_PW:
+            session["user"] = "admin"
+            session["admin"] = True
+            return jsonify({"ok": True, "user": "admin", "admin": True})
+        return jsonify({"ok": False, "error": "비밀번호가 올바르지 않습니다."}), 401
+    username = (data.get("username") or "").strip().lower()
+    if username in TEST_USERS and pw == TEST_USERS[username]:
+        session["user"] = username
+        session["admin"] = False
+        return jsonify({"ok": True, "user": username, "admin": False})
+    return jsonify({"ok": False, "error": "아이디 또는 비밀번호가 올바르지 않습니다."}), 401
 
 
 @app.post("/api/logout")
 def logout():
     session.pop("admin", None)
+    session.pop("user", None)
+    return jsonify({"ok": True})
+
+
+# ---------------------------- 개인 데이터(스크랩/읽음) ----------------------------
+@app.get("/api/mydata")
+def mydata():
+    """로그인한 사용자의 스크랩·읽음 목록. 미로그인=401."""
+    u = _current_user()
+    if not u:
+        return jsonify({"error": "unauthorized"}), 401
+    if not _ensure_db():
+        return jsonify({"scraps": [], "reads": []})
+    scraps = []
+    for r in db.user_state_list(u, "scrap"):
+        try:
+            snap = json.loads(r["snapshot"] or "{}")
+        except Exception:  # noqa: BLE001
+            snap = {}
+        snap["ts"] = r["ts"]
+        scraps.append(snap)
+    reads = [r["ukey"] for r in db.user_state_list(u, "read")]
+    return jsonify({"scraps": scraps, "reads": reads})
+
+
+@app.post("/api/scrap")
+def scrap():
+    """스크랩 추가/삭제. body: {op:'add'|'del', key, item?}. 미로그인=401."""
+    u = _current_user()
+    if not u:
+        return jsonify({"error": "unauthorized"}), 401
+    if not _ensure_db():
+        return jsonify({"ok": False}), 503
+    data = request.get_json(silent=True) or {}
+    key = (data.get("key") or "").strip()
+    if not key:
+        return jsonify({"ok": False, "error": "key 없음"}), 400
+    if data.get("op") == "del":
+        db.user_state_delete(u, key, "scrap")
+    else:
+        item = data.get("item") or {}
+        db.user_state_upsert(u, key, "scrap", json.dumps(item, ensure_ascii=False),
+                             int(time.time() * 1000))
+    return jsonify({"ok": True})
+
+
+@app.post("/api/read")
+def read():
+    """읽음 처리. body: {key}. 미로그인=401."""
+    u = _current_user()
+    if not u:
+        return jsonify({"error": "unauthorized"}), 401
+    if not _ensure_db():
+        return jsonify({"ok": False}), 503
+    data = request.get_json(silent=True) or {}
+    key = (data.get("key") or "").strip()
+    if not key:
+        return jsonify({"ok": False}), 400
+    db.user_state_upsert(u, key, "read", "", int(time.time() * 1000))
     return jsonify({"ok": True})
 
 
