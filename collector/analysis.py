@@ -148,15 +148,19 @@ def build_input(window_days=90):
     for x in peers:
         peer_org_counts[x["org"]] = peer_org_counts.get(x["org"], 0) + 1
 
+    def trim(items):
+        return [{k: (v[:110] if k == "snippet" and isinstance(v, str) else v)
+                 for k, v in x.items()} for x in items]
+
     return {
         "as_of": today.isoformat(),
         "window_days": window_days,
-        "recent_our": recent_our[:120],
-        "recent_peers": recent_peers[:200],
+        "recent_our": trim(recent_our[:50]),
+        "recent_peers": trim(recent_peers[:90]),
         "baseline": {
             "our_quarters": quarter_counts(our),
             "peer_quarters": quarter_counts(peers),
-            "peer_org_totals": dict(sorted(peer_org_counts.items(), key=lambda kv: -kv[1])),
+            "peer_org_totals": dict(sorted(peer_org_counts.items(), key=lambda kv: -kv[1])[:12]),
             "our_total": len(our), "peer_total": len(peers),
         },
     }
@@ -189,7 +193,13 @@ SYSTEM_PROMPT = """당신은 비영리 재단 전략 애널리스트다. 수집�
  "review_tasks": [{"background":"", "change":"발견된 변화", "basis":"근거 데이터", "foundations":["..."], "question":"검토 질문"}],
  "confidence_note": "근거가 부족한 항목에 대한 주의 문구(있으면)"
 }
-evidence의 url/title은 반드시 입력 데이터에 실제 존재하는 것만 사용한다. 한국어로 작성한다."""
+evidence의 url/title은 반드시 입력 데이터에 실제 존재하는 것만 사용한다. 한국어로 작성한다.
+
+[분량 제한 — 반드시 지킬 것]
+- 각 배열(changes/trends/signals/benchmarks/review_tasks 등)은 가장 중요한 것 위주로 최대 5개.
+- 각 항목의 문장은 1~2문장으로 간결하게. highlights는 최대 4개.
+- evidence는 항목당 최대 2개.
+- 사고 과정·설명·코드펜스 없이, 완결된 JSON 객체 하나만 출력한다(반드시 끝까지 닫을 것)."""
 
 
 def _post_messages(key, model, user):
