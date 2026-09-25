@@ -194,12 +194,25 @@ evidence의 url/title은 반드시 입력 데이터에 실제 존재하는 것�
 
 def _post_messages(key, model, user):
     import requests
-    body = {"model": model, "max_tokens": 4096, "system": SYSTEM_PROMPT,
+    body = {"model": model, "max_tokens": 8000, "system": SYSTEM_PROMPT,
             "messages": [{"role": "user", "content": user}]}
     return requests.post(API_URL, headers={
         "x-api-key": key, "anthropic-version": "2023-06-01",
         "content-type": "application/json",
-    }, data=json.dumps(body), timeout=150)
+    }, data=json.dumps(body), timeout=180)
+
+
+def _text_from_response(j):
+    """Messages 응답에서 텍스트 블록만 모아 반환(thinking 등 비텍스트 블록은 건너뜀)."""
+    parts = []
+    for b in (j.get("content") or []):
+        if isinstance(b, dict) and b.get("type") == "text" and b.get("text"):
+            parts.append(b["text"])
+    if not parts:  # 폴백: type 없이 text만 있는 경우
+        for b in (j.get("content") or []):
+            if isinstance(b, dict) and b.get("text"):
+                parts.append(b["text"])
+    return "".join(parts)
 
 
 def _call_llm(payload_text, prev_text):
@@ -229,12 +242,16 @@ def _call_llm(payload_text, prev_text):
         avail = ", ".join(list_models(key)[:8]) or "(목록 조회 실패)"
         return None, None, f"LLM 오류 {r.status_code}: {r.text[:200]} · 사용가능 모델 예: {avail}"
     try:
-        txt = r.json()["content"][0]["text"]
+        j = r.json()
     except Exception as e:  # noqa: BLE001
         return None, None, f"LLM 응답 파싱 실패: {e}"
+    txt = _text_from_response(j)
+    if not txt:
+        return None, None, f"LLM 응답에 텍스트가 없어요 (stop_reason={j.get('stop_reason')})."
     data = _extract_json(txt)
     if data is None:
-        return None, None, "LLM이 JSON을 반환하지 않았습니다."
+        tail = "(출력이 잘렸을 수 있음)" if j.get("stop_reason") == "max_tokens" else ""
+        return None, None, f"LLM이 JSON을 반환하지 않았습니다 {tail}"
     return data, model, None
 
 
