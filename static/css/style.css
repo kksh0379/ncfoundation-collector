@@ -844,6 +844,9 @@ body.modal-open { overflow: hidden; }
 #event-view-toggle { display: none; }
 body.tab-event #event-view-toggle { display: inline-flex; }
 body.tab-event #view-toggle { display: none; }
+#event-view-toggle button svg { display: block; }
+/* hidden 속성이 display:grid보다 우선하도록(앨범↔캘린더 전환 확실히) */
+#list-event[hidden], #cal-event[hidden] { display: none !important; }
 
 .event-body { }
 .album-grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }

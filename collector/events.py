@@ -75,6 +75,13 @@ DOMESTIC_ORG_HINTS = [
 ]
 # 제목에 있으면 행사가 아닌(제외) 노이즈
 TITLE_EXCLUDE = ["채용", "수강생 모집", "공모전", "부고", "인사", "칼럼", "기고", "사설"]
+# 이미 끝난(성료) 행사 회고 기사 신호 → 제외(아직 종료 안 된 행사만 수집)
+PAST_EVENT_TOKENS = [
+    "성료", "성황리", "폐막", "막을 내렸", "막을 내린", "마무리됐", "마무리했",
+    "마쳤", "종료됐", "종료된", "열렸다", "개최됐", "개최했", "진행됐", "진행했",
+    "성공적으로 마", "성황리에", "뜨거운 관심 속", "참관객", "관람객", "성료했",
+    "참가했", "참관했", "참석했", "다녀왔", "선보였", "전시했",
+]
 
 
 def _has(text_low, words):
@@ -198,6 +205,9 @@ def crawl(max_workers=24, max_items=0, progress=None, known_urls=None, days=None
         tc = f"{title} {content}".lower()
         # 제목 노이즈 제외
         if any(x in title for x in TITLE_EXCLUDE):
+            continue
+        # 이미 성료(종료)된 행사 회고 기사 제외 → 아직 안 끝난 행사만
+        if any(x in tc for x in [p.lower() for p in PAST_EVENT_TOKENS]):
             continue
         # AI + 행사 관련성
         if not (_has(tc, AI_WORDS) and _has(tc, [w.lower() for w in EVENT_WORDS])):

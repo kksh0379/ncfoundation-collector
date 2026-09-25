@@ -311,12 +311,16 @@ def upsert_event_many(items):
 
 
 def list_events(limit=1000):
-    """행사 목록. 시작일 빠른 순(미상은 뒤), 최근 수집 순."""
+    """행사 목록. 이미 종료된 행사(end_date<오늘)는 제외(미상은 유지).
+    정렬: 시작일 빠른 순(미상은 뒤), 최근 수집 순."""
+    import datetime as _dt
+    today = _dt.date.today().isoformat()
     with get_conn() as conn:
         rows = conn.execute(_q(
-            "SELECT * FROM events ORDER BY "
-            "CASE WHEN start_date IS NULL OR start_date='' THEN 1 ELSE 0 END, "
-            "start_date ASC, id DESC LIMIT ?"), (limit,)).fetchall()
+            "SELECT * FROM events "
+            "WHERE end_date IS NULL OR end_date='' OR end_date >= ? "
+            "ORDER BY CASE WHEN start_date IS NULL OR start_date='' THEN 1 ELSE 0 END, "
+            "start_date ASC, id DESC LIMIT ?"), (today, limit)).fetchall()
         return [dict(r) for r in rows]
 
 
