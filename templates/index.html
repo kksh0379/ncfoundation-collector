@@ -4,15 +4,33 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>휴 스코프</title>
+  <meta name="description" content="재단·업계 뉴스와 재단 게시판·소셜 채널을 한 곳에서 모아보는 통합 스코프." />
   <meta name="theme-color" content="#2d6cdf" />
+
+  <!-- 링크 미리보기(카톡·슬랙·트위터 등) Open Graph -->
+  {% set og_base = 'https://' + request.host %}
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="휴 스코프" />
+  <meta property="og:title" content="휴 스코프" />
+  <meta property="og:description" content="재단·업계 뉴스와 재단 게시판·소셜 채널을 한눈에" />
+  <meta property="og:url" content="{{ og_base }}/" />
+  <meta property="og:image" content="{{ og_base }}{{ url_for('static', filename='og-image.png', v='111') }}" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:locale" content="ko_KR" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="휴 스코프" />
+  <meta name="twitter:description" content="재단·업계 뉴스와 재단 게시판·소셜 채널을 한눈에" />
+  <meta name="twitter:image" content="{{ og_base }}{{ url_for('static', filename='og-image.png', v='111') }}" />
+
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="휴 스코프" />
-  <link rel="icon" href="{{ url_for('static', filename='favicon.svg', v='110') }}" type="image/svg+xml" />
-  <link rel="icon" href="{{ url_for('static', filename='icon-192.png', v='110') }}" type="image/png" sizes="192x192" />
-  <link rel="apple-touch-icon" href="{{ url_for('static', filename='apple-touch-icon.png', v='110') }}" />
-  <link rel="manifest" href="{{ url_for('static', filename='site.webmanifest', v='110') }}" />
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css', v='110') }}" />
+  <link rel="icon" href="{{ url_for('static', filename='favicon.svg', v='111') }}" type="image/svg+xml" />
+  <link rel="icon" href="{{ url_for('static', filename='icon-192.png', v='111') }}" type="image/png" sizes="192x192" />
+  <link rel="apple-touch-icon" href="{{ url_for('static', filename='apple-touch-icon.png', v='111') }}" />
+  <link rel="manifest" href="{{ url_for('static', filename='site.webmanifest', v='111') }}" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css', v='111') }}" />
 </head>
 <body>
   <header class="app-header">
@@ -238,12 +256,12 @@
 
   <footer class="app-footer">
     <span class="foot-copy">© 2026 김상화</span>
-    <span class="ver">v1.08 · build 260925</span>
+    <span class="ver">v1.09 · build 260925</span>
     <span class="ver" id="storage-badge"></span>
   </footer>
 
   <button id="to-top" aria-label="맨 위로" hidden>↑</button>
 
-  <script src="{{ url_for('static', filename='js/app.js', v='110') }}"></script>
+  <script src="{{ url_for('static', filename='js/app.js', v='111') }}"></script>
 </body>
 </html>
