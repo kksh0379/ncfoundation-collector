@@ -458,9 +458,10 @@ body.is-admin .guest-only { display: none !important; }
   border: none;
   background: transparent;
   color: var(--muted);
-  font-size: 12px;
+  font-size: 15px;
   font-weight: 600;
-  padding: 6px 12px;
+  width: 36px; padding: 0;
+  justify-content: center;
   cursor: pointer;
 }
 .viewseg button.active { background: var(--primary); color: #fff; }
