@@ -17,8 +17,43 @@ from . import db, social
 
 OUR = "NC문화재단"
 OUR_ALIASES = ["엔씨문화재단", "NC문화재단", "ncfoundation"]
-MODEL = os.environ.get("ANALYSIS_MODEL", "claude-3-5-sonnet-latest")
 API_URL = "https://api.anthropic.com/v1/messages"
+MODELS_URL = "https://api.anthropic.com/v1/models"
+
+
+def list_models(key=None):
+    """키로 사용 가능한 모델 id 목록을 조회. 실패 시 빈 리스트."""
+    key = (key or os.environ.get("ANTHROPIC_API_KEY", "")).strip()
+    if not key:
+        return []
+    import requests
+    try:
+        r = requests.get(MODELS_URL, headers={"x-api-key": key, "anthropic-version": "2023-06-01"},
+                         timeout=20)
+        if r.status_code >= 400:
+            return []
+        return [m.get("id") for m in r.json().get("data", []) if m.get("id")]
+    except Exception:  # noqa: BLE001
+        return []
+
+
+def _pick_model(ids):
+    """sonnet > opus > haiku 순으로, 같은 급이면 최신(문자열 내림차순)을 고른다."""
+    if not ids:
+        return None
+
+    def score(mid):
+        tier = 3 if "sonnet" in mid else (2 if "opus" in mid else (1 if "haiku" in mid else 0))
+        return (tier, mid)
+    return sorted(ids, key=score, reverse=True)[0]
+
+
+def resolve_model(key=None):
+    """ANALYSIS_MODEL 지정 시 그걸, 아니면 계정에서 사용 가능한 모델 자동 선택."""
+    env = os.environ.get("ANALYSIS_MODEL", "").strip()
+    if env:
+        return env
+    return _pick_model(list_models(key)) or "claude-3-5-sonnet-latest"
 
 
 def _d10(s):
@@ -157,38 +192,50 @@ SYSTEM_PROMPT = """당신은 비영리 재단 전략 애널리스트다. 수집�
 evidence의 url/title은 반드시 입력 데이터에 실제 존재하는 것만 사용한다. 한국어로 작성한다."""
 
 
+def _post_messages(key, model, user):
+    import requests
+    body = {"model": model, "max_tokens": 4096, "system": SYSTEM_PROMPT,
+            "messages": [{"role": "user", "content": user}]}
+    return requests.post(API_URL, headers={
+        "x-api-key": key, "anthropic-version": "2023-06-01",
+        "content-type": "application/json",
+    }, data=json.dumps(body), timeout=150)
+
+
 def _call_llm(payload_text, prev_text):
     key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
     if not key:
-        return None, "ANTHROPIC_API_KEY 환경변수가 없습니다(관리자가 Render에 설정 필요)."
-    import requests
+        return None, None, "ANTHROPIC_API_KEY 환경변수가 없습니다(관리자가 Render에 설정 필요)."
     user = "[분석 입력 데이터]\n" + payload_text
     if prev_text:
         user += "\n\n[직전 리포트 요약(변화 비교용)]\n" + prev_text
     user += ("\n\n위 데이터로 스키마에 맞는 리포트 JSON 하나만 출력하라. "
              "recent_our/recent_peers가 이번 기간, baseline이 과거 흐름이다.")
-    body = {
-        "model": MODEL, "max_tokens": 4096,
-        "system": SYSTEM_PROMPT,
-        "messages": [{"role": "user", "content": user}],
-    }
+    model = resolve_model(key)
     try:
-        r = requests.post(API_URL, headers={
-            "x-api-key": key, "anthropic-version": "2023-06-01",
-            "content-type": "application/json",
-        }, data=json.dumps(body), timeout=120)
+        r = _post_messages(key, model, user)
     except Exception as e:  # noqa: BLE001
-        return None, f"LLM 요청 실패: {e}"
+        return None, None, f"LLM 요청 실패: {e}"
+    # 모델명 오류(404 not_found)면 계정에서 쓸 수 있는 모델을 골라 1회 재시도
+    if r.status_code == 404 and "not_found" in (r.text or ""):
+        alt = _pick_model(list_models(key))
+        if alt and alt != model:
+            model = alt
+            try:
+                r = _post_messages(key, model, user)
+            except Exception as e:  # noqa: BLE001
+                return None, None, f"LLM 요청 실패: {e}"
     if r.status_code >= 400:
-        return None, f"LLM 오류 {r.status_code}: {r.text[:300]}"
+        avail = ", ".join(list_models(key)[:8]) or "(목록 조회 실패)"
+        return None, None, f"LLM 오류 {r.status_code}: {r.text[:200]} · 사용가능 모델 예: {avail}"
     try:
         txt = r.json()["content"][0]["text"]
     except Exception as e:  # noqa: BLE001
-        return None, f"LLM 응답 파싱 실패: {e}"
+        return None, None, f"LLM 응답 파싱 실패: {e}"
     data = _extract_json(txt)
     if data is None:
-        return None, "LLM이 JSON을 반환하지 않았습니다."
-    return data, None
+        return None, None, "LLM이 JSON을 반환하지 않았습니다."
+    return data, model, None
 
 
 def _extract_json(txt):
@@ -231,9 +278,9 @@ def run(window_days=90, progress=None):
             prev_text = ""
     progress("AI 분석 중…(수십 초 소요)")
     payload_text = json.dumps(inp, ensure_ascii=False)
-    data, err = _call_llm(payload_text, prev_text)
+    data, used_model, err = _call_llm(payload_text, prev_text)
     if err:
         return None, err
     data["_meta"] = {"counts": counts, "window_days": window_days,
-                     "model": MODEL, "as_of": inp["as_of"]}
+                     "model": used_model or resolve_model(), "as_of": inp["as_of"]}
     return data, None

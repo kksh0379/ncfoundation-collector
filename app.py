@@ -1145,6 +1145,14 @@ def report_status():
                     "result": st.get("result")})
 
 
+@app.get("/api/report/models")
+def report_models():
+    """이 키로 쓸 수 있는 LLM 모델 목록(진단용, 관리자)."""
+    if not _admin_ok():
+        return jsonify({"error": "unauthorized"}), 401
+    return jsonify({"models": analysis.list_models(), "picked": analysis.resolve_model()})
+
+
 @app.get("/api/report/list")
 def report_list():
     if not _ensure_db():
