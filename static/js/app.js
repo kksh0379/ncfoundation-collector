@@ -351,7 +351,8 @@ function setTabData(tab, el, items, render) {
 function renderTab(tab) {
   const d = TAB_DATA[tab];
   if (!d) return;
-  const list = d.query ? smartFilter(d.items, d.query) : d.items;
+  const base = d.prefilter ? d.prefilter(d.items) : d.items;  // 탭 고유 사전필터(예: 뉴스 분류 체크박스)
+  const list = d.query ? smartFilter(base, d.query) : base;
   d.count = list.length;
   d.searching = !!d.query;
   if (tab === activeTab()) updateCount(tab);
@@ -424,15 +425,56 @@ function syncSearchInput() {
 }
 
 // ----------------------------- 데이터 로드 -----------------------------
+// NC뉴스 분류(체크박스): 재단 / 본사 / 자회사. 자회사는 본사 카테고리 중 자회사 키워드로 구분.
+let newsCats = new Set(["재단"]);
+const NEWS_SUB_KW = ["엔씨에이아이", "nc ai", "ncai", "엔씨qa", "ncqa", "엔씨ids", "ncids",
+  "퍼스트스파크", "빅파이어", "루디우스", "자회사"];
+function newsBucket(it) {
+  if ((it.category || "") === "재단") return "재단";
+  const tc = `${it.title || ""} ${it.content || ""}`.toLowerCase();
+  return NEWS_SUB_KW.some((k) => tc.includes(k)) ? "자회사" : "본사";
+}
+function filterNewsByCat(items) {
+  if (newsCats.size >= 3) return items;      // 전부 선택 = 전체
+  if (newsCats.size === 0) return [];         // 모두 해제 = 없음
+  return items.filter((it) => newsCats.has(newsBucket(it)));
+}
 async function loadNews() {
   const el = document.getElementById("list-news");
   showLoading(el);
-  const category = ddValue("dd-news-category");
   try {
-    const res = await fetch("/api/news?category=" + encodeURIComponent(category));
+    const res = await fetch("/api/news?category=all");   // 전체를 받아 분류는 클라이언트에서
     setTabData("news", el, await res.json(), (list) => renderNewsGroups(el, list));
+    TAB_DATA.news.prefilter = filterNewsByCat;
+    renderTab("news");
   } catch (e) { emptyState(el, "불러오지 못했어요. 잠시 후 다시 시도해 주세요."); }
 }
+// 체크박스 초기화(전체=모두 토글, 개별 토글, 전체상태 동기화)
+(function initNewsCats() {
+  const box = document.getElementById("news-cats");
+  if (!box) return;
+  const cats = ["재단", "본사", "자회사"];
+  const allBox = box.querySelector('[data-cat="all"]');
+  const catBoxes = cats.map((c) => box.querySelector(`[data-cat="${c}"]`));
+  const syncUI = () => {
+    catBoxes.forEach((cb) => { cb.checked = newsCats.has(cb.dataset.cat); });
+    allBox.checked = cats.every((c) => newsCats.has(c));
+  };
+  box.addEventListener("change", (e) => {
+    const cb = e.target;
+    const cat = cb.dataset.cat;
+    if (cat === "all") {
+      newsCats = cb.checked ? new Set(cats) : new Set();
+    } else if (cb.checked) {
+      newsCats.add(cat);
+    } else {
+      newsCats.delete(cat);
+    }
+    syncUI();
+    if (TAB_DATA.news) renderTab("news");
+  });
+  syncUI();
+})();
 
 async function loadCat() {
   const el = document.getElementById("list-cat");
@@ -934,7 +976,6 @@ document.addEventListener("click", () =>
   document.querySelectorAll(".dropdown-menu").forEach((m) => (m.hidden = true))
 );
 setupDropdown("dd-cat-category", loadCat);
-setupDropdown("dd-news-category", loadNews);
 setupDropdown("dd-service", loadBoards);
 setupDropdown("dd-channel", loadSocial);
 

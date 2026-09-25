@@ -14,23 +14,23 @@
   <meta property="og:title" content="휴 스코프" />
   <meta property="og:description" content="재단·업계 뉴스와 재단 게시판·소셜 채널을 한눈에" />
   <meta property="og:url" content="{{ og_base }}/" />
-  <meta property="og:image" content="{{ og_base }}{{ url_for('static', filename='og-image.png', v='124') }}" />
+  <meta property="og:image" content="{{ og_base }}{{ url_for('static', filename='og-image.png', v='125') }}" />
   <meta property="og:image:width" content="1200" />
   <meta property="og:image:height" content="630" />
   <meta property="og:locale" content="ko_KR" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="휴 스코프" />
   <meta name="twitter:description" content="재단·업계 뉴스와 재단 게시판·소셜 채널을 한눈에" />
-  <meta name="twitter:image" content="{{ og_base }}{{ url_for('static', filename='og-image.png', v='124') }}" />
+  <meta name="twitter:image" content="{{ og_base }}{{ url_for('static', filename='og-image.png', v='125') }}" />
 
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="휴 스코프" />
-  <link rel="icon" href="{{ url_for('static', filename='favicon.svg', v='124') }}" type="image/svg+xml" />
-  <link rel="icon" href="{{ url_for('static', filename='icon-192.png', v='124') }}" type="image/png" sizes="192x192" />
-  <link rel="apple-touch-icon" href="{{ url_for('static', filename='apple-touch-icon.png', v='124') }}" />
-  <link rel="manifest" href="{{ url_for('static', filename='site.webmanifest', v='124') }}" />
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css', v='124') }}" />
+  <link rel="icon" href="{{ url_for('static', filename='favicon.svg', v='125') }}" type="image/svg+xml" />
+  <link rel="icon" href="{{ url_for('static', filename='icon-192.png', v='125') }}" type="image/png" sizes="192x192" />
+  <link rel="apple-touch-icon" href="{{ url_for('static', filename='apple-touch-icon.png', v='125') }}" />
+  <link rel="manifest" href="{{ url_for('static', filename='site.webmanifest', v='125') }}" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css', v='125') }}" />
 </head>
 <body>
   <header class="app-header">
@@ -114,16 +114,11 @@
   <!-- 탭1: 뉴스 -->
   <section class="panel" id="panel-news">
     <div class="toolbar">
-      <div class="dropdown" id="dd-news-category" data-value="재단">
-        <button type="button" class="dropdown-btn" aria-haspopup="listbox" aria-expanded="false">
-          <span class="dropdown-label">재단</span><span class="dropdown-caret">▾</span>
-        </button>
-        <ul class="dropdown-menu" role="listbox" hidden>
-          <li role="option" data-value="all">전체 (재단+본사)</li>
-          {% for c in news_categories %}
-          <li role="option" data-value="{{ c }}"{% if c == '재단' %} class="selected"{% endif %}>{{ c }}</li>
-          {% endfor %}
-        </ul>
+      <div class="checkbar" id="news-cats" role="group" aria-label="뉴스 분류 선택">
+        <label><input type="checkbox" data-cat="all" /> 전체</label>
+        <label><input type="checkbox" data-cat="재단" checked /> 재단</label>
+        <label><input type="checkbox" data-cat="본사" /> 본사</label>
+        <label><input type="checkbox" data-cat="자회사" /> 자회사</label>
       </div>
       <button class="btn-status admin-only" id="status-news-btn">상태 확인</button>
       <button class="btn-collect admin-only" id="collect-news">수집 실행</button>
@@ -316,7 +311,7 @@
   <footer class="app-footer">
     <div class="foot-left">
       <span class="foot-copy">© 2026 김상화</span>
-      <span class="ver">v1.22 · build 260925</span>
+      <span class="ver">v1.23 · build 260925</span>
       <span class="ver" id="storage-badge"></span>
     </div>
     <div class="foot-right">
@@ -328,6 +323,6 @@
 
   <button id="to-top" aria-label="맨 위로" hidden>↑</button>
 
-  <script src="{{ url_for('static', filename='js/app.js', v='124') }}"></script>
+  <script src="{{ url_for('static', filename='js/app.js', v='125') }}"></script>
 </body>
 </html>

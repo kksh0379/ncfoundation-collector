@@ -896,3 +896,8 @@ body.tab-event #view-toggle { display: none; }
 .agenda-go { flex: 0 0 auto; color: var(--muted); font-size: 14px; align-self: center; }
 .agenda-empty { text-align: center; color: var(--muted); font-size: 13px; padding: 20px 0; }
 .cal-note { margin-top: 12px; font-size: 12px; color: var(--muted); text-align: center; }
+
+/* NC뉴스 분류 체크박스 */
+.checkbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; flex: 1; min-width: 0; }
+.checkbar label { display: inline-flex; align-items: center; gap: 5px; font-size: 14px; font-weight: 600; color: var(--text); cursor: pointer; white-space: nowrap; }
+.checkbar input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--primary); cursor: pointer; }
