@@ -848,6 +848,12 @@ body.tab-event #view-toggle { display: none; }
 /* hidden 속성이 display:grid보다 우선하도록(앨범↔캘린더 전환 확실히) */
 #list-event[hidden], #cal-event[hidden] { display: none !important; }
 
+.event-note {
+  margin: 4px 0 10px; padding: 10px 12px;
+  background: #fff8e1; border: 1px solid #f5d98b; border-radius: 8px;
+  font-size: 12px; line-height: 1.55; color: #7a5b00;
+}
+.event-note b { color: #6a4e00; font-weight: 800; }
 .event-body { }
 .album-grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
 @media (max-width: 380px) { .album-grid { grid-template-columns: 1fr; } }

@@ -14,13 +14,16 @@ import re
 
 from . import google_news
 
-# AI + 행사 후보 검색어(검색어 자체가 1차 조건 → keyword_filter=False)
+# 국내 행사 후보 검색어(검색어 자체가 1차 조건 → keyword_filter=False).
+# 국내 전반 행사를 폭넓게 모으려고 '행사장·지역 앵커 + 일반 행사어'로 확장.
 EVENT_CATEGORIES = {
     "행사": [
-        "인공지능 (컨퍼런스 OR 세미나 OR 포럼 OR 박람회 OR 전시회 OR 엑스포) 개최",
-        "AI (컨퍼런스 OR 세미나 OR 포럼 OR 밋업 OR 해커톤 OR 웨비나) (개최 OR 참가신청 OR 사전등록)",
-        "생성형AI (세미나 OR 컨퍼런스 OR 포럼 OR 웨비나) 개최",
-        "(AI OR 인공지능) (엑스포 OR 박람회 OR 전시회 OR 컨퍼런스) (코엑스 OR 킨텍스 OR 벡스코)",
+        "(컨퍼런스 OR 콘퍼런스 OR 세미나 OR 포럼 OR 박람회 OR 전시회 OR 엑스포 OR 서밋) 개최",
+        "(코엑스 OR 킨텍스 OR 벡스코 OR 엑스코 OR 송도컨벤시아 OR 대전컨벤션 OR aT센터) (개최 OR 박람회 OR 전시회 OR 컨퍼런스)",
+        "(서울 OR 부산 OR 대구 OR 인천 OR 대전 OR 광주 OR 경기 OR 제주) (박람회 OR 전시회 OR 포럼 OR 컨퍼런스 OR 페어) 개최",
+        "(밋업 OR 해커톤 OR 데모데이 OR 페어 OR 콘퍼런스 OR 심포지엄 OR 워크숍) (개최 OR 참가신청 OR 사전등록)",
+        "(스타트업 OR 테크 OR 산업 OR 과학 OR 문화 OR 예술 OR 취업 OR 채용) (컨퍼런스 OR 포럼 OR 박람회 OR 페스티벌) 개최",
+        "(AI OR 인공지능 OR 디지털 OR 반도체 OR 바이오 OR 게임) (컨퍼런스 OR 세미나 OR 포럼 OR 엑스포 OR 박람회) 개최",
     ],
 }
 
@@ -209,8 +212,8 @@ def crawl(max_workers=24, max_items=0, progress=None, known_urls=None, days=None
         # 이미 성료(종료)된 행사 회고 기사 제외 → 아직 안 끝난 행사만
         if any(x in tc for x in [p.lower() for p in PAST_EVENT_TOKENS]):
             continue
-        # AI + 행사 관련성
-        if not (_has(tc, AI_WORDS) and _has(tc, [w.lower() for w in EVENT_WORDS])):
+        # 행사 관련성(국내 행사 전반 — AI 한정 해제)
+        if not _has(tc, [w.lower() for w in EVENT_WORDS]):
             continue
         # 국내 행사
         if not is_domestic(title, content):
