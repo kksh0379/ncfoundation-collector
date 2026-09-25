@@ -204,12 +204,15 @@ evidence의 url/title은 반드시 입력 데이터에 실제 존재하는 것�
 
 def _post_messages(key, model, user):
     import requests
-    body = {"model": model, "max_tokens": 8000, "system": SYSTEM_PROMPT,
+    # Claude 5 계열은 내부 추론(thinking)에도 출력 토큰을 쓰므로 넉넉히 잡아
+    # 추론 + 완결 JSON이 모두 들어가게 한다(부족하면 stop_reason=max_tokens로 잘림).
+    max_tokens = int(os.environ.get("ANALYSIS_MAX_TOKENS", "16000"))
+    body = {"model": model, "max_tokens": max_tokens, "system": SYSTEM_PROMPT,
             "messages": [{"role": "user", "content": user}]}
     return requests.post(API_URL, headers={
         "x-api-key": key, "anthropic-version": "2023-06-01",
         "content-type": "application/json",
-    }, data=json.dumps(body), timeout=180)
+    }, data=json.dumps(body), timeout=240)
 
 
 def _text_from_response(j):
