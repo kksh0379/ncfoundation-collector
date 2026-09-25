@@ -241,7 +241,7 @@ body.is-loggedin .loggedout-only { display: none !important; }
   cursor: pointer;
   white-space: nowrap;
 }
-.tab .nc-ci { flex: 0 0 auto; display: block; }
+.tab .nc-ci, .tab .cat-ci, .tab .yt-ci { flex: 0 0 auto; display: block; }
 .toolbar-title { flex: 1; font-size: 14px; font-weight: 700; color: var(--text); align-self: center; }
 .tab.active {
   color: var(--primary);
