@@ -3,6 +3,7 @@ __pycache__/
 .venv/
 venv/
 data/*.db
+data/*.db-journal
 .DS_Store
 
 # 미리보기 생성물(대용량/바이너리)
