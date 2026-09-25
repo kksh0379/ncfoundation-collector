@@ -28,6 +28,13 @@ EVENT_CATEGORIES = {
         "(밋업 OR 해커톤 OR 데모데이 OR 페어 OR 콘퍼런스 OR 심포지엄 OR 워크숍) (개최 OR 참가신청 OR 사전등록)",
         "(스타트업 OR 테크 OR 산업 OR 과학 OR 문화 OR 예술 OR 취업 OR 채용) (컨퍼런스 OR 포럼 OR 박람회 OR 페스티벌) 개최",
         "(AI OR 인공지능 OR 디지털 OR 반도체 OR 바이오 OR 게임) (컨퍼런스 OR 세미나 OR 포럼 OR 엑스포 OR 박람회) 개최",
+        # 확장: '개최 예정/열린다/개막/참가신청' 표현 + 연도 앵커로 후보 확대
+        "(컨퍼런스 OR 세미나 OR 포럼 OR 박람회 OR 전시회 OR 엑스포) (개최 예정 OR 열린다 OR 개막)",
+        "(참가 신청 OR 사전 등록 OR 참가자 모집) (컨퍼런스 OR 세미나 OR 포럼 OR 박람회 OR 엑스포 OR 웨비나)",
+        "(수원컨벤션 OR 김대중컨벤션 OR 제주국제컨벤션 OR 누리꿈스퀘어 OR DDP) (개최 OR 박람회 OR 컨퍼런스 OR 전시회)",
+        "(2026 OR 2027) (국제 OR 대한민국 OR 코리아) (컨퍼런스 OR 박람회 OR 엑스포 OR 포럼 OR 전시회) 개최",
+        "(의료 OR 헬스케어 OR 금융 OR 물류 OR 뷰티 OR 식품 OR 교육 OR 관광 OR 건설 OR 로봇 OR 모빌리티) (박람회 OR 전시회 OR 컨퍼런스 OR 포럼) 개최",
+        "(채용박람회 OR 취업박람회 OR 창업 OR 벤처 OR 투자) (박람회 OR 포럼 OR 데모데이 OR 페어) 개최",
     ],
 }
 
@@ -195,6 +202,20 @@ def extract_dates(title, content, today=None, pub=None):
         if start:
             return start.isoformat(), (end or start).isoformat()
 
+    # 4) '일시/기간/일정' 라벨 뒤 숫자 날짜: 일시 11.3 / 기간 11/3~11/5 (연도는 작성일 기준)
+    m = re.search(r"(?:일시|기간|일정|날짜|개최일)\s*[:：]?\s*(?:20\d{2}[.\-/])?"
+                  r"(\d{1,2})[.\-/](\d{1,2})(?:\s*[~\-∼]\s*(?:(\d{1,2})[.\-/])?(\d{1,2}))?", text)
+    if m:
+        sm, sd = int(m.group(1)), int(m.group(2))
+        start = _infer_year(sm, sd, anchor)
+        end = start
+        if m.group(4) and start:
+            em = int(m.group(3)) if m.group(3) else sm
+            ey = start.year + (1 if em < sm else 0)
+            end = _mk(ey, em, int(m.group(4))) or start
+        if start:
+            return start.isoformat(), (end or start).isoformat()
+
     return None, None
 
 
@@ -202,7 +223,7 @@ def _norm_title(t):
     return re.sub(r"[^0-9a-z가-힣]", "", (t or "").lower())[:24]
 
 
-EVENT_BODY_MAX = int(os.environ.get("EVENT_BODY_MAX", "260"))  # 본문 조회 상한(날짜 없는 후보만)
+EVENT_BODY_MAX = int(os.environ.get("EVENT_BODY_MAX", "400"))  # 본문 조회 상한(날짜 없는 후보만)
 
 
 def _fetch_body(entry):
