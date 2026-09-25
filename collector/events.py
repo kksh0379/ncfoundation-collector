@@ -103,23 +103,24 @@ def _first_hit(text, words):
     return ""
 
 
+# 해외 참가/개최 기사임을 시사하는 문맥어(해외 국가와 함께 나오면 제외)
+OVERSEAS_CONTEXT = ["참가", "참관", "참석", "현지", "해외", "개최지", "방문", "진출", "출장", "특파원"]
+
+
 def is_domestic(title, content):
-    """국내 행사 판별. (True/False)"""
+    """국내 행사 판별. 소스가 한국 뉴스(gl=KR)라 기본은 '국내'로 보고, 해외 신호가 있을 때만 제외."""
     text = f"{title}  {content}"
     low = text.lower()
+    # 해외 행사명·도시(CES/MWC/라스베이거스 등) 명시 → 제외(참가 기사 포함)
     if _has(low, [t.lower() for t in OVERSEAS_TOKENS]):
-        return False  # 해외 행사명·도시 명시 → 제외(참가 기사 포함)
+        return False
     venue = _has(low, [v.lower() for v in DOMESTIC_VENUES])
     region = any(r in text for r in DOMESTIC_REGIONS)
-    country = any(c in text for c in OVERSEAS_COUNTRIES)
-    if country and not (venue or region):
-        return False  # 해외 국가 언급 + 국내 장소 근거 없음 → 제외
-    if venue or region:
-        return True   # 국내 오프라인 장소 근거
-    online = _has(low, [o.lower() for o in ONLINE_TOKENS])
-    if online and _has(low, [o.lower() for o in DOMESTIC_ORG_HINTS]):
-        return True   # 온라인: 국내 기관 주최/주관 근거
-    return False      # 근거 불충분 → 보수적으로 제외
+    # 해외 국가 + 참가/현지 등 문맥 + 국내 장소 근거 없음 → 해외 참가 기사로 제외
+    if any(c in text for c in OVERSEAS_COUNTRIES) and any(w in text for w in OVERSEAS_CONTEXT):
+        if not (venue or region):
+            return False
+    return True   # 기본: 국내
 
 
 def _mk(y, m, d):
