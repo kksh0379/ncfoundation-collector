@@ -243,6 +243,7 @@ body.is-loggedin .loggedout-only { display: none !important; }
 }
 .tab .nc-ci, .tab .cat-ci, .tab .yt-ci { flex: 0 0 auto; display: block; }
 .tab .cat-photo { flex: 0 0 auto; width: 20px; height: 20px; border-radius: 50%; object-fit: cover; display: block; }
+.tab .nc-mark { flex: 0 0 auto; color: #1b3f8f; font-weight: 900; font-size: 17px; letter-spacing: -1.5px; line-height: 1; }
 .toolbar-title { flex: 1; font-size: 14px; font-weight: 700; color: var(--text); align-self: center; }
 .tab.active {
   color: var(--primary);
