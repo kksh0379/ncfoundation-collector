@@ -62,27 +62,49 @@ function setView(mode) {
 })();
 
 // ----------------------------- 로딩 표시 / 무한 스크롤 -----------------------------
-// 🐱 한복 고양이 로딩 스피너: 흰 고양이 얼굴 둘레로 한복색 링이 회전
+// 🐱 로딩 스피너: 춤추는 하얀 코숏(직접 그린 애니메이션 SVG). 애니메이션은 style.css.
 function catSpin(label) {
   return `<div class="cat-load">
-    <span class="cat-spin"><svg viewBox="0 0 40 40" width="52" height="52" aria-hidden="true">
-      <defs><linearGradient id="hanbokGrad" x1="0" y1="0" x2="1" y2="1">
-        <stop offset="0" stop-color="#f2789f"/><stop offset=".5" stop-color="#3fd0c6"/><stop offset="1" stop-color="#2d6cdf"/>
-      </linearGradient></defs>
-      <circle class="cat-ring" cx="20" cy="20" r="17" fill="none" stroke="url(#hanbokGrad)"
-        stroke-width="3" stroke-linecap="round" stroke-dasharray="62 45"/>
-      <g class="cat-face">
-        <path d="M12 13 L14.5 6 L18.5 12 Z" fill="#fff" stroke="#ead8b0" stroke-width=".7"/>
-        <path d="M28 13 L25.5 6 L21.5 12 Z" fill="#fff" stroke="#ead8b0" stroke-width=".7"/>
-        <circle cx="20" cy="22" r="9" fill="#fff" stroke="#e9e9e9" stroke-width=".6"/>
-        <circle cx="16.7" cy="21" r="1.35" fill="#6f9457"/>
-        <circle cx="23.3" cy="21" r="1.35" fill="#6f9457"/>
-        <path d="M20 23.2 l-1 1.2 h2 z" fill="#f2a6bb"/>
-        <path d="M20 24.4 q0 1.4 -1.6 1.6 M20 24.4 q0 1.4 1.6 1.6" fill="none" stroke="#d98fa6" stroke-width=".55"/>
-        <path d="M12.5 22 H8 M12.6 24 H8.4" stroke="#d7d7d7" stroke-width=".5"/>
-        <path d="M27.5 22 H32 M27.4 24 H31.6" stroke="#d7d7d7" stroke-width=".5"/>
+    <svg class="cat-dance" viewBox="0 0 100 100" role="img" aria-label="불러오는 중">
+      <ellipse class="cd-shadow" cx="50" cy="93" rx="22" ry="3.6" fill="#000"/>
+      <g class="cd-all">
+        <!-- 꼬리 -->
+        <path class="cd-tail" d="M37,80 C21,81 15,66 22,56 C25,51 31,53 31,59 C31,65 28,71 38,75 Z"
+              fill="#fff" stroke="#e4e4ea" stroke-width="2" stroke-linejoin="round"/>
+        <!-- 팔(양쪽으로 흔들흔들) -->
+        <g class="cd-armR">
+          <path d="M37,60 C28,60 23,54 22,47" fill="none" stroke="#fff" stroke-width="8" stroke-linecap="round"/>
+          <circle cx="21.5" cy="46" r="4.6" fill="#fff" stroke="#e4e4ea" stroke-width="2"/>
+        </g>
+        <g class="cd-armL">
+          <path d="M63,60 C72,60 77,54 78,47" fill="none" stroke="#fff" stroke-width="8" stroke-linecap="round"/>
+          <circle cx="78.5" cy="46" r="4.6" fill="#fff" stroke="#e4e4ea" stroke-width="2"/>
+        </g>
+        <!-- 몸통 -->
+        <path d="M34,86 C31,66 37,55 50,55 C63,55 69,66 66,86 C66,89 60,90.5 50,90.5 C40,90.5 34,89 34,86 Z"
+              fill="#fff" stroke="#e4e4ea" stroke-width="2" stroke-linejoin="round"/>
+        <ellipse cx="50" cy="77" rx="8.5" ry="11" fill="#f4f5f8"/>
+        <!-- 발 -->
+        <ellipse cx="43" cy="89.5" rx="5.4" ry="4.1" fill="#fff" stroke="#e4e4ea" stroke-width="2"/>
+        <ellipse cx="57" cy="89.5" rx="5.4" ry="4.1" fill="#fff" stroke="#e4e4ea" stroke-width="2"/>
+        <!-- 머리 -->
+        <g class="cd-head">
+          <path d="M31,29 L33,12 L47,25 Z" fill="#fff" stroke="#e4e4ea" stroke-width="2" stroke-linejoin="round"/>
+          <path d="M69,29 L67,12 L53,25 Z" fill="#fff" stroke="#e4e4ea" stroke-width="2" stroke-linejoin="round"/>
+          <path d="M34.5,26 L35.5,17 L43,25 Z" fill="#f6b8ce"/>
+          <path d="M65.5,26 L64.5,17 L57,25 Z" fill="#f6b8ce"/>
+          <circle cx="50" cy="37" r="20" fill="#fff" stroke="#e4e4ea" stroke-width="2"/>
+          <ellipse cx="37" cy="43" rx="4" ry="2.6" fill="#f9ccdb"/>
+          <ellipse cx="63" cy="43" rx="4" ry="2.6" fill="#f9ccdb"/>
+          <path d="M40,37 q3,-4.5 6,0" fill="none" stroke="#4a4a52" stroke-width="2.4" stroke-linecap="round"/>
+          <path d="M54,37 q3,-4.5 6,0" fill="none" stroke="#4a4a52" stroke-width="2.4" stroke-linecap="round"/>
+          <path d="M48.4,41.5 h3.2 l-1.6,1.9 Z" fill="#f2879f"/>
+          <path d="M50,43.4 q-2.3,2.4 -4.6,0 M50,43.4 q2.3,2.4 4.6,0" fill="none" stroke="#c98aa0" stroke-width="1.4" stroke-linecap="round"/>
+          <path d="M32,39 H22 M33,43 H23.5" stroke="#dcdce3" stroke-width="1.3" stroke-linecap="round"/>
+          <path d="M68,39 H78 M67,43 H76.5" stroke="#dcdce3" stroke-width="1.3" stroke-linecap="round"/>
+        </g>
       </g>
-    </svg></span>
+    </svg>
     <span class="cat-load-label">${escapeHtml(label || "불러오는 중…")}</span>
   </div>`;
 }

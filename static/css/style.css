@@ -141,13 +141,51 @@ body.is-admin .guest-only { display: none !important; }
   margin-right: 4px;
 }
 
-/* 🐱 고양이 로딩 스피너 (한복 입은 하얀 고양이 모티프) */
-.cat-load { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 26px 0; }
-.cat-spin { display: inline-block; width: 52px; height: 52px; }
-.cat-spin .cat-ring { transform-origin: 20px 20px; animation: spin 0.9s linear infinite; }
-.cat-spin .cat-face { transform-origin: 20px 22px; animation: catbob 0.9s ease-in-out infinite; }
+/* 🐱 로딩 스피너 — 춤추는 하얀 코숏(직접 그린 애니메이션 SVG) */
+.cat-load { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 26px 0; }
+.cat-dance { display: inline-block; width: 96px; height: 96px; overflow: visible; }
 .cat-load-label { font-size: 13px; color: var(--muted); font-weight: 600; }
-@keyframes catbob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-1.5px); } }
+
+/* 각 파트 회전축을 viewBox 좌표(0~100)로 정확히 지정 */
+.cat-dance .cd-all, .cat-dance .cd-head, .cat-dance .cd-armL,
+.cat-dance .cd-armR, .cat-dance .cd-tail, .cat-dance .cd-shadow { transform-box: view-box; }
+.cat-dance .cd-all   { transform-origin: 50px 88px; animation: cd-body 0.85s ease-in-out infinite; }
+.cat-dance .cd-head  { transform-origin: 50px 53px; animation: cd-head 0.85s ease-in-out infinite; }
+.cat-dance .cd-armL  { transform-origin: 63px 60px; animation: cd-armL 0.85s ease-in-out infinite; }
+.cat-dance .cd-armR  { transform-origin: 37px 60px; animation: cd-armR 0.85s ease-in-out infinite; }
+.cat-dance .cd-tail  { transform-origin: 37px 80px; animation: cd-tail 0.85s ease-in-out infinite; }
+.cat-dance .cd-shadow{ transform-origin: 50px 93px; animation: cd-shadow 0.85s ease-in-out infinite; }
+
+@keyframes cd-body {
+  0%,100% { transform: translateY(0) rotate(-4deg); }
+  25%     { transform: translateY(-5px) rotate(0deg); }
+  50%     { transform: translateY(0) rotate(4deg); }
+  75%     { transform: translateY(-5px) rotate(0deg); }
+}
+@keyframes cd-head {
+  0%,100% { transform: rotate(5deg); }
+  50%     { transform: rotate(-5deg); }
+}
+@keyframes cd-armL {
+  0%,100% { transform: rotate(28deg); }
+  50%     { transform: rotate(-42deg); }
+}
+@keyframes cd-armR {
+  0%,100% { transform: rotate(42deg); }
+  50%     { transform: rotate(-28deg); }
+}
+@keyframes cd-tail {
+  0%,100% { transform: rotate(-16deg); }
+  50%     { transform: rotate(20deg); }
+}
+@keyframes cd-shadow {
+  0%,100% { transform: scaleX(1); opacity: .28; }
+  25%,75% { transform: scaleX(.8); opacity: .18; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cat-dance .cd-all, .cat-dance .cd-head, .cat-dance .cd-armL,
+  .cat-dance .cd-armR, .cat-dance .cd-tail, .cat-dance .cd-shadow { animation: none; }
+}
 
 /* 인스타 안내 메모 */
 .ig-note { font-size: 12.5px; color: var(--muted); margin: 2px 0 4px; }
