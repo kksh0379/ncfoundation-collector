@@ -10,9 +10,13 @@
 앨범은 날짜 미상이어도 노출한다. 조건은 상수로 빼서 조정하기 쉽게 했다.
 """
 import datetime
+import os
 import re
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
-from . import google_news
+from bs4 import BeautifulSoup
+
+from . import extractor, fetcher, google_news
 
 # 국내 행사 후보 검색어(검색어 자체가 1차 조건 → keyword_filter=False).
 # 국내 전반 행사를 폭넓게 모으려고 '행사장·지역 앵커 + 일반 행사어'로 확장.
@@ -197,57 +201,108 @@ def _norm_title(t):
     return re.sub(r"[^0-9a-z가-힣]", "", (t or "").lower())[:24]
 
 
+EVENT_BODY_MAX = int(os.environ.get("EVENT_BODY_MAX", "260"))  # 본문 조회 상한(날짜 없는 후보만)
+
+
+def _fetch_body(entry):
+    """구글 링크를 원문으로 복원해 본문 전체 텍스트를 가져온다.
+    반환: (본문텍스트, 최종URL, 대표이미지) — 실패 시 ('', None, None)."""
+    try:
+        real = google_news._decode_google_url(entry.get("url", "")) or entry.get("source_url") or entry.get("url")
+        if not real:
+            return "", None, None
+        resp = fetcher.get(real, retries=0, timeout=google_news.NEWS_TIMEOUT)
+        final = resp.url or ""
+        if "news.google." in final or "consent.google" in final:
+            return "", None, None
+        soup = BeautifulSoup(resp.text, "lxml")
+        art = extractor.extract_article(soup, final)
+        return (art.get("content") or ""), (final or None), extractor.extract_image(soup)
+    except Exception:  # noqa: BLE001
+        return "", None, None
+
+
 def crawl(max_workers=24, max_items=0, progress=None, known_urls=None, days=None):
-    """AI 국내 행사 수집. google_news.crawl로 후보를 모으고 규칙으로 필터·날짜추출.
+    """국내 행사 수집. google_news 후보 → 필터 + 날짜추출(요약에 없으면 본문 조회).
     반환: 행사 dict 리스트(venue/region/start_date/end_date 포함)."""
     progress = progress or (lambda m: None)
     today = datetime.date.today()
-    # 후보 수집(검색어=조건이라 키워드필터 끔). 기간 미지정 시 넉넉히(최근 180일 기사).
     cand = google_news.crawl(
         max_workers=max_workers, max_items=0, progress=progress,
         known_urls=None, days=(int(days) if days else 180),
         categories=EVENT_CATEGORIES, keyword_filter=False,
     )
     progress(f"행사 후보 {len(cand)}건 판별 중…")
-    out, seen = [], set()
-    for e in cand:
-        title = e.get("title") or ""
-        content = e.get("content") or ""
-        tc = f"{title} {content}".lower()
-        # 제목 노이즈 제외
-        if any(x in title for x in TITLE_EXCLUDE):
-            continue
-        # 이미 성료(종료)된 행사 회고 기사 제외 → 아직 안 끝난 행사만
-        if any(x in tc for x in [p.lower() for p in PAST_EVENT_TOKENS]):
-            continue
-        # 행사 관련성(국내 행사 전반 — AI 한정 해제)
-        if not _has(tc, [w.lower() for w in EVENT_WORDS]):
-            continue
-        # 국내 행사
-        if not is_domestic(title, content):
-            continue
-        # 연도 추정 기준: 기사 작성일(없으면 오늘)
-        pub = None
+
+    def _pub(e):
         pubs = (e.get("published_at") or "")[:10]
         try:
-            pub = datetime.date.fromisoformat(pubs) if pubs else None
+            return datetime.date.fromisoformat(pubs)
         except ValueError:
-            pub = None
-        start, end = extract_dates(title, content, today, pub)
-        # 날짜가 확인되지 않으면(미정) 제외 → 캘린더가 비지 않게 + 지난행사 노이즈 방지
+            return None
+
+    # 1차(요약 기준): 제목노이즈·성료어 제외 + 행사 관련성. 요약에 날짜가 있으면 본문 불필요.
+    pool, need_body = [], []
+    for e in cand:
+        title = e.get("title") or ""
+        snip = e.get("content") or ""
+        tc = f"{title} {snip}".lower()
+        if any(x in title for x in TITLE_EXCLUDE):
+            continue
+        if any(x in tc for x in [p.lower() for p in PAST_EVENT_TOKENS]):
+            continue
+        if not _has(tc, [w.lower() for w in EVENT_WORDS]):
+            continue
+        e["_pub"] = _pub(e)
+        e["_snip_start"] = extract_dates(title, snip, today, e["_pub"])[0]
+        pool.append(e)
+        if not e["_snip_start"]:
+            need_body.append(e)
+
+    # 날짜가 요약에 없는 후보만 본문 조회(최신순 우선, 상한)
+    need_body.sort(key=lambda e: (e.get("_pub") or datetime.date.min), reverse=True)
+    fetchset = need_body[:EVENT_BODY_MAX]
+    bodies = {}
+    if fetchset:
+        progress(f"본문 열어 일정 확인 0/{len(fetchset)}")
+        with ThreadPoolExecutor(max_workers=min(max_workers, 12)) as tp:
+            futs = {tp.submit(_fetch_body, e): e for e in fetchset}
+            done = 0
+            for fut in as_completed(futs):
+                e = futs[fut]
+                bodies[e.get("url")] = fut.result()
+                done += 1
+                if done % 20 == 0 or done == len(fetchset):
+                    progress(f"본문 확인 {done}/{len(fetchset)}")
+
+    out, seen = [], set()
+    for e in pool:
+        title = e.get("title") or ""
+        snip = e.get("content") or ""
+        body, final, img = bodies.get(e.get("url"), ("", None, None))
+        fulltext = body if len(body) > len(snip) else snip
+        low = f"{title} {fulltext}".lower()
+        if any(x in low for x in [p.lower() for p in PAST_EVENT_TOKENS]):
+            continue
+        if not is_domestic(title, fulltext):
+            continue
+        pub = e.get("_pub")
+        start = e.get("_snip_start")
+        end = None
+        if start:
+            _, end = extract_dates(title, snip, today, pub)
+        else:
+            start, end = extract_dates(title, fulltext, today, pub)
         if not start:
             continue
-        # 오래된 기사(작성일이 1년 넘게 지남)는 지난 행사일 확률이 커서 제외
         if pub and pub < today - datetime.timedelta(days=365):
             continue
-        # 행사 종료 = FALSE: 종료일(없으면 시작일)이 과거면 제외
         try:
             if datetime.date.fromisoformat(end or start) < today:
                 continue
         except ValueError:
             continue
-        # 중복(제목+시작일) 제거
-        key = _norm_title(title) + "|" + (start or "")
+        key = _norm_title(title) + "|" + start
         if key in seen:
             continue
         seen.add(key)
@@ -255,16 +310,16 @@ def crawl(max_workers=24, max_items=0, progress=None, known_urls=None, days=None
             "title": title,
             "published_at": e.get("published_at"),
             "author": e.get("author"),
-            "content": content,
+            "content": extractor.summarize(fulltext) if body else snip,
             "url": e.get("url"),
-            "source_url": e.get("source_url"),
-            "image_url": e.get("image_url"),
-            "venue": _first_hit(f"{title} {content}", DOMESTIC_VENUES),
-            "region": _first_hit(f"{title} {content}", DOMESTIC_REGIONS),
+            "source_url": final or e.get("source_url"),
+            "image_url": img or e.get("image_url"),
+            "venue": _first_hit(f"{title} {fulltext}", DOMESTIC_VENUES),
+            "region": _first_hit(f"{title} {fulltext}", DOMESTIC_REGIONS),
             "start_date": start,
             "end_date": end,
         })
         if max_items and len(out) >= max_items:
             break
-    progress(f"국내 AI 행사 {len(out)}건")
+    progress(f"국내 행사 {len(out)}건")
     return out
