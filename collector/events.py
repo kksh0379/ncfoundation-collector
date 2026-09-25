@@ -234,16 +234,18 @@ def crawl(max_workers=24, max_items=0, progress=None, known_urls=None, days=None
         except ValueError:
             pub = None
         start, end = extract_dates(title, content, today, pub)
+        # 날짜가 확인되지 않으면(미정) 제외 → 캘린더가 비지 않게 + 지난행사 노이즈 방지
+        if not start:
+            continue
         # 오래된 기사(작성일이 1년 넘게 지남)는 지난 행사일 확률이 커서 제외
         if pub and pub < today - datetime.timedelta(days=365):
             continue
-        # 행사 종료 = FALSE: 날짜가 잡혔고 종료일이 과거면 제외(미상은 유지)
-        if end:
-            try:
-                if datetime.date.fromisoformat(end) < today:
-                    continue
-            except ValueError:
-                pass
+        # 행사 종료 = FALSE: 종료일(없으면 시작일)이 과거면 제외
+        try:
+            if datetime.date.fromisoformat(end or start) < today:
+                continue
+        except ValueError:
+            continue
         # 중복(제목+시작일) 제거
         key = _norm_title(title) + "|" + (start or "")
         if key in seen:
