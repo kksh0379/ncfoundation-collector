@@ -40,6 +40,7 @@ document.querySelectorAll(".tab").forEach((tab) => {
     document.querySelectorAll(".panel").forEach((p) => p.classList.remove("active"));
     tab.classList.add("active");
     document.getElementById("panel-" + tab.dataset.tab).classList.add("active");
+    if (typeof syncSearchInput === "function") syncSearchInput();
   });
 });
 
@@ -133,6 +134,7 @@ function emptyState(el, message) {
 document.addEventListener("click", (e) => {
   const btn = e.target.closest(".retry-btn");
   if (!btn) return;
+  if (btn.dataset.clearSearch) { clearSearch(); return; }
   const key = btn.dataset.reload;
   if (key && CRAWL_UI[key] && CRAWL_UI[key].reload) CRAWL_UI[key].reload();
   else location.reload();
@@ -195,6 +197,92 @@ function renderList(el, items, opts) {
     `표시할 데이터가 아직 없어요.`);
 }
 
+// ----------------------------- 탭별 검색(똑똑한 키워드) -----------------------------
+// 각 탭의 원본(서버에서 받은 전체) 목록과 현재 검색어를 보관 → 검색은 클라이언트에서 즉시 필터.
+const TAB_DATA = {};  // tab -> { el, items:[], render:(list)=>void, query:"" }
+
+// 검색어를 토큰으로 분해. 조사(은/는/이/가…)는 떼어내 어간으로도 매칭(자연어 입력 대응).
+function searchTokens(q) {
+  const JOSA = /(으로|에서|에게|한테|까지|부터|보다|처럼|은|는|이|가|을|를|에|의|도|로|와|과|만|요)$/;
+  return (q || "").toLowerCase().split(/\s+/).filter(Boolean).map((t) => {
+    const cands = [t];
+    const s = t.replace(JOSA, "");
+    if (s.length >= 2 && s !== t) cands.push(s);
+    return cands;
+  });
+}
+// 검색 대상 텍스트(제목+본문+출처 등)를 공백 제거·소문자화해 부분일치가 잘 되게.
+function searchHay(it) {
+  return [it.title, it.content, it.author, it.service, it.category, it.channel, it.account]
+    .filter(Boolean).join(" ").toLowerCase().replace(/\s+/g, "");
+}
+// 여러 단어는 AND(모두 포함), 각 단어는 원형/어간 중 하나라도 걸리면 매칭. 원본 순서 유지.
+function smartFilter(items, q) {
+  const toks = searchTokens(q);
+  if (!toks.length) return items;
+  return items.filter((it) => {
+    const h = searchHay(it);
+    return toks.every((cands) => cands.some((c) => h.includes(c)));
+  });
+}
+function setTabData(tab, el, items, render) {
+  const prev = TAB_DATA[tab];
+  TAB_DATA[tab] = { el, items, render, query: (prev && prev.query) || "" };
+  renderTab(tab);
+}
+function renderTab(tab) {
+  const d = TAB_DATA[tab];
+  if (!d) return;
+  if (d.query) {
+    const filtered = smartFilter(d.items, d.query);
+    if (!filtered.length) { searchEmpty(d.el, d.query); return; }
+    d.render(filtered);
+  } else {
+    d.render(d.items);
+  }
+}
+function searchEmpty(el, q) {
+  el.innerHTML = `<li class="empty">
+    <div class="empty-msg">'${escapeHtml(q)}' 검색 결과가 없어요.</div>
+    <button type="button" class="retry-btn" data-clear-search="1">검색 지우기</button>
+  </li>`;
+}
+function clearSearch() {
+  const tab = activeTab();
+  if (TAB_DATA[tab]) TAB_DATA[tab].query = "";
+  const inp = document.getElementById("tab-search");
+  if (inp) inp.value = "";
+  const cl = document.getElementById("search-clear");
+  if (cl) cl.hidden = true;
+  renderTab(tab);
+}
+// 검색창 초기화(입력/지우기 버튼) — DOM 준비 후 연결
+(function initSearch() {
+  const inp = document.getElementById("tab-search");
+  const clr = document.getElementById("search-clear");
+  if (!inp) return;
+  let timer = null;
+  inp.addEventListener("input", () => {
+    const tab = activeTab();
+    const v = inp.value.trim();
+    if (clr) clr.hidden = !inp.value;
+    clearTimeout(timer);
+    timer = setTimeout(() => {
+      if (TAB_DATA[tab]) { TAB_DATA[tab].query = v; renderTab(tab); }
+    }, 180);
+  });
+  if (clr) clr.addEventListener("click", () => { clearSearch(); inp.focus(); });
+})();
+// 탭을 바꾸면 그 탭이 기억하던 검색어를 입력창에 복원
+function syncSearchInput() {
+  const inp = document.getElementById("tab-search");
+  if (!inp) return;
+  const d = TAB_DATA[activeTab()];
+  inp.value = (d && d.query) || "";
+  const cl = document.getElementById("search-clear");
+  if (cl) cl.hidden = !inp.value;
+}
+
 // ----------------------------- 데이터 로드 -----------------------------
 async function loadNews() {
   const el = document.getElementById("list-news");
@@ -202,7 +290,7 @@ async function loadNews() {
   const category = ddValue("dd-news-category");
   try {
     const res = await fetch("/api/news?category=" + encodeURIComponent(category));
-    renderNewsGroups(el, await res.json());
+    setTabData("news", el, await res.json(), (list) => renderNewsGroups(el, list));
   } catch (e) { emptyState(el, "불러오지 못했어요. 잠시 후 다시 시도해 주세요."); }
 }
 
@@ -212,7 +300,7 @@ async function loadCat() {
   const category = ddValue("dd-cat-category");
   try {
     const res = await fetch("/api/catnews?category=" + encodeURIComponent(category));
-    renderNewsGroups(el, await res.json());
+    setTabData("cat", el, await res.json(), (list) => renderNewsGroups(el, list));
   } catch (e) { emptyState(el, "불러오지 못했어요. 잠시 후 다시 시도해 주세요."); }
 }
 
@@ -221,7 +309,7 @@ async function loadBiz() {
   showLoading(el);
   try {
     const res = await fetch("/api/biznews");
-    renderNewsGroups(el, await res.json());
+    setTabData("biz", el, await res.json(), (list) => renderNewsGroups(el, list));
   } catch (e) { emptyState(el, "불러오지 못했어요. 잠시 후 다시 시도해 주세요."); }
 }
 
@@ -307,7 +395,8 @@ async function loadBoards() {
   const service = ddValue("dd-service");
   try {
     const res = await fetch("/api/boards?service=" + encodeURIComponent(service));
-    renderList(el, await res.json(), { badgeFn: (it) => `${it.service} · ${it.category}` });
+    setTabData("boards", el, await res.json(),
+      (list) => renderList(el, list, { badgeFn: (it) => `${it.service} · ${it.category}` }));
   } catch (e) { emptyState(el, "불러오지 못했어요. 잠시 후 다시 시도해 주세요."); }
 }
 
@@ -317,7 +406,8 @@ async function loadSocial() {
   const channel = ddValue("dd-channel");
   try {
     const res = await fetch("/api/social?channel=" + encodeURIComponent(channel));
-    renderList(el, await res.json(), { badgeFn: (it) => `${it.channel} · ${it.account}` });
+    setTabData("social", el, await res.json(),
+      (list) => renderList(el, list, { badgeFn: (it) => `${it.channel} · ${it.account}` }));
   } catch (e) { emptyState(el, "불러오지 못했어요. 잠시 후 다시 시도해 주세요."); }
 }
 

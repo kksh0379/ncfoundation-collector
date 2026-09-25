@@ -422,7 +422,29 @@ body.is-admin .guest-only { display: none !important; }
 .card-title a:active { color: var(--primary); }
 
 /* 보기 방식 선택 바 */
-.viewbar { display: flex; justify-content: flex-end; padding: 8px 16px 0; }
+.viewbar { display: flex; align-items: center; gap: 10px; justify-content: space-between; padding: 8px 16px 0; }
+.search-box {
+  flex: 1 1 auto; min-width: 0;
+  display: flex; align-items: center; gap: 6px;
+  background: #fff; border: 1px solid var(--border); border-radius: 8px;
+  padding: 0 10px; height: 34px;
+}
+.search-box .search-ico { font-size: 13px; opacity: .6; flex: 0 0 auto; }
+.search-input {
+  flex: 1 1 auto; min-width: 0;
+  border: none; outline: none; background: transparent;
+  font-size: 14px; color: var(--text); height: 100%;
+}
+.search-input::placeholder { color: var(--muted); }
+/* iOS 검색창 기본 스타일 제거 */
+.search-input::-webkit-search-decoration,
+.search-input::-webkit-search-cancel-button { -webkit-appearance: none; appearance: none; }
+.search-clear {
+  flex: 0 0 auto; border: none; background: #eef1f6; color: var(--muted);
+  width: 20px; height: 20px; border-radius: 50%; cursor: pointer;
+  font-size: 11px; line-height: 20px; padding: 0; text-align: center;
+}
+.search-clear:active { background: #e0e4ec; }
 .viewseg { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: #fff; }
 .viewseg button {
   border: none;
