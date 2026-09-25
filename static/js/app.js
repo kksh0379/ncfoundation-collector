@@ -608,10 +608,17 @@ function renderEventAlbum(list) {
   list.forEach((s) => frag.appendChild(eventAlbumCard(s)));
   el.appendChild(frag);
 }
+const CAL_COLORS = ["#2d6cdf", "#16a34a", "#dc2626", "#d97706", "#7c3aed", "#0891b2", "#db2777", "#4b5563"];
+function _mdRange(s) {  // 09.28 ~ 30 형태
+  const a = s.start_date, b = s.end_date || s.start_date;
+  const md = (d) => d.slice(5).replace("-", ".");
+  if (!a) return "일정 미정";
+  if (b === a) return md(a);
+  return md(a).split(".")[0] === md(b).split(".")[0] ? `${md(a)}~${md(b).split(".")[1]}` : `${md(a)}~${md(b)}`;
+}
 function renderEventCalendar(list) {
   const cal = document.getElementById("cal-event");
   const dated = list.filter((s) => s.start_date);
-  // 기본 표시 월: 다가오는 첫 행사의 달(없으면 이번 달)
   if (!eventCalYM) {
     let base = new Date();
     const up = dated.map((s) => s.start_date).sort();
@@ -620,48 +627,64 @@ function renderEventCalendar(list) {
     eventCalYM = [base.getFullYear(), base.getMonth()];
   }
   const [Y, M] = eventCalYM;
-  const first = new Date(Y, M, 1);
-  const startDow = first.getDay();               // 0=일
+  const startDow = new Date(Y, M, 1).getDay();
   const daysInMonth = new Date(Y, M + 1, 0).getDate();
-  const ym = (y, m) => `${y}-${String(m + 1).padStart(2, "0")}`;
-  // 날짜별 행사 매핑
+  const mStart = `${Y}-${String(M + 1).padStart(2, "0")}-01`;
+  const mEnd = `${Y}-${String(M + 1).padStart(2, "0")}-${String(daysInMonth).padStart(2, "0")}`;
+  // 이번 달과 겹치는 행사 → 시작일순, 색 부여
+  const monthEvents = dated.filter((s) => (s.end_date || s.start_date) >= mStart && s.start_date <= mEnd)
+    .sort((a, b) => (a.start_date < b.start_date ? -1 : a.start_date > b.start_date ? 1 : 0));
+  const colorOf = {};
+  monthEvents.forEach((s, i) => { colorOf[s.url] = CAL_COLORS[i % CAL_COLORS.length]; });
+  // 날짜별 매핑(막대용)
   const byDay = {};
-  dated.forEach((s) => {
-    const sd = s.start_date, ed = s.end_date || s.start_date;
-    let d = new Date(sd + "T00:00"), end = new Date(ed + "T00:00");
-    let guard = 0;
-    while (d <= end && guard++ < 400) {
-      if (d.getFullYear() === Y && d.getMonth() === M) {
-        const day = d.getDate();
-        (byDay[day] = byDay[day] || []).push(s);
-      }
+  monthEvents.forEach((s) => {
+    let d = new Date(s.start_date + "T00:00"), end = new Date((s.end_date || s.start_date) + "T00:00"), g = 0;
+    while (d <= end && g++ < 400) {
+      if (d.getFullYear() === Y && d.getMonth() === M) (byDay[d.getDate()] = byDay[d.getDate()] || []).push(s);
       d.setDate(d.getDate() + 1);
     }
   });
-  const undated = list.length - dated.length;
+  const todayIso = new Date().toISOString().slice(0, 10);
   const dows = ["일", "월", "화", "수", "목", "금", "토"];
   let cells = "";
   for (let i = 0; i < startDow; i++) cells += `<div class="cal-cell cal-empty"></div>`;
-  const todayIso = new Date().toISOString().slice(0, 10);
   for (let day = 1; day <= daysInMonth; day++) {
-    const iso = `${ym(Y, M)}-${String(day).padStart(2, "0")}`;
+    const iso = `${Y}-${String(M + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
     const evs = byDay[day] || [];
-    const chips = evs.slice(0, 4).map((s) => {
-      const link = s.source_url || s.url;
-      const cont = s.start_date !== iso && (s.end_date || s.start_date) !== iso; // 연속(중간)일
-      return `<a class="cal-ev${cont ? " cont" : ""}" href="${escapeHtml(link)}" target="_blank" rel="noopener" title="${escapeHtml(s.title)}">${escapeHtml(s.title)}</a>`;
-    }).join("");
-    const more = evs.length > 4 ? `<span class="cal-more">+${evs.length - 4}</span>` : "";
-    cells += `<div class="cal-cell${iso === todayIso ? " today" : ""}"><div class="cal-day">${day}</div>${chips}${more}</div>`;
+    const bars = evs.slice(0, 3).map((s) =>
+      `<span class="cal-bar" style="background:${colorOf[s.url]}"></span>`).join("");
+    const more = evs.length > 3 ? `<span class="cal-more">+${evs.length - 3}</span>` : "";
+    cells += `<div class="cal-cell${iso === todayIso ? " today" : ""}${evs.length ? " has" : ""}"><div class="cal-day">${day}</div><div class="cal-bars">${bars}${more}</div></div>`;
   }
+  // 아젠다(이번 달 행사 상세 — 날짜·행사명·장소 모두 표시)
+  let agenda;
+  if (!monthEvents.length) {
+    agenda = `<div class="agenda-empty">이 달에는 표시할 행사가 없어요. ${dated.length ? "‹ › 로 다른 달을 보세요." : ""}</div>`;
+  } else {
+    agenda = monthEvents.map((s) => {
+      const link = s.source_url || s.url;
+      const place = eventPlace(s);
+      return `<a class="agenda-item" href="${escapeHtml(link)}" target="_blank" rel="noopener">
+        <span class="agenda-date" style="background:${colorOf[s.url]}">${escapeHtml(_mdRange(s))}</span>
+        <span class="agenda-main">
+          <span class="agenda-title">${newBadgeHtml(s.published_at)}${escapeHtml(s.title || "(제목 없음)")}</span>
+          ${place ? `<span class="agenda-place">📍 ${escapeHtml(place)}</span>` : ""}
+        </span>
+        <span class="agenda-go">↗</span>
+      </a>`;
+    }).join("");
+  }
+  const undated = list.length - dated.length;
   cal.innerHTML = `
     <div class="cal-head">
       <button class="cal-nav" id="cal-prev" aria-label="이전 달">‹</button>
-      <div class="cal-title">${Y}년 ${M + 1}월</div>
+      <div class="cal-title">${Y}년 ${M + 1}월 <span class="cal-cnt">${monthEvents.length}건</span></div>
       <button class="cal-nav" id="cal-next" aria-label="다음 달">›</button>
     </div>
     <div class="cal-grid cal-dow">${dows.map((d, i) => `<div class="cal-cell cal-dowc${i === 0 ? " sun" : ""}">${d}</div>`).join("")}</div>
     <div class="cal-grid">${cells}</div>
+    <div class="agenda">${agenda}</div>
     ${undated ? `<div class="cal-note">날짜 미상 ${undated}건은 앨범에서 볼 수 있어요.</div>` : ""}`;
   document.getElementById("cal-prev").onclick = () => { eventCalYM = M === 0 ? [Y - 1, 11] : [Y, M - 1]; renderTab("event"); };
   document.getElementById("cal-next").onclick = () => { eventCalYM = M === 11 ? [Y + 1, 0] : [Y, M + 1]; renderTab("event"); };
