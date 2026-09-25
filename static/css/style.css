@@ -479,8 +479,19 @@ body.view-list .card-title {
   text-align: center;
   color: var(--muted);
   font-size: 14px;
-  padding: 40px 0;
+  padding: 40px 16px;
 }
+.empty .empty-msg { font-size: 15px; color: var(--text); font-weight: 600; }
+.empty .retry-btn {
+  margin-top: 14px;
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 9px 18px;
+  font-size: 14px; font-weight: 600;
+  color: #fff; background: var(--primary);
+  border: none; border-radius: 999px; cursor: pointer;
+}
+.empty .retry-btn:active { background: var(--primary-dark); }
+.empty .empty-hint { margin-top: 10px; font-size: 12px; color: var(--muted); }
 
 .loading {
   position: fixed;

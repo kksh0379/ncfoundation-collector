@@ -113,10 +113,35 @@ function showLoading(el) {
   el.innerHTML = `<li class="empty">${catSpin("불러오는 중…")}</li>`;
 }
 
+// 리스트 엘리먼트 id(list-cat 등)에서 탭 키를 얻는다.
+function tabKeyFromEl(el) {
+  const k = (el && el.id || "").replace(/^list-/, "");
+  return (typeof CRAWL_UI !== "undefined" && CRAWL_UI[k]) ? k : "";
+}
+
+// 빈/실패 상태를 '오류처럼 보이지 않게' + 다시 불러오기 버튼과 함께 표시.
+function emptyState(el, message) {
+  const key = tabKeyFromEl(el);
+  el.innerHTML = `<li class="empty">
+    <div class="empty-msg">${message}</div>
+    <button type="button" class="retry-btn" data-reload="${key}">↻ 다시 불러오기</button>
+    <div class="empty-hint">계속 비어 있으면 페이지를 새로고침해 주세요.</div>
+  </li>`;
+}
+
+// 다시 불러오기 버튼(위임): 해당 탭만 다시 로드, 탭을 모르면 전체 새로고침.
+document.addEventListener("click", (e) => {
+  const btn = e.target.closest(".retry-btn");
+  if (!btn) return;
+  const key = btn.dataset.reload;
+  if (key && CRAWL_UI[key] && CRAWL_UI[key].reload) CRAWL_UI[key].reload();
+  else location.reload();
+});
+
 // units 배열을 15개씩 렌더하고, 끝 센티넬이 화면에 들어오면 다음 묶음을 이어붙인다.
 function renderInfinite(el, units, makeNode, emptyMsg) {
   el.innerHTML = "";
-  if (!units.length) { el.innerHTML = `<li class="empty">${emptyMsg}</li>`; return; }
+  if (!units.length) { emptyState(el, emptyMsg); return; }
   const CHUNK = 15;
   let i = 0;
   const sentinel = document.createElement("li");
@@ -167,7 +192,7 @@ function renderCard(item, opts) {
 function renderList(el, items, opts) {
   renderInfinite(el, items,
     (item) => renderCard(item, { badge: opts.badgeFn ? opts.badgeFn(item) : null }),
-    `수집된 데이터가 없습니다.`);
+    `표시할 데이터가 아직 없어요.`);
 }
 
 // ----------------------------- 데이터 로드 -----------------------------
@@ -178,7 +203,7 @@ async function loadNews() {
   try {
     const res = await fetch("/api/news?category=" + encodeURIComponent(category));
     renderNewsGroups(el, await res.json());
-  } catch (e) { el.innerHTML = `<li class="empty">불러오기 실패</li>`; }
+  } catch (e) { emptyState(el, "불러오지 못했어요. 잠시 후 다시 시도해 주세요."); }
 }
 
 async function loadCat() {
@@ -188,7 +213,7 @@ async function loadCat() {
   try {
     const res = await fetch("/api/catnews?category=" + encodeURIComponent(category));
     renderNewsGroups(el, await res.json());
-  } catch (e) { el.innerHTML = `<li class="empty">불러오기 실패</li>`; }
+  } catch (e) { emptyState(el, "불러오지 못했어요. 잠시 후 다시 시도해 주세요."); }
 }
 
 async function loadBiz() {
@@ -197,7 +222,7 @@ async function loadBiz() {
   try {
     const res = await fetch("/api/biznews");
     renderNewsGroups(el, await res.json());
-  } catch (e) { el.innerHTML = `<li class="empty">불러오기 실패</li>`; }
+  } catch (e) { emptyState(el, "불러오지 못했어요. 잠시 후 다시 시도해 주세요."); }
 }
 
 // 뉴스 카드 썸네일 HTML. 대표 이미지가 있을 때만 표시(없으면 아무것도 안 보임).
@@ -267,7 +292,7 @@ function renderNewsGroups(el, items) {
     map.get(k).push(it);
   });
   renderInfinite(el, Array.from(map.values()), newsGroupNode,
-    `수집된 데이터가 없습니다.<br>"수집 실행"을 눌러주세요.`);
+    `표시할 데이터가 아직 없어요.`);
 }
 
 // 커스텀 드롭다운: 현재 선택값 읽기
@@ -283,7 +308,7 @@ async function loadBoards() {
   try {
     const res = await fetch("/api/boards?service=" + encodeURIComponent(service));
     renderList(el, await res.json(), { badgeFn: (it) => `${it.service} · ${it.category}` });
-  } catch (e) { el.innerHTML = `<li class="empty">불러오기 실패</li>`; }
+  } catch (e) { emptyState(el, "불러오지 못했어요. 잠시 후 다시 시도해 주세요."); }
 }
 
 async function loadSocial() {
@@ -293,7 +318,7 @@ async function loadSocial() {
   try {
     const res = await fetch("/api/social?channel=" + encodeURIComponent(channel));
     renderList(el, await res.json(), { badgeFn: (it) => `${it.channel} · ${it.account}` });
-  } catch (e) { el.innerHTML = `<li class="empty">불러오기 실패</li>`; }
+  } catch (e) { emptyState(el, "불러오지 못했어요. 잠시 후 다시 시도해 주세요."); }
 }
 
 // ----------------------------- 상태 확인 -----------------------------
