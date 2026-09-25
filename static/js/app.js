@@ -41,6 +41,7 @@ document.querySelectorAll(".tab").forEach((tab) => {
     tab.classList.add("active");
     document.getElementById("panel-" + tab.dataset.tab).classList.add("active");
     if (typeof syncSearchInput === "function") syncSearchInput();
+    if (typeof updateCount === "function") updateCount(tab.dataset.tab);
   });
 });
 
@@ -233,13 +234,22 @@ function setTabData(tab, el, items, render) {
 function renderTab(tab) {
   const d = TAB_DATA[tab];
   if (!d) return;
-  if (d.query) {
-    const filtered = smartFilter(d.items, d.query);
-    if (!filtered.length) { searchEmpty(d.el, d.query); return; }
-    d.render(filtered);
-  } else {
-    d.render(d.items);
-  }
+  const list = d.query ? smartFilter(d.items, d.query) : d.items;
+  d.count = list.length;
+  d.searching = !!d.query;
+  if (tab === activeTab()) updateCount(tab);
+  if (d.query && !list.length) { searchEmpty(d.el, d.query); return; }
+  d.render(list);
+}
+
+// 현재 노출 게시물 수 표시(검색 중이면 검색 결과 수).
+function updateCount(tab) {
+  const el = document.getElementById("result-count");
+  if (!el) return;
+  const d = TAB_DATA[tab];
+  if (!d || typeof d.count !== "number") { el.innerHTML = ""; return; }
+  const n = d.count.toLocaleString();
+  el.innerHTML = d.searching ? `검색 <b>${n}</b>개` : `총 <b>${n}</b>개`;
 }
 function searchEmpty(el, q) {
   el.innerHTML = `<li class="empty">

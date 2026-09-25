@@ -423,6 +423,11 @@ body.is-admin .guest-only { display: none !important; }
 
 /* 보기 방식 선택 바 */
 .viewbar { display: flex; align-items: stretch; gap: 8px; padding: 8px 16px 0; }
+.result-count {
+  align-self: center; flex: 0 0 auto;
+  font-size: 12px; font-weight: 600; color: var(--muted); white-space: nowrap;
+}
+.result-count b { color: var(--primary); font-weight: 800; }
 .search-box {
   flex: 1 1 auto; min-width: 0;
   display: flex; align-items: center;
@@ -655,7 +660,7 @@ body.is-admin .legend.admin-only { display: flex !important; }
   z-index: 20;
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: space-between;
   gap: 10px;
   padding: 5px 12px calc(5px + env(safe-area-inset-bottom, 0px));
   border-top: 1px solid var(--border);
@@ -666,10 +671,23 @@ body.is-admin .legend.admin-only { display: flex !important; }
   font-size: 11px;
   line-height: 1.4;
   white-space: nowrap;
-  overflow: hidden;
 }
+.app-footer .foot-left {
+  display: flex; align-items: center; gap: 10px;
+  min-width: 0; overflow: hidden; text-overflow: ellipsis;
+}
+.app-footer .foot-right { display: flex; align-items: center; gap: 6px; flex: 0 0 auto; }
 .app-footer .foot-copy { font-weight: 600; color: var(--text); }
 .app-footer .ver { opacity: 1; }
+.foot-auth {
+  border: 1px solid var(--border); background: #fff;
+  font-size: 11px; font-weight: 700; line-height: 1;
+  padding: 6px 12px; border-radius: 999px; cursor: pointer;
+}
+#login-btn.foot-auth { color: #fff; background: var(--primary); border-color: var(--primary); }
+#login-btn.foot-auth:active { background: var(--primary-dark); }
+#logout-btn.foot-auth { color: var(--muted); }
+#logout-btn.foot-auth:active { background: #eef1f6; }
 
 /* ---- 개발노트/패치내역 마크다운 렌더 ---- */
 .notes-md { max-height: 64vh; overflow: auto; font-size: 13.5px; line-height: 1.7; color: var(--text); }
