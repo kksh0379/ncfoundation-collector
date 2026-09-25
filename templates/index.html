@@ -14,23 +14,23 @@
   <meta property="og:title" content="휴 스코프" />
   <meta property="og:description" content="재단·업계 뉴스와 재단 게시판·소셜 채널을 한눈에" />
   <meta property="og:url" content="{{ og_base }}/" />
-  <meta property="og:image" content="{{ og_base }}{{ url_for('static', filename='og-image.png', v='139') }}" />
+  <meta property="og:image" content="{{ og_base }}{{ url_for('static', filename='og-image.png', v='140') }}" />
   <meta property="og:image:width" content="1200" />
   <meta property="og:image:height" content="630" />
   <meta property="og:locale" content="ko_KR" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="휴 스코프" />
   <meta name="twitter:description" content="재단·업계 뉴스와 재단 게시판·소셜 채널을 한눈에" />
-  <meta name="twitter:image" content="{{ og_base }}{{ url_for('static', filename='og-image.png', v='139') }}" />
+  <meta name="twitter:image" content="{{ og_base }}{{ url_for('static', filename='og-image.png', v='140') }}" />
 
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="휴 스코프" />
-  <link rel="icon" href="{{ url_for('static', filename='favicon.svg', v='139') }}" type="image/svg+xml" />
-  <link rel="icon" href="{{ url_for('static', filename='icon-192.png', v='139') }}" type="image/png" sizes="192x192" />
-  <link rel="apple-touch-icon" href="{{ url_for('static', filename='apple-touch-icon.png', v='139') }}" />
-  <link rel="manifest" href="{{ url_for('static', filename='site.webmanifest', v='139') }}" />
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css', v='139') }}" />
+  <link rel="icon" href="{{ url_for('static', filename='favicon.svg', v='140') }}" type="image/svg+xml" />
+  <link rel="icon" href="{{ url_for('static', filename='icon-192.png', v='140') }}" type="image/png" sizes="192x192" />
+  <link rel="apple-touch-icon" href="{{ url_for('static', filename='apple-touch-icon.png', v='140') }}" />
+  <link rel="manifest" href="{{ url_for('static', filename='site.webmanifest', v='140') }}" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css', v='140') }}" />
 </head>
 <body>
   <header class="app-header">
@@ -54,7 +54,7 @@
   <div class="tabs-wrap" id="tabs-wrap">
     <nav class="tabs" id="tabs">
       <button class="tab active" data-tab="cat" aria-label="냥정보">
-        <img class="cat-photo" src="{{ url_for('static', filename='cat-tab.png', v='139') }}" alt="" />냥정보</button>
+        <img class="cat-photo" src="{{ url_for('static', filename='cat-tab.png', v='140') }}" alt="" />냥정보</button>
       <button class="tab" data-tab="game">🕹 게임정보</button>
       <button class="tab" data-tab="news" aria-label="NC 뉴스">
         <span class="nc-mark">nc</span>뉴스</button>
@@ -66,6 +66,7 @@
           <rect x="2" y="2" width="20" height="20" rx="5" fill="#e0201b"/>
           <path d="M10 8 L16 12 L10 16 Z" fill="#fff"/>
         </svg>재단</button>
+      <button class="tab admin-only" data-tab="report">🧠 리포트</button>
     </nav>
   </div>
 
@@ -251,6 +252,20 @@
     <ul class="list" id="list-social"></ul>
   </section>
 
+  <!-- 탭: AI 재단 동향 분석 리포트(관리자) -->
+  <section class="panel" id="panel-report">
+    <div class="report-bar">
+      <select id="report-snap" class="report-snap" aria-label="리포트 스냅샷"></select>
+      <button class="btn-collect admin-only" id="run-report">🧠 분석 실행</button>
+    </div>
+    <div class="report-note">
+      뉴스·재단YT 데이터로 <b>우리 재단(NC문화재단)</b>과 동종 재단의 변화·추세·신규신호를 AI가 비교 분석해요.
+      결과는 실행 시점별로 저장되어 <b>지난 리포트와 비교</b>됩니다. (분석 엔진: LLM · 관리자 전용)
+    </div>
+    <div class="result-msg" id="msg-report"></div>
+    <div id="report-body"></div>
+  </section>
+
   <!-- 상태 확인 팝업 -->
   <div class="modal" id="status-modal" hidden>
     <div class="modal-box">
@@ -336,7 +351,7 @@
   <footer class="app-footer">
     <div class="foot-left">
       <span class="foot-copy">© 2026 김상화</span>
-      <span class="ver">v1.37 · build 260925</span>
+      <span class="ver">v1.38 · build 260925</span>
       <span class="ver" id="storage-badge"></span>
     </div>
     <div class="foot-right">
@@ -348,6 +363,6 @@
 
   <button id="to-top" aria-label="맨 위로" hidden>↑</button>
 
-  <script src="{{ url_for('static', filename='js/app.js', v='139') }}"></script>
+  <script src="{{ url_for('static', filename='js/app.js', v='140') }}"></script>
 </body>
 </html>

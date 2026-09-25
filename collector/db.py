@@ -143,6 +143,10 @@ _DDL = [
     f"""CREATE TABLE IF NOT EXISTS visit_log (
         id {_AUTO_PK}, ts TEXT, ip TEXT, ua TEXT, path TEXT, referer TEXT, lang TEXT
     )""",
+    # AI 재단 동향 분석 리포트 스냅샷(실행 시점별로 누적 저장 → 변화 비교).
+    f"""CREATE TABLE IF NOT EXISTS report_snapshot (
+        id {_AUTO_PK}, created_at TEXT, label TEXT, period TEXT, model TEXT, data TEXT
+    )""",
     # 행사일정(AI 국내 행사). start_date/end_date=행사 기간(ISO), venue/region=장소.
     f"""CREATE TABLE IF NOT EXISTS events (
         id {_AUTO_PK}, title TEXT, published_at TEXT, author TEXT, content TEXT,
@@ -330,6 +334,37 @@ def clear_events():
         n = int(row["n"]) if row else 0
         conn.execute("DELETE FROM events")
     return n
+
+
+# ---------------------------- 분석 리포트 스냅샷 ----------------------------
+def save_report_snapshot(created_at, label, period, model, data_json):
+    with get_conn() as conn:
+        conn.execute(_q(
+            "INSERT INTO report_snapshot (created_at, label, period, model, data) VALUES (?,?,?,?,?)"),
+            (created_at, label, period, model, data_json))
+        row = conn.execute("SELECT MAX(id) AS id FROM report_snapshot").fetchone()
+        return int(row["id"]) if row and row["id"] is not None else None
+
+
+def list_report_snapshots(limit=30):
+    with get_conn() as conn:
+        rows = conn.execute(_q(
+            "SELECT id, created_at, label, period, model FROM report_snapshot "
+            "ORDER BY id DESC LIMIT ?"), (limit,)).fetchall()
+        return [dict(r) for r in rows]
+
+
+def get_report_snapshot(sid):
+    with get_conn() as conn:
+        r = conn.execute(_q("SELECT * FROM report_snapshot WHERE id=?"), (sid,)).fetchone()
+        return dict(r) if r else None
+
+
+def latest_report_snapshot(offset=0):
+    with get_conn() as conn:
+        r = conn.execute(_q("SELECT * FROM report_snapshot ORDER BY id DESC LIMIT 1 OFFSET ?"),
+                         (offset,)).fetchone()
+        return dict(r) if r else None
 
 
 def all_news_min(section="nc"):

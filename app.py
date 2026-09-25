@@ -15,7 +15,7 @@ from datetime import datetime, timedelta, timezone
 
 from flask import Flask, Response, jsonify, render_template, request, session
 
-from collector import boards, db, dedup, events, fetcher, google_news, social
+from collector import analysis, boards, db, dedup, events, fetcher, google_news, social
 
 app = Flask(__name__)
 # 초안 단계: 브라우저가 옛 JS/CSS를 캐시해 혼란을 주지 않도록 정적파일 캐시를 끈다.
@@ -1093,6 +1093,86 @@ def crawl_status():
     # 마지막 수집 결과를 함께 돌려준다.
     group = request.args.get("group", "news")
     return jsonify({"running": False, "log": [], "result": _last_result.get(group)})
+
+
+# ---------------------------- AI 분석 리포트 ----------------------------
+_REPORT_JOB = {"running": False, "progress": "", "result": None, "started_ts": 0}
+
+
+def _report_run(window_days):
+    st = _REPORT_JOB
+    try:
+        _ensure_db(force=True)
+        data, err = analysis.run(window_days=window_days, progress=lambda m: st.update(progress=m))
+        if err:
+            st["result"] = {"error": err}
+            st["progress"] = f"오류: {err}"
+        else:
+            label = _now_kst()
+            period = data.get("period_label") or f"최근 {window_days}일"
+            sid = db.save_report_snapshot(label, label, period,
+                                          data.get("_meta", {}).get("model", ""),
+                                          json.dumps(data, ensure_ascii=False))
+            st["result"] = {"ok": True, "id": sid}
+            st["progress"] = "완료"
+    except Exception as e:  # noqa: BLE001
+        st["result"] = {"error": str(e)}
+        st["progress"] = f"오류: {e}"
+    finally:
+        st["running"] = False
+
+
+@app.post("/api/report/run")
+def report_run():
+    if not _admin_ok():
+        return jsonify({"error": "unauthorized"}), 401
+    if _REPORT_JOB.get("running") and (time.time() - _REPORT_JOB.get("started_ts", 0) < 1800):
+        return jsonify({"running": True, "already": True})
+    window = request.args.get("window", default=90, type=int)
+    _REPORT_JOB.update(running=True, progress="분석 준비…", result=None, started_ts=time.time())
+    threading.Thread(target=_report_run, args=(window,), daemon=True).start()
+    return jsonify({"running": True})
+
+
+@app.get("/api/report/status")
+def report_status():
+    st = dict(_REPORT_JOB)
+    if st.get("running") and (time.time() - st.get("started_ts", 0) > 1800):
+        _REPORT_JOB["running"] = False
+        st["running"] = False
+        st["progress"] = "중단됨(시간 초과)"
+    return jsonify({"running": st.get("running"), "progress": st.get("progress"),
+                    "result": st.get("result")})
+
+
+@app.get("/api/report/list")
+def report_list():
+    if not _ensure_db():
+        return jsonify([])
+    return jsonify(db.list_report_snapshots(30))
+
+
+@app.get("/api/report/get")
+def report_get():
+    if not _ensure_db():
+        return jsonify({"error": "db"}), 503
+    sid = request.args.get("id", type=int)
+    row = db.get_report_snapshot(sid) if sid else db.latest_report_snapshot(0)
+    if not row:
+        return jsonify({"error": "없음", "empty": True})
+    try:
+        data = json.loads(row["data"] or "{}")
+    except Exception:  # noqa: BLE001
+        data = {}
+    # 직전 스냅샷 id(비교용) 함께 전달
+    prev = None
+    lst = db.list_report_snapshots(30)
+    ids = [r["id"] for r in lst]
+    if row["id"] in ids:
+        i = ids.index(row["id"])
+        prev = ids[i + 1] if i + 1 < len(ids) else None
+    return jsonify({"id": row["id"], "created_at": row["created_at"], "period": row["period"],
+                    "model": row["model"], "prev_id": prev, "data": data})
 
 
 # ---------------------------- 배치 스케줄 ----------------------------

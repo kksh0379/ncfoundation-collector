@@ -912,3 +912,46 @@ body.tab-event #view-toggle { display: none; }
   font-size: 12px; font-weight: 700; padding: 5px 10px; border-radius: 8px; cursor: pointer;
 }
 .copy-btn:active { background: #eef2ff; }
+
+/* ===== AI 분석 리포트 ===== */
+body.tab-report .viewbar { display: none; }
+.report-bar { display: flex; align-items: center; gap: 8px; padding: 10px 0 4px; }
+.report-snap { flex: 1 1 auto; min-width: 0; height: 34px; border: 1px solid var(--border); border-radius: 8px; padding: 0 8px; background: #fff; font-size: 13px; color: var(--text); }
+#run-report { flex: 0 0 auto; }
+.report-note { font-size: 12px; color: var(--muted); line-height: 1.55; background: #f4f7ff; border: 1px solid #dbe6ff; border-radius: 8px; padding: 10px 12px; margin: 4px 0 10px; }
+.report-note b { color: var(--text); }
+.rp-topmeta { font-size: 12px; color: var(--muted); margin: 2px 0 10px; }
+.rp-section { margin-bottom: 18px; }
+.rp-h { font-size: 15px; font-weight: 800; color: var(--text); margin: 0 0 8px; padding-bottom: 5px; border-bottom: 2px solid var(--primary); }
+.rp-tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 10px; }
+@media (max-width: 420px) { .rp-tiles { grid-template-columns: repeat(2, 1fr); } }
+.rp-tile { background: #fff; border: 1px solid var(--border); border-radius: 10px; padding: 10px; text-align: center; }
+.rp-tile-n { font-size: 20px; font-weight: 800; color: var(--primary); }
+.rp-tile-k { font-size: 11px; color: var(--muted); margin-top: 2px; }
+.rp-hl { margin: 6px 0 0; padding-left: 18px; }
+.rp-hl li { font-size: 14px; line-height: 1.6; margin-bottom: 4px; }
+.rp-item { background: #fff; border: 1px solid var(--border); border-radius: 10px; padding: 12px; margin-bottom: 8px; }
+.rp-item > b { font-size: 14px; }
+.rp-detail { font-size: 13.5px; color: var(--text); line-height: 1.6; margin-top: 4px; }
+.rp-sub { font-size: 12.5px; color: var(--muted); margin-top: 4px; }
+.rp-basis { font-size: 12.5px; color: var(--primary-dark); margin-top: 4px; }
+.rp-move { font-size: 13px; color: var(--text); margin-top: 6px; padding-left: 8px; border-left: 2px solid var(--border); }
+.rp-q { font-size: 13.5px; font-weight: 700; color: var(--primary-dark); margin-top: 6px; }
+.rp-signal { border-color: #f5d98b; background: #fffdf5; }
+.rp-task { border-color: #cfe0ff; background: #f8fbff; }
+.rp-dir, .rp-state { font-size: 11px; font-weight: 700; color: #fff; background: var(--primary); padding: 2px 7px; border-radius: 999px; }
+.rp-chip { font-size: 11px; font-weight: 800; padding: 2px 8px; border-radius: 999px; margin-right: 6px; }
+.rp-NEW { background: #dcfce7; color: #166534; } .rp-UP { background: #dbeafe; color: #1e40af; }
+.rp-DOWN { background: #fee2e2; color: #b91c1c; } .rp-CONTINUED { background: #eef1f6; color: #4b5563; }
+.rp-DISAPPEARED { background: #f3f4f6; color: #9ca3af; } .rp-NA { background: #eef1f6; color: #6b7280; }
+.rp-poswrap { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+@media (max-width: 420px) { .rp-poswrap { grid-template-columns: 1fr; } }
+.rp-pos { background: #fff; border: 1px solid var(--border); border-radius: 10px; padding: 10px; }
+.rp-pos-k { font-size: 12px; font-weight: 800; color: var(--muted); margin-bottom: 4px; }
+.rp-pos ul { margin: 0; padding-left: 16px; } .rp-pos li { font-size: 13px; line-height: 1.5; }
+.rp-ev { margin-top: 8px; }
+.rp-ev summary { font-size: 12px; font-weight: 700; color: var(--primary); cursor: pointer; }
+.rp-ev ul { margin: 6px 0 0; padding-left: 16px; }
+.rp-ev li { font-size: 12.5px; line-height: 1.5; margin-bottom: 4px; }
+.rp-ev-meta { display: block; font-size: 11px; color: var(--muted); }
+.rp-note { font-size: 12px; color: #7a5b00; background: #fff8e1; border: 1px solid #f5d98b; border-radius: 8px; padding: 10px 12px; margin-top: 10px; }

@@ -178,9 +178,11 @@ document.querySelectorAll(".tab").forEach((tab) => {
     tab.classList.add("active");
     document.getElementById("panel-" + tab.dataset.tab).classList.add("active");
     document.body.classList.toggle("tab-event", tab.dataset.tab === "event");
+    document.body.classList.toggle("tab-report", tab.dataset.tab === "report");
     try { tab.scrollIntoView({ inline: "center", block: "nearest", behavior: "smooth" }); } catch (e) { /* 무시 */ }
     if (typeof syncSearchInput === "function") syncSearchInput();
     if (typeof updateCount === "function") updateCount(tab.dataset.tab);
+    if (tab.dataset.tab === "report" && typeof loadReport === "function") loadReport();
   });
 });
 
@@ -979,7 +981,7 @@ document.getElementById("collect-social").addEventListener("click", (e) =>
   runCrawl(e.currentTarget, "social", document.getElementById("msg-social"), loadSocial)
 );
 // ----------------------------- DB 비우기(관리자, 현재 탭만) -----------------------------
-const TAB_KO = { cat: "냥정보", game: "게임정보", news: "NC뉴스", biz: "업계동향", event: "행사일정", boards: "재단게시판", social: "재단YT" };
+const TAB_KO = { cat: "냥정보", game: "게임정보", news: "NC뉴스", biz: "업계동향", event: "행사일정", boards: "재단게시판", social: "재단YT", report: "리포트" };
 function activeTab() {
   const t = document.querySelector(".tab.active");
   return (t && t.dataset.tab) || "cat";
@@ -1476,6 +1478,155 @@ if (toTop) {
   }, { passive: true });
   toTop.addEventListener("click", () => window.scrollTo({ top: 0, behavior: "smooth" }));
 }
+
+// ----------------------------- AI 재단 동향 분석 리포트 -----------------------------
+const RP_STATUS_KO = { NEW: "신규", UP: "증가", DOWN: "감소", CONTINUED: "지속", DISAPPEARED: "소멸" };
+function rpStatusChip(s) {
+  const k = (s || "").toUpperCase();
+  return `<span class="rp-chip rp-${k || "NA"}">${RP_STATUS_KO[k] || k || ""}</span>`;
+}
+function rpEvidence(arr) {
+  if (!arr || !arr.length) return "";
+  const items = arr.map((e) => {
+    const meta = [e.org, e.type === "youtube" ? "YT" : "뉴스", e.date].filter(Boolean).join(" · ");
+    const t = escapeHtml(e.title || "(제목 없음)");
+    const link = e.url ? `<a href="${escapeHtml(e.url)}" target="_blank" rel="noopener">${t} ↗</a>` : t;
+    return `<li>${link}<span class="rp-ev-meta">${escapeHtml(meta)}</span></li>`;
+  }).join("");
+  return `<details class="rp-ev"><summary>근거 ${arr.length}건</summary><ul>${items}</ul></details>`;
+}
+function rpList(arr) { return (arr || []).map((x) => `<li>${escapeHtml(x)}</li>`).join(""); }
+function rpSection(title, inner) {
+  if (!inner) return "";
+  return `<section class="rp-section"><h3 class="rp-h">${title}</h3>${inner}</section>`;
+}
+function renderReport(payload) {
+  const el = document.getElementById("report-body");
+  const d = payload && payload.data;
+  if (!payload || payload.empty || !d || !Object.keys(d).length) {
+    el.innerHTML = `<div class="empty"><div class="empty-msg">아직 생성된 리포트가 없어요.</div>`
+      + `<div class="empty-hint">관리자가 '🧠 분석 실행'을 누르면 첫 리포트가 만들어져요.</div></div>`;
+    return;
+  }
+  const m = d._meta || {}; const c = m.counts || {}; const b = d.brief || {};
+  let h = "";
+  // 01 Executive Brief
+  const tiles = [["동종 재단", b.foundations], ["최근 콘텐츠", b.recent_contents ?? c.recent_peers],
+    ["활동 수", b.activities], ["신규 활동", b.new_activities]]
+    .map(([k, v]) => `<div class="rp-tile"><div class="rp-tile-n">${v ?? "–"}</div><div class="rp-tile-k">${k}</div></div>`).join("");
+  h += rpSection("01 · Executive Brief",
+    `<div class="rp-tiles">${tiles}</div>`
+    + (b.highlights && b.highlights.length ? `<ul class="rp-hl">${rpList(b.highlights)}</ul>` : ""));
+  // 02 지난 리포트 이후 변화
+  if (d.changes_since_last && d.changes_since_last.length) {
+    h += rpSection("02 · 지난 리포트 이후 주요 변화", d.changes_since_last.map((x) =>
+      `<div class="rp-item">${rpStatusChip(x.status)}<b>${escapeHtml(x.title || "")}</b>`
+      + `<div class="rp-detail">${escapeHtml(x.detail || "")}</div>${rpEvidence(x.evidence)}</div>`).join(""));
+  }
+  // 03 업계 동향
+  if (d.industry_trends && d.industry_trends.length) {
+    h += rpSection("03 · 업계 주요 동향", d.industry_trends.map((x) =>
+      `<div class="rp-item"><b>${escapeHtml(x.area || "")}</b> <span class="rp-dir">${escapeHtml(x.direction || "")}</span>`
+      + `<div class="rp-detail">${escapeHtml(x.detail || "")}</div>${rpEvidence(x.evidence)}</div>`).join(""));
+  }
+  // 04 재단별 움직임
+  if (d.foundation_moves && d.foundation_moves.length) {
+    h += rpSection("04 · 재단별 주요 움직임", d.foundation_moves.map((f) =>
+      `<div class="rp-item"><b>${escapeHtml(f.org || "")}</b>`
+      + (f.moves || []).map((mv) => `<div class="rp-move">${escapeHtml(mv.kind || "")} — ${escapeHtml(mv.detail || "")}${rpEvidence(mv.evidence)}</div>`).join("")
+      + `</div>`).join(""));
+  }
+  // 05 Trend
+  if (d.trends && d.trends.length) {
+    h += rpSection("05 · Trend", d.trends.map((x) =>
+      `<div class="rp-item"><b>${escapeHtml(x.topic || "")}</b> <span class="rp-state">${escapeHtml(x.state || "")}</span>`
+      + `<div class="rp-detail">${escapeHtml(x.detail || "")}</div>${rpEvidence(x.evidence)}</div>`).join(""));
+  }
+  // 06 Emerging Signals
+  if (d.emerging_signals && d.emerging_signals.length) {
+    h += rpSection("06 · Emerging Signals", d.emerging_signals.map((x) =>
+      `<div class="rp-item rp-signal"><b>⚡ ${escapeHtml(x.name || "")}</b>`
+      + `<div class="rp-detail">${escapeHtml(x.desc || "")}</div>`
+      + (x.recent_change ? `<div class="rp-sub">최근 변화: ${escapeHtml(x.recent_change)}</div>` : "")
+      + (x.foundations && x.foundations.length ? `<div class="rp-sub">관련 재단: ${escapeHtml(x.foundations.join(", "))}</div>` : "")
+      + (x.basis ? `<div class="rp-basis">판단 근거: ${escapeHtml(x.basis)}</div>` : "")
+      + rpEvidence(x.evidence) + `</div>`).join(""));
+  }
+  // 07 우리 재단 Position
+  if (d.our_position) {
+    const p = d.our_position;
+    const col = (t, a) => (a && a.length) ? `<div class="rp-pos"><div class="rp-pos-k">${t}</div><ul>${rpList(a)}</ul></div>` : "";
+    h += rpSection("07 · 우리 재단 Position",
+      `<div class="rp-poswrap">${col("상대적으로 강함", p.strong)}${col("업계와 유사", p.similar)}${col("업계↑ 우리는 적음", p.less)}${col("우리 특화", p.unique)}</div>`
+      + (p.recent_change ? `<div class="rp-detail">최근 변화: ${escapeHtml(p.recent_change)}</div>` : "") + rpEvidence(p.evidence));
+  }
+  // 08 Benchmark
+  if (d.benchmarks && d.benchmarks.length) {
+    h += rpSection("08 · Benchmark Cases", d.benchmarks.map((x) =>
+      `<div class="rp-item"><b>${escapeHtml(x.org || "")} · ${escapeHtml(x.name || "")}</b>`
+      + `<div class="rp-detail">${escapeHtml(x.summary || "")}</div>`
+      + (x.distinct ? `<div class="rp-sub">다른 점: ${escapeHtml(x.distinct)}</div>` : "")
+      + (x.question ? `<div class="rp-q">💬 ${escapeHtml(x.question)}</div>` : "")
+      + rpEvidence(x.evidence) + `</div>`).join(""));
+  }
+  // 09 검토 과제
+  if (d.review_tasks && d.review_tasks.length) {
+    h += rpSection("09 · 검토 과제", d.review_tasks.map((x) =>
+      `<div class="rp-item rp-task">`
+      + (x.background ? `<div class="rp-sub">배경: ${escapeHtml(x.background)}</div>` : "")
+      + (x.change ? `<div class="rp-sub">변화: ${escapeHtml(x.change)}</div>` : "")
+      + (x.basis ? `<div class="rp-sub">근거: ${escapeHtml(x.basis)}</div>` : "")
+      + `<div class="rp-q">💬 ${escapeHtml(x.question || "")}</div></div>`).join(""));
+  }
+  if (d.confidence_note) h += `<div class="rp-note">⚠️ ${escapeHtml(d.confidence_note)}</div>`;
+  const meta = `분석 시점 ${escapeHtml(payload.created_at || "")} · ${escapeHtml(payload.period || "")}`
+    + (m.model ? ` · ${escapeHtml(m.model)}` : "");
+  el.innerHTML = `<div class="rp-topmeta">${meta}</div>` + h;
+}
+async function loadReport(id) {
+  const el = document.getElementById("report-body");
+  if (!el.dataset.loaded) el.innerHTML = `<li class="empty">${catSpin("리포트 불러오는 중…")}</li>`;
+  try {
+    const [snaps, rep] = await Promise.all([
+      fetch("/api/report/list").then((r) => r.json()),
+      fetch("/api/report/get" + (id ? "?id=" + id : "")).then((r) => r.json()),
+    ]);
+    const sel = document.getElementById("report-snap");
+    if (sel) {
+      sel.innerHTML = (snaps || []).map((s) => `<option value="${s.id}">${escapeHtml(s.created_at || "")} (${escapeHtml(s.period || "")})</option>`).join("")
+        || `<option>스냅샷 없음</option>`;
+      if (rep && rep.id) sel.value = rep.id;
+    }
+    renderReport(rep);
+    el.dataset.loaded = "1";
+  } catch (e) { el.innerHTML = `<div class="empty"><div class="empty-msg">리포트를 불러오지 못했어요.</div></div>`; }
+}
+(function initReport() {
+  const runBtn = document.getElementById("run-report");
+  const sel = document.getElementById("report-snap");
+  const msg = document.getElementById("msg-report");
+  if (sel) sel.addEventListener("change", () => loadReport(sel.value));
+  let timer = null;
+  function poll() {
+    fetch("/api/report/status").then((r) => r.json()).then((st) => {
+      if (st.running) {
+        msg.style.color = ""; msg.innerHTML = '<span class="mini-spin"></span> ' + escapeHtml(st.progress || "분석 중…");
+      } else {
+        clearInterval(timer); timer = null;
+        if (runBtn) runBtn.disabled = false;
+        const rs = st.result || {};
+        if (rs.error) { msg.style.color = "#dc2626"; msg.textContent = "분석 실패: " + rs.error; }
+        else if (rs.ok) { msg.style.color = "#16a34a"; msg.textContent = "분석 완료"; loadReport(); }
+      }
+    }).catch(() => {});
+  }
+  if (runBtn) runBtn.addEventListener("click", () => {
+    runBtn.disabled = true; msg.style.color = ""; msg.innerHTML = '<span class="mini-spin"></span> 분석 시작…';
+    fetch("/api/report/run?window=90", { method: "POST" }).then((r) => r.json()).then(() => {
+      if (!timer) timer = setInterval(poll, 2500); poll();
+    }).catch(() => { runBtn.disabled = false; msg.textContent = "시작 실패"; });
+  });
+})();
 
 // ----------------------------- 탭바 가로 스크롤 + 끝 블러(페이드) -----------------------------
 (function initTabsFade() {
