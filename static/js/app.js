@@ -514,6 +514,16 @@ async function loadCat() {
   } catch (e) { emptyState(el, "불러오지 못했어요. 잠시 후 다시 시도해 주세요."); }
 }
 
+async function loadGame() {
+  const el = document.getElementById("list-game");
+  showLoading(el);
+  const category = ddValue("dd-game-category");
+  try {
+    const res = await fetch("/api/gamenews?category=" + encodeURIComponent(category));
+    setTabData("game", el, await res.json(), (list) => renderNewsGroups(el, list));
+  } catch (e) { emptyState(el, "불러오지 못했어요. 잠시 후 다시 시도해 주세요."); }
+}
+
 async function loadBiz() {
   const el = document.getElementById("list-biz");
   showLoading(el);
@@ -860,6 +870,7 @@ async function runStatus(group) {
 }
 
 document.getElementById("status-cat-btn").addEventListener("click", () => runStatus("cat"));
+document.getElementById("status-game-btn").addEventListener("click", () => runStatus("game"));
 document.getElementById("status-news-btn").addEventListener("click", () => runStatus("news"));
 document.getElementById("status-biz-btn").addEventListener("click", () => runStatus("biz"));
 document.getElementById("status-event-btn").addEventListener("click", () => runStatus("event"));
@@ -872,6 +883,7 @@ document.getElementById("status-social-btn").addEventListener("click", () => run
 //   돌아오면(또는 새로고침해도) 진행 상태에 자동으로 다시 붙는다.
 const CRAWL_UI = {
   cat: { btn: "collect-cat", msg: "msg-cat", reload: () => loadCat() },
+  game: { btn: "collect-game", msg: "msg-game", reload: () => loadGame() },
   news: { btn: "collect-news", msg: "msg-news", reload: () => loadNews() },
   biz: { btn: "collect-biz", msg: "msg-biz", reload: () => loadBiz() },
   event: { btn: "collect-event", msg: "msg-event", reload: () => loadEvent() },
@@ -948,6 +960,9 @@ document.addEventListener("visibilitychange", () => { if (!document.hidden) resu
 document.getElementById("collect-cat").addEventListener("click", (e) =>
   runCrawl(e.currentTarget, "cat", document.getElementById("msg-cat"), loadCat)
 );
+document.getElementById("collect-game").addEventListener("click", (e) =>
+  runCrawl(e.currentTarget, "game", document.getElementById("msg-game"), loadGame)
+);
 document.getElementById("collect-biz").addEventListener("click", (e) =>
   runCrawl(e.currentTarget, "biz", document.getElementById("msg-biz"), loadBiz)
 );
@@ -964,7 +979,7 @@ document.getElementById("collect-social").addEventListener("click", (e) =>
   runCrawl(e.currentTarget, "social", document.getElementById("msg-social"), loadSocial)
 );
 // ----------------------------- DB 비우기(관리자, 현재 탭만) -----------------------------
-const TAB_KO = { cat: "냥정보", news: "NC뉴스", biz: "업계동향", event: "행사일정", boards: "재단게시판", social: "재단YT" };
+const TAB_KO = { cat: "냥정보", game: "게임정보", news: "NC뉴스", biz: "업계동향", event: "행사일정", boards: "재단게시판", social: "재단YT" };
 function activeTab() {
   const t = document.querySelector(".tab.active");
   return (t && t.dataset.tab) || "cat";
@@ -1036,6 +1051,7 @@ document.addEventListener("click", () =>
   document.querySelectorAll(".dropdown-menu").forEach((m) => (m.hidden = true))
 );
 setupDropdown("dd-cat-category", loadCat);
+setupDropdown("dd-game-category", loadGame);
 setupDropdown("dd-service", loadBoards);
 
 // ----------------------------- 마지막 수집 일시 -----------------------------
@@ -1047,6 +1063,7 @@ async function loadMeta() {
     const r = await fetch("/api/meta");
     const m = await r.json();
     document.getElementById("last-cat").textContent = fmtLast(m.cat);
+    document.getElementById("last-game").textContent = fmtLast(m.game);
     document.getElementById("last-news").textContent = fmtLast(m.news);
     document.getElementById("last-biz").textContent = fmtLast(m.biz);
     document.getElementById("last-event").textContent = fmtLast(m.event);
@@ -1479,6 +1496,7 @@ if (toTop) {
 initAuth();
 loadMeta();
 loadCat();
+loadGame();
 loadNews();
 loadBiz();
 loadEvent();

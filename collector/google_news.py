@@ -451,6 +451,24 @@ def crawl_cat(max_workers=24, max_items=0, progress=None, known_urls=None, days=
                  categories=CAT_CATEGORIES, keyword_filter=False)
 
 
+# ---- 게임 뉴스: 냥정보와 동일 방식(검색어=조건). 카테고리별 구글 불리언 쿼리 ----
+GAME_CATEGORIES = {
+    "신작·출시": ["(게임 OR 신작) (출시 OR 발매 OR 론칭 OR \"정식 출시\" OR 오픈)"],
+    "업데이트·패치": ["게임 (업데이트 OR 패치 OR 시즌 OR 밸런스 OR \"신규 콘텐츠\")"],
+    "e스포츠": ["(e스포츠 OR 이스포츠 OR LCK OR 롤드컵 OR 프로게이머 OR \"게임 대회\")"],
+    "업계·산업": ["(게임업계 OR 게임사 OR 게임주 OR \"게임 매출\" OR \"게임 투자\" OR 지스타)"],
+    "플랫폼·콘솔": ["(\"콘솔 게임\" OR PS5 OR 플레이스테이션 OR 엑스박스 OR \"닌텐도 스위치\" OR 스팀)"],
+    "인디·사전예약": ["(인디게임 OR \"신작 게임\") (공개 OR 예약 OR 사전등록 OR 트레일러 OR 데모)"],
+}
+
+
+def crawl_game(max_workers=24, max_items=0, progress=None, known_urls=None, days=None):
+    """게임 뉴스 수집. 냥정보와 동일하게 검색어가 곧 조건이라 키워드 필터는 끈다."""
+    return crawl(max_workers=max_workers, max_items=max_items, progress=progress,
+                 known_urls=known_urls, days=days,
+                 categories=GAME_CATEGORIES, keyword_filter=False)
+
+
 # ---- 업계동향: (A) 업계 키워드 OR (B) 지정 기관명. 제목에 제외어 있으면 버림 ----
 BIZ_CATEGORIES = {
     "업계동향": [
