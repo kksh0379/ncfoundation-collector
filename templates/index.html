@@ -14,23 +14,23 @@
   <meta property="og:title" content="휴 스코프" />
   <meta property="og:description" content="재단·업계 뉴스와 재단 게시판·소셜 채널을 한눈에" />
   <meta property="og:url" content="{{ og_base }}/" />
-  <meta property="og:image" content="{{ og_base }}{{ url_for('static', filename='og-image.png', v='130') }}" />
+  <meta property="og:image" content="{{ og_base }}{{ url_for('static', filename='og-image.png', v='131') }}" />
   <meta property="og:image:width" content="1200" />
   <meta property="og:image:height" content="630" />
   <meta property="og:locale" content="ko_KR" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="휴 스코프" />
   <meta name="twitter:description" content="재단·업계 뉴스와 재단 게시판·소셜 채널을 한눈에" />
-  <meta name="twitter:image" content="{{ og_base }}{{ url_for('static', filename='og-image.png', v='130') }}" />
+  <meta name="twitter:image" content="{{ og_base }}{{ url_for('static', filename='og-image.png', v='131') }}" />
 
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="휴 스코프" />
-  <link rel="icon" href="{{ url_for('static', filename='favicon.svg', v='130') }}" type="image/svg+xml" />
-  <link rel="icon" href="{{ url_for('static', filename='icon-192.png', v='130') }}" type="image/png" sizes="192x192" />
-  <link rel="apple-touch-icon" href="{{ url_for('static', filename='apple-touch-icon.png', v='130') }}" />
-  <link rel="manifest" href="{{ url_for('static', filename='site.webmanifest', v='130') }}" />
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css', v='130') }}" />
+  <link rel="icon" href="{{ url_for('static', filename='favicon.svg', v='131') }}" type="image/svg+xml" />
+  <link rel="icon" href="{{ url_for('static', filename='icon-192.png', v='131') }}" type="image/png" sizes="192x192" />
+  <link rel="apple-touch-icon" href="{{ url_for('static', filename='apple-touch-icon.png', v='131') }}" />
+  <link rel="manifest" href="{{ url_for('static', filename='site.webmanifest', v='131') }}" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css', v='131') }}" />
 </head>
 <body>
   <header class="app-header">
@@ -58,7 +58,7 @@
       <button class="tab" data-tab="biz">업계동향</button>
       <button class="tab" data-tab="event">행사일정</button>
       <button class="tab" data-tab="boards">재단게시판</button>
-      <button class="tab" data-tab="social">재단소셜</button>
+      <button class="tab" data-tab="social">재단YT</button>
     </nav>
   </div>
 
@@ -198,29 +198,21 @@
     <ul class="list" id="list-boards"></ul>
   </section>
 
-  <!-- 탭3: 소셜 채널 -->
+  <!-- 탭: 재단YT(유튜브) -->
   <section class="panel" id="panel-social">
     <div class="toolbar">
-      <div class="dropdown" id="dd-channel" data-value="all">
-        <button type="button" class="dropdown-btn" aria-haspopup="listbox" aria-expanded="false">
-          <span class="dropdown-label">전체 채널</span><span class="dropdown-caret">▾</span>
-        </button>
-        <ul class="dropdown-menu" role="listbox" hidden>
-          <li role="option" data-value="all" class="selected">전체 채널</li>
-          {% for ch in channels %}
-          <li role="option" data-value="{{ ch }}">{{ ch }}</li>
-          {% endfor %}
-        </ul>
+      <div class="checkbar" id="social-cats" role="group" aria-label="유튜브 분류 선택">
+        <label><input type="checkbox" data-cat="all" /> 전체</label>
+        <label><input type="checkbox" data-cat="재단" checked /> 재단</label>
+        <label><input type="checkbox" data-cat="주요재단" /> 주요 재단</label>
       </div>
       <button class="btn-status admin-only" id="status-social-btn">상태 확인</button>
       <button class="btn-collect admin-only" id="collect-social">수집 실행</button>
     </div>
-    <div class="legend">
-      {% for s in social_status %}
-      <span class="chip chip-{{ 'done' if s.status=='완료' else ('wip' if s.status=='구현 중' else 'plan') }}">{{ s.name }} · {{ s.status }}</span>
-      {% endfor %}
+    <div class="legend admin-only">
+      <span class="chip chip-done">재단 · NC문화재단 유튜브 채널</span>
+      <span class="chip chip-plan">주요 재단 · 기관명 유튜브 검색(업계동향 목록)</span>
     </div>
-    <div class="ig-note">인스타그램 <span class="ig-red">(수집하려면 공식 Instagram Graph API 연동 필요)</span></div>
     <div class="last-crawl" id="last-social"></div>
     <div class="result-msg" id="msg-social"></div>
     <ul class="list" id="list-social"></ul>
@@ -311,7 +303,7 @@
   <footer class="app-footer">
     <div class="foot-left">
       <span class="foot-copy">© 2026 김상화</span>
-      <span class="ver">v1.28 · build 260925</span>
+      <span class="ver">v1.29 · build 260925</span>
       <span class="ver" id="storage-badge"></span>
     </div>
     <div class="foot-right">
@@ -323,6 +315,6 @@
 
   <button id="to-top" aria-label="맨 위로" hidden>↑</button>
 
-  <script src="{{ url_for('static', filename='js/app.js', v='130') }}"></script>
+  <script src="{{ url_for('static', filename='js/app.js', v='131') }}"></script>
 </body>
 </html>

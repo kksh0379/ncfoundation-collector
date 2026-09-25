@@ -586,16 +586,47 @@ async function loadBoards() {
   } catch (e) { emptyState(el, "불러오지 못했어요. 잠시 후 다시 시도해 주세요."); }
 }
 
+// 재단YT 분류(체크박스): 재단(NC문화재단 채널) / 주요재단(기관명 검색).
+let socialCats = new Set(["재단"]);
+function socialBucket(it) { return (it.account || "") === "NC문화재단" ? "재단" : "주요재단"; }
+function filterSocialByCat(items) {
+  if (socialCats.size >= 2) return items;
+  if (socialCats.size === 0) return [];
+  return items.filter((it) => socialCats.has(socialBucket(it)));
+}
 async function loadSocial() {
   const el = document.getElementById("list-social");
   showLoading(el);
-  const channel = ddValue("dd-channel");
   try {
-    const res = await fetch("/api/social?channel=" + encodeURIComponent(channel));
+    const res = await fetch("/api/social?channel=all");   // 전체 받아 분류는 클라이언트에서
     setTabData("social", el, await res.json(),
-      (list) => renderList(el, list, { badgeFn: (it) => `${it.channel} · ${it.account}` }));
+      (list) => renderList(el, list, { badgeFn: (it) => `${socialBucket(it) === "재단" ? "재단" : "주요재단"} · ${it.account}` }));
+    TAB_DATA.social.prefilter = filterSocialByCat;
+    renderTab("social");
   } catch (e) { emptyState(el, "불러오지 못했어요. 잠시 후 다시 시도해 주세요."); }
 }
+// 재단YT 체크박스(전체=모두 토글, 개별 토글, 전체 동기화)
+(function initSocialCats() {
+  const box = document.getElementById("social-cats");
+  if (!box) return;
+  const cats = ["재단", "주요재단"];
+  const allBox = box.querySelector('[data-cat="all"]');
+  const catBoxes = cats.map((c) => box.querySelector(`[data-cat="${c}"]`));
+  const syncUI = () => {
+    catBoxes.forEach((cb) => { cb.checked = socialCats.has(cb.dataset.cat); });
+    allBox.checked = cats.every((c) => socialCats.has(c));
+  };
+  box.addEventListener("change", (e) => {
+    const cb = e.target;
+    const cat = cb.dataset.cat;
+    if (cat === "all") socialCats = cb.checked ? new Set(cats) : new Set();
+    else if (cb.checked) socialCats.add(cat);
+    else socialCats.delete(cat);
+    syncUI();
+    if (TAB_DATA.social) renderTab("social");
+  });
+  syncUI();
+})();
 
 // ----------------------------- 행사일정(앨범 / 캘린더) -----------------------------
 let eventView = "album";                 // album | calendar
@@ -904,7 +935,7 @@ document.getElementById("collect-social").addEventListener("click", (e) =>
   runCrawl(e.currentTarget, "social", document.getElementById("msg-social"), loadSocial)
 );
 // ----------------------------- DB 비우기(관리자, 현재 탭만) -----------------------------
-const TAB_KO = { cat: "냥정보", news: "NC뉴스", biz: "업계동향", event: "행사일정", boards: "재단게시판", social: "재단소셜" };
+const TAB_KO = { cat: "냥정보", news: "NC뉴스", biz: "업계동향", event: "행사일정", boards: "재단게시판", social: "재단YT" };
 function activeTab() {
   const t = document.querySelector(".tab.active");
   return (t && t.dataset.tab) || "cat";
@@ -977,7 +1008,6 @@ document.addEventListener("click", () =>
 );
 setupDropdown("dd-cat-category", loadCat);
 setupDropdown("dd-service", loadBoards);
-setupDropdown("dd-channel", loadSocial);
 
 // ----------------------------- 마지막 수집 일시 -----------------------------
 function fmtLast(ts) {

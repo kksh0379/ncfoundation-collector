@@ -1,40 +1,23 @@
-"""탭3: 소셜 채널 수집.
+"""탭: 재단YT(유튜브) 수집.
 
 대상
-- 인스타그램(재단), 인스타그램(프로젝토리)
-- 유튜브(NC문화재단)
-
-유튜브는 채널 RSS 피드로 최신 영상을 수집한다.
-  https://www.youtube.com/feeds/videos.xml?channel_id=<CHANNEL_ID>
-
-인스타그램은 로그인 없이 쓸 수 있는 공개 프로필 JSON 엔드포인트
-(web_profile_info)로 베스트-에포트 수집한다. 인스타가 데이터센터 IP(무료 호스팅)
-요청을 차단하면 0건이 될 수 있는데, 그 경우 사유를 로그로 남기고 건너뛴다.
-확실한 수집이 필요하면 공식 Graph API(비즈니스 계정 + 토큰)로 교체한다.
+- 재단: NC문화재단 유튜브 채널(@nccf) — 채널 업로드 전체(Data API) 또는 RSS 최신.
+- 주요 재단: 업계동향과 동일한 주요 재단/공익법인명으로 유튜브 검색(Data API).
+  (채널ID를 몰라도 되도록 검색 방식. YOUTUBE_API_KEY 필요 — 없으면 주요 재단은 건너뜀)
 """
 import os
 import re
 import time
-from datetime import datetime
 
-import requests
 from bs4 import BeautifulSoup
 
 from . import extractor, fetcher
 
 YT_DATA_API = "https://www.googleapis.com/youtube/v3/playlistItems"
+YT_SEARCH_API = "https://www.googleapis.com/youtube/v3/search"
 
+# 재단(NC문화재단) 채널
 SOURCES = [
-    {
-        "channel": "인스타그램", "account": "재단",
-        "type": "instagram",
-        "url": "https://www.instagram.com/nccf.official/",
-    },
-    {
-        "channel": "인스타그램", "account": "프로젝토리",
-        "type": "instagram",
-        "url": "https://www.instagram.com/projectory_official/",
-    },
     {
         "channel": "유튜브", "account": "NC문화재단",
         "type": "youtube",
@@ -42,10 +25,13 @@ SOURCES = [
     },
 ]
 
+# 주요 재단(업계동향 B 목록과 동일) — 유튜브 검색어로 사용
+MAJOR_FOUNDATIONS = [
+    "아산나눔재단", "삼성문화재단", "CJ문화재단", "롯데문화재단", "현대차 정몽구 재단",
+    "포스코청암재단", "두산연강재단", "LG연암문화재단", "카카오임팩트", "네이버문화재단",
+]
+
 YT_FEED = "https://www.youtube.com/feeds/videos.xml"
-# 인스타 공개 웹앱 app id(로그인 없는 web_profile_info 호출에 필요).
-IG_APP_ID = "936619743392459"
-IG_PROFILE_API = "https://www.instagram.com/api/v1/users/web_profile_info/"
 
 
 def _youtube_channel_id(url):
@@ -169,82 +155,44 @@ def _crawl_youtube(cfg, max_items=15):
     return items
 
 
-def _instagram_username(url):
-    m = re.search(r"instagram\.com/([^/?#]+)", url or "")
-    return m.group(1) if m else None
-
-
-def _fetch_instagram_json(user):
-    """공개 web_profile_info JSON을 받아온다.
-
-    헤더만으로 호출하면 401을 자주 맞으므로, 먼저 인스타 홈/프로필을 한 번 쳐서
-    세션 쿠키(csrftoken)를 확보한 뒤 그 쿠키와 함께 API를 호출한다.
-    그래도 데이터센터 IP(무료 호스팅)는 차단될 수 있으며, 실패 시 None."""
-    s = requests.Session()
-    s.headers.update({
-        "User-Agent": fetcher.DEFAULT_HEADERS["User-Agent"],
-        "Accept-Language": "ko-KR,ko;q=0.9,en;q=0.8",
-    })
+def _crawl_youtube_search(query, account, max_items=8):
+    """YouTube Data API v3 search로 주요 재단명 관련 최신 영상을 수집한다.
+    채널ID를 몰라도 되도록 검색 방식 사용. 키 없으면 빈 리스트."""
+    key = os.environ.get("YOUTUBE_API_KEY", "").strip()
+    if not key:
+        return []
+    params = {
+        "part": "snippet", "q": query, "type": "video", "order": "date",
+        "maxResults": max_items, "regionCode": "KR", "relevanceLanguage": "ko", "key": key,
+    }
     try:
-        # 1) 쿠키(csrftoken) 확보
-        s.get(f"https://www.instagram.com/{user}/", timeout=fetcher.TIMEOUT)
-        csrf = s.cookies.get("csrftoken", "")
-        # 2) 공개 프로필 API
-        r = s.get(
-            IG_PROFILE_API,
-            params={"username": user},
-            headers={
-                "x-ig-app-id": IG_APP_ID,
-                "x-csrftoken": csrf,
-                "x-requested-with": "XMLHttpRequest",
-                "Accept": "application/json",
-                "Referer": f"https://www.instagram.com/{user}/",
-            },
-            timeout=fetcher.TIMEOUT,
-        )
-        r.raise_for_status()
-        return r.json()
+        j = fetcher.get(YT_SEARCH_API, params=params, retries=1, timeout=12).json()
     except Exception as e:  # noqa: BLE001
-        print(f"[social] 인스타 차단/실패({user}): {type(e).__name__}: {str(e)[:140]}", flush=True)
-        return None
-    finally:
-        s.close()
-
-
-def _crawl_instagram(cfg, max_items=12):
-    """공개 프로필 JSON(web_profile_info)으로 최근 게시물을 수집한다.
-    인스타가 차단하면 0건을 돌려준다(사유는 서버 로그에 기록)."""
-    user = _instagram_username(cfg["url"])
-    if not user:
-        print(f"[social] 인스타 사용자명 파싱 실패: {cfg['url']}", flush=True)
+        print(f"[social] 유튜브 검색 실패({account}): {e}", flush=True)
         return []
-    data = _fetch_instagram_json(user)
-    if not data:
+    if j.get("error"):
+        print(f"[social] 유튜브 검색 오류({account}): {str(j['error'])[:160]}", flush=True)
         return []
-
-    edges = (((data or {}).get("data") or {}).get("user") or {}) \
-        .get("edge_owner_to_timeline_media", {}).get("edges", [])
-    print(f"[social] 인스타 {user} 게시물 {len(edges)}개", flush=True)
     items = []
-    for edge in edges[:max_items]:
-        node = edge.get("node", {})
-        shortcode = node.get("shortcode")
-        if not shortcode:
+    for it in j.get("items", []):
+        vid = (it.get("id") or {}).get("videoId")
+        if not vid:
             continue
-        cap = node.get("edge_media_to_caption", {}).get("edges", [])
-        caption = cap[0]["node"]["text"] if cap else ""
-        ts = node.get("taken_at_timestamp")
-        published = datetime.fromtimestamp(ts).strftime("%Y-%m-%d %H:%M") if ts else None
-        first_line = caption.splitlines()[0] if caption.strip() else "(이미지 게시물)"
+        sn = it.get("snippet", {})
+        title = extractor.clean_text(sn.get("title") or "")
+        if not title:
+            continue
+        pub = (sn.get("publishedAt") or "")[:16].replace("T", " ")
+        th = sn.get("thumbnails") or {}
+        img = ((th.get("high") or th.get("medium") or th.get("default") or {}).get("url")
+               or f"https://i.ytimg.com/vi/{vid}/hqdefault.jpg")
         items.append({
-            "channel": cfg["channel"],
-            "account": cfg["account"],
-            "title": extractor.clean_text(first_line)[:80],
-            "published_at": published,
-            "content": extractor.summarize(caption),
-            "url": f"https://www.instagram.com/p/{shortcode}/",
-            "image_url": node.get("thumbnail_src") or node.get("display_url"),
+            "channel": "유튜브", "account": account,
+            "title": title, "published_at": pub,
+            "content": extractor.summarize(sn.get("description") or ""),
+            "url": "https://www.youtube.com/watch?v=" + vid, "image_url": img,
         })
+    print(f"[social] 유튜브 검색 {account}: {len(items)}개", flush=True)
     return items
 
 
@@ -254,12 +202,7 @@ def crawl_source(cfg, max_items=10):
         print(f"[social] {label}: URL 없음, 건너뜀", flush=True)
         return []
     t0 = time.time()
-    if cfg["type"] == "youtube":
-        items = _crawl_youtube(cfg, max_items=max_items)
-    elif cfg["type"] == "instagram":
-        items = _crawl_instagram(cfg, max_items=max_items)
-    else:
-        items = []
+    items = _crawl_youtube(cfg, max_items=max_items) if cfg["type"] == "youtube" else []
     print(f"[social] {label}: 수집 {len(items)}건 / {time.time() - t0:.1f}s", flush=True)
     return items
 
@@ -268,9 +211,18 @@ def crawl_all(max_items=10, progress=None):
     progress = progress or (lambda m: None)
     t0 = time.time()
     results = []
+    # 1) 재단: NC문화재단 채널
     for cfg in SOURCES:
         items = crawl_source(cfg, max_items=max_items)
         results.extend(items)
-        progress(f"{cfg['channel']} · {cfg['account']}: {len(items)}건")
+        progress(f"{cfg['account']}: {len(items)}건")
+    # 2) 주요 재단: 기관명으로 유튜브 검색(키 있을 때만)
+    if os.environ.get("YOUTUBE_API_KEY", "").strip():
+        for i, name in enumerate(MAJOR_FOUNDATIONS, 1):
+            items = _crawl_youtube_search(name, name, max_items=8)
+            results.extend(items)
+            progress(f"주요 재단 {i}/{len(MAJOR_FOUNDATIONS)} · {name}: {len(items)}건")
+    else:
+        progress("주요 재단: YOUTUBE_API_KEY 없음 → 건너뜀")
     print(f"[social] 전체 완료: 총 {len(results)}건 / {time.time() - t0:.1f}s", flush=True)
     return results
