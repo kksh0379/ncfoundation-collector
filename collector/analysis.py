@@ -38,12 +38,13 @@ def list_models(key=None):
 
 
 def _pick_model(ids):
-    """sonnet > opus > haiku 순으로, 같은 급이면 최신(문자열 내림차순)을 고른다."""
+    """신뢰성 우선: haiku(빠르고 추론이 적어 잘 완결) > sonnet > opus, 같은 급이면 최신.
+    (Claude 5 sonnet/opus는 추론에 출력·시간을 많이 써 타임아웃/잘림이 잦음)"""
     if not ids:
         return None
 
     def score(mid):
-        tier = 3 if "sonnet" in mid else (2 if "opus" in mid else (1 if "haiku" in mid else 0))
+        tier = 3 if "haiku" in mid else (2 if "sonnet" in mid else (1 if "opus" in mid else 0))
         return (tier, mid)
     return sorted(ids, key=score, reverse=True)[0]
 
@@ -206,7 +207,7 @@ def _post_messages(key, model, user):
     import requests
     # Claude 5 계열은 내부 추론(thinking)에도 출력 토큰을 쓰므로 넉넉히 잡아
     # 추론 + 완결 JSON이 모두 들어가게 한다(부족하면 stop_reason=max_tokens로 잘림).
-    max_tokens = int(os.environ.get("ANALYSIS_MAX_TOKENS", "24000"))
+    max_tokens = int(os.environ.get("ANALYSIS_MAX_TOKENS", "16000"))
     body = {"model": model, "max_tokens": max_tokens, "system": SYSTEM_PROMPT,
             "messages": [{"role": "user", "content": user}]}
     return requests.post(API_URL, headers={
