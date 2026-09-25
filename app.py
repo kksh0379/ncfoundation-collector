@@ -10,6 +10,7 @@ import os
 import queue
 import threading
 import time
+import uuid
 from datetime import datetime, timedelta, timezone
 
 from flask import Flask, Response, jsonify, render_template, request, session
@@ -138,15 +139,30 @@ def logout():
     return jsonify({"ok": True})
 
 
-# ---------------------------- 개인 데이터(스크랩/읽음) ----------------------------
+# ---------------------------- 개인 데이터(스크랩/읽음/그룹) ----------------------------
+def _get_groups(u):
+    rows = db.user_state_list(u, "grouplist")
+    if not rows:
+        return []
+    try:
+        return json.loads(rows[0]["snapshot"] or "[]")
+    except Exception:  # noqa: BLE001
+        return []
+
+
+def _save_groups(u, groups):
+    db.user_state_upsert(u, "_", "grouplist", json.dumps(groups, ensure_ascii=False),
+                         int(time.time() * 1000))
+
+
 @app.get("/api/mydata")
 def mydata():
-    """로그인한 사용자의 스크랩·읽음 목록. 미로그인=401."""
+    """로그인한 사용자의 스크랩·읽음·그룹 목록. 미로그인=401."""
     u = _current_user()
     if not u:
         return jsonify({"error": "unauthorized"}), 401
     if not _ensure_db():
-        return jsonify({"scraps": [], "reads": []})
+        return jsonify({"scraps": [], "reads": [], "groups": []})
     scraps = []
     for r in db.user_state_list(u, "scrap"):
         try:
@@ -154,9 +170,83 @@ def mydata():
         except Exception:  # noqa: BLE001
             snap = {}
         snap["ts"] = r["ts"]
+        if not isinstance(snap.get("groups"), list):
+            snap["groups"] = []
         scraps.append(snap)
     reads = [r["ukey"] for r in db.user_state_list(u, "read")]
-    return jsonify({"scraps": scraps, "reads": reads})
+    return jsonify({"scraps": scraps, "reads": reads, "groups": _get_groups(u)})
+
+
+@app.post("/api/groups")
+def groups_api():
+    """커스텀 그룹 관리. body: {op:'add'|'rename'|'del', id?, name?}. 반환: {ok, groups}."""
+    u = _current_user()
+    if not u:
+        return jsonify({"error": "unauthorized"}), 401
+    if not _ensure_db():
+        return jsonify({"ok": False}), 503
+    data = request.get_json(silent=True) or {}
+    op = data.get("op")
+    groups = _get_groups(u)
+    if op == "add":
+        name = (data.get("name") or "").strip()
+        if not name:
+            return jsonify({"ok": False, "error": "이름 없음"}), 400
+        gid = uuid.uuid4().hex[:8]
+        groups.append({"id": gid, "name": name[:40]})
+        _save_groups(u, groups)
+        return jsonify({"ok": True, "groups": groups, "id": gid})
+    if op == "rename":
+        gid = data.get("id")
+        name = (data.get("name") or "").strip()
+        if not name:
+            return jsonify({"ok": False, "error": "이름 없음"}), 400
+        for g in groups:
+            if g.get("id") == gid:
+                g["name"] = name[:40]
+        _save_groups(u, groups)
+        return jsonify({"ok": True, "groups": groups})
+    if op == "del":
+        gid = data.get("id")
+        groups = [g for g in groups if g.get("id") != gid]
+        _save_groups(u, groups)
+        # 모든 스크랩에서 해당 그룹 소속 제거(정리)
+        for r in db.user_state_list(u, "scrap"):
+            try:
+                snap = json.loads(r["snapshot"] or "{}")
+            except Exception:  # noqa: BLE001
+                continue
+            gs = snap.get("groups") or []
+            if gid in gs:
+                snap["groups"] = [x for x in gs if x != gid]
+                db.user_state_upsert(u, r["ukey"], "scrap",
+                                     json.dumps(snap, ensure_ascii=False), r["ts"])
+        return jsonify({"ok": True, "groups": groups})
+    return jsonify({"ok": False, "error": "op"}), 400
+
+
+@app.post("/api/scrap/groups")
+def scrap_groups():
+    """특정 스크랩의 소속 그룹 설정. body: {key, groups:[id,...]}. 미로그인=401."""
+    u = _current_user()
+    if not u:
+        return jsonify({"error": "unauthorized"}), 401
+    if not _ensure_db():
+        return jsonify({"ok": False}), 503
+    data = request.get_json(silent=True) or {}
+    key = (data.get("key") or "").strip()
+    if not key:
+        return jsonify({"ok": False}), 400
+    row = db.user_state_get(u, key, "scrap")
+    if not row:
+        return jsonify({"ok": False, "error": "스크랩 아님"}), 404
+    try:
+        obj = json.loads(row["snapshot"] or "{}")
+    except Exception:  # noqa: BLE001
+        obj = {}
+    obj["groups"] = [str(x) for x in (data.get("groups") or [])]
+    db.user_state_upsert(u, key, "scrap", json.dumps(obj, ensure_ascii=False), row["ts"])
+    return jsonify({"ok": True})
 
 
 @app.post("/api/scrap")

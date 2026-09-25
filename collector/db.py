@@ -442,6 +442,15 @@ def user_state_list(username, kind):
         return [dict(r) for r in rows]
 
 
+def user_state_get(username, ukey, kind):
+    """단건 조회. 없으면 None."""
+    with get_conn() as conn:
+        row = conn.execute(_q(
+            "SELECT ukey, snapshot, ts FROM user_state WHERE username=? AND ukey=? AND kind=?"),
+            (username, ukey, kind)).fetchone()
+        return dict(row) if row else None
+
+
 def existing_board_urls(service=None):
     """본문 요약이 이미 채워진 게시판 글 URL 집합(증분용). service 지정 시 해당 서비스만.
     본문이 빈 글은 제외 → 다음 수집 때 상세를 다시 시도해 채운다(자가 복구)."""

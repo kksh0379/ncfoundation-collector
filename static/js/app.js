@@ -32,8 +32,11 @@ function fmtDate(iso) {
 
 // ===== 읽음 여부 / 스크랩 (아이디 기반, 서버 저장) =====
 let READ = new Set();     // 읽은 글 key
-let SCRAP = {};           // key -> 스냅샷
+let SCRAP = {};           // key -> 스냅샷(각 스냅샷에 groups:[] 포함)
+let GROUPS = [];          // 커스텀 그룹 [{id,name}]
 let pendingScrapKey = null;  // 미로그인 상태에서 스크랩 시도 → 로그인 후 이어서 처리
+let scrapQuery = "";      // 나의 스크랩 검색어
+let scrapFilterGroup = "all";  // 활성 그룹 필터(all 또는 group id)
 // 게시글 고유키: 원문/URL 기준
 function keyOf(it) { return String(it.url || it.source_url || it.title || "").trim(); }
 function isRead(k) { return READ.has(k); }
@@ -48,8 +51,9 @@ async function loadMyData() {
     const d = await (await fetch("/api/mydata")).json();
     READ = new Set(d.reads || []);
     SCRAP = {};
-    (d.scraps || []).forEach((s) => { if (s.key) SCRAP[s.key] = s; });
-  } catch (e) { READ = new Set(); SCRAP = {}; }
+    (d.scraps || []).forEach((s) => { if (s.key) { s.groups = s.groups || []; SCRAP[s.key] = s; } });
+    GROUPS = d.groups || [];
+  } catch (e) { READ = new Set(); SCRAP = {}; GROUPS = []; }
   applyUserStateToDom();
   updateScrapBadge();
 }
@@ -948,6 +952,16 @@ function updateScrapBadge() {
   const n = Object.keys(SCRAP).length;
   if (n) { b.textContent = n > 99 ? "99+" : n; b.hidden = false; } else { b.hidden = true; }
 }
+function groupName(gid) { const g = GROUPS.find((x) => x.id === gid); return g ? g.name : ""; }
+function scrapCount(gid) {
+  const vals = Object.values(SCRAP);
+  return gid === "all" ? vals.length : vals.filter((s) => (s.groups || []).includes(gid)).length;
+}
+function groupChipsHtml(s) {
+  return (s.groups || []).map((gid) => {
+    const nm = groupName(gid); return nm ? `<span class="grp-chip">${escapeHtml(nm)}</span>` : "";
+  }).join("");
+}
 function scrapCardNode(s) {
   const li = document.createElement("li");
   li.className = "card card-news" + readClass(s.key);
@@ -959,23 +973,58 @@ function scrapCardNode(s) {
   const link = s.link || s.url;
   const t = escapeHtml(s.title || "(제목 없음)");
   const titleHtml = link ? `<a href="${escapeHtml(link)}" target="_blank" rel="noopener">${t}</a>` : t;
+  const checks = GROUPS.length
+    ? GROUPS.map((g) => `<label class="grp-check-item"><input type="checkbox" class="grp-check" data-key="${escapeHtml(s.key)}" data-gid="${g.id}"${(s.groups || []).includes(g.id) ? " checked" : ""}> ${escapeHtml(g.name)}</label>`).join("")
+    : `<span class="grp-empty">아직 그룹이 없어요.</span>`;
   li.innerHTML = `
     ${scrapBtnHtml(s.key)}
     <div class="card-main"><div class="card-body">
       <h3 class="card-title">${newBadgeHtml(s.date)}${titleHtml}</h3>
       <div class="card-meta">${meta.join(" · ")}</div>
       ${s.content ? `<p class="card-summary">${escapeHtml(s.content)}</p>` : ""}
-      <div class="card-actions">${link ? `<a href="${escapeHtml(link)}" target="_blank" rel="noopener">원문 보기 ↗</a>` : ""}</div>
+      <div class="grp-chips">${groupChipsHtml(s)}</div>
+      <div class="card-actions">
+        ${link ? `<a href="${escapeHtml(link)}" target="_blank" rel="noopener">원문 보기 ↗</a>` : ""}
+        <button class="grp-assign" type="button">🏷 그룹 지정</button>
+      </div>
+      <div class="grp-assign-panel">
+        <div class="grp-assign-title">이 글을 넣을 그룹</div>
+        <div class="grp-check-list">${checks}</div>
+        <button class="grp-new" type="button" data-key="${escapeHtml(s.key)}">＋ 새 그룹 만들어 넣기</button>
+      </div>
     </div></div>`;
   return li;
 }
-function renderScraps() {
+function renderScrapControls() {
+  const c = document.getElementById("scrap-controls");
+  if (!c) return;
+  const chips = [`<button class="scrap-chip${scrapFilterGroup === "all" ? " active" : ""}" data-gid="all">전체 <b>${scrapCount("all")}</b></button>`];
+  GROUPS.forEach((g) => {
+    chips.push(`<button class="scrap-chip${scrapFilterGroup === g.id ? " active" : ""}" data-gid="${g.id}">${escapeHtml(g.name)} <b>${scrapCount(g.id)}</b></button>`);
+  });
+  chips.push(`<button class="scrap-chip-add" type="button" title="새 그룹">＋ 그룹</button>`);
+  const manage = scrapFilterGroup !== "all"
+    ? `<div class="grp-manage"><button class="grp-rename" type="button" data-gid="${scrapFilterGroup}">✎ 이름변경</button><button class="grp-del" type="button" data-gid="${scrapFilterGroup}">🗑 그룹삭제</button></div>`
+    : "";
+  c.innerHTML = `
+    <div class="scrap-search">
+      <input type="search" id="scrap-search" class="search-input" placeholder="스크랩에서 검색…" value="${escapeHtml(scrapQuery)}" autocomplete="off" enterkeyhint="search" />
+      <button type="button" class="search-btn" id="scrap-search-btn" aria-label="검색">🔍</button>
+    </div>
+    <div class="scrap-chips">${chips.join("")}</div>
+    ${manage}`;
+}
+function renderScrapList() {
   const el = document.getElementById("scrap-list");
-  const items = Object.values(SCRAP).sort((a, b) => (b.ts || 0) - (a.ts || 0));
+  let items = Object.values(SCRAP);
+  if (scrapFilterGroup !== "all") items = items.filter((s) => (s.groups || []).includes(scrapFilterGroup));
+  if (scrapQuery) items = smartFilter(items, scrapQuery);
+  items.sort((a, b) => (b.ts || 0) - (a.ts || 0));
   const h = document.getElementById("scrap-count-h");
-  if (h) h.textContent = items.length ? `(${items.length})` : "";
+  if (h) h.textContent = `(${items.length})`;
   if (!items.length) {
-    el.innerHTML = `<li class="empty"><div class="empty-msg">아직 스크랩한 글이 없어요.</div>`
+    const msg = Object.keys(SCRAP).length ? "조건에 맞는 스크랩이 없어요." : "아직 스크랩한 글이 없어요.";
+    el.innerHTML = `<li class="empty"><div class="empty-msg">${msg}</div>`
       + `<div class="empty-hint">글 카드의 🔖 아이콘을 눌러 스크랩하세요.</div></li>`;
     return;
   }
@@ -984,8 +1033,77 @@ function renderScraps() {
   items.forEach((s) => frag.appendChild(scrapCardNode(s)));
   el.appendChild(frag);
 }
+function renderScraps() { renderScrapControls(); renderScrapList(); }
+function updateCardGroupChips(key) {
+  document.querySelectorAll("#scrap-list .card").forEach((li) => {
+    if (li.dataset.key !== key) return;
+    const el = li.querySelector(".grp-chips");
+    if (el) el.innerHTML = groupChipsHtml(SCRAP[key]);
+  });
+}
+// 그룹 API
+async function setMembership(key, groupIds) {
+  SCRAP[key].groups = groupIds.slice();
+  await api("/api/scrap/groups", { key, groups: groupIds });
+}
+async function toggleMembership(key, gid, on) {
+  const set = new Set(SCRAP[key].groups || []);
+  if (on) set.add(gid); else set.delete(gid);
+  const arr = Array.from(set);
+  try { await setMembership(key, arr); } catch (e) { toast("저장 실패 — 다시 시도해 주세요"); return; }
+  renderScrapControls();
+  updateCardGroupChips(key);
+  if (scrapFilterGroup !== "all") renderScrapList();
+}
+async function createGroupFlow(assignKey) {
+  const name = (prompt("새 그룹 이름을 입력하세요") || "").trim();
+  if (!name) return;
+  try {
+    const r = await api("/api/groups", { op: "add", name });
+    GROUPS = r.groups || GROUPS;
+    if (assignKey && r.id) { const gs = (SCRAP[assignKey].groups || []).slice(); gs.push(r.id); await setMembership(assignKey, gs); }
+    renderScraps(); toast("그룹을 만들었어요");
+  } catch (e) { toast("그룹 생성 실패"); }
+}
+async function renameGroupFlow(gid) {
+  const cur = groupName(gid);
+  const name = (prompt("그룹 이름 변경", cur) || "").trim();
+  if (!name || name === cur) return;
+  try { const r = await api("/api/groups", { op: "rename", id: gid, name }); GROUPS = r.groups || GROUPS; renderScraps(); }
+  catch (e) { toast("이름변경 실패"); }
+}
+async function deleteGroupFlow(gid) {
+  if (!confirm(`'${groupName(gid)}' 그룹을 삭제할까요?\n(스크랩한 글 자체는 지워지지 않아요)`)) return;
+  try {
+    const r = await api("/api/groups", { op: "del", id: gid });
+    GROUPS = r.groups || [];
+    Object.values(SCRAP).forEach((s) => { if (s.groups) s.groups = s.groups.filter((x) => x !== gid); });
+    if (scrapFilterGroup === gid) scrapFilterGroup = "all";
+    renderScraps(); toast("그룹을 삭제했어요");
+  } catch (e) { toast("삭제 실패"); }
+}
+// 나의 스크랩 팝업 내 상호작용(위임)
+document.addEventListener("click", (e) => {
+  const chip = e.target.closest(".scrap-chip");
+  if (chip) { scrapFilterGroup = chip.dataset.gid; renderScraps(); return; }
+  if (e.target.closest(".scrap-chip-add")) { createGroupFlow(null); return; }
+  const rn = e.target.closest(".grp-rename"); if (rn) { renameGroupFlow(rn.dataset.gid); return; }
+  const dl = e.target.closest(".grp-del"); if (dl) { deleteGroupFlow(dl.dataset.gid); return; }
+  const ng = e.target.closest(".grp-new"); if (ng) { createGroupFlow(ng.dataset.key); return; }
+  const ab = e.target.closest(".grp-assign");
+  if (ab) { const p = ab.closest(".card").querySelector(".grp-assign-panel"); if (p) p.classList.toggle("open"); return; }
+  if (e.target.closest("#scrap-search-btn")) { const i = document.getElementById("scrap-search"); scrapQuery = (i ? i.value : "").trim(); renderScrapList(); return; }
+});
+document.addEventListener("change", (e) => {
+  const cb = e.target.closest(".grp-check");
+  if (cb) toggleMembership(cb.dataset.key, cb.dataset.gid, cb.checked);
+});
+document.addEventListener("input", (e) => {
+  if (e.target && e.target.id === "scrap-search") { scrapQuery = e.target.value.trim(); renderScrapList(); }
+});
 function openScraps() {
   if (!isLoggedIn()) { toast("로그인하면 스크랩을 볼 수 있어요"); openLogin(); return; }
+  scrapFilterGroup = "all"; scrapQuery = "";
   renderScraps();
   document.getElementById("scrap-modal").hidden = false;
   document.body.classList.add("modal-open");

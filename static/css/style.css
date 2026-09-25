@@ -784,3 +784,37 @@ body.modal-open { overflow: hidden; }
 .login-hint { margin-top: 14px; font-size: 12px; color: var(--muted); text-align: center; line-height: 1.6; }
 .login-hint b { color: var(--text); }
 .foot-user { color: var(--muted); font-weight: 700; margin-right: 2px; }
+
+/* ===== 나의 스크랩: 검색 + 커스텀 그룹 ===== */
+.scrap-controls { background: #fff; border-bottom: 1px solid var(--border); padding: 10px 12px; }
+.scrap-search { display: flex; align-items: center; background: #fff; border: 1px solid var(--border); border-radius: 8px; height: 36px; padding: 0 4px 0 12px; }
+.scrap-search:focus-within { border-color: var(--primary); }
+.scrap-search .search-input { flex: 1 1 auto; min-width: 0; border: none; outline: none; background: transparent; font-size: 14px; height: 100%; }
+.scrap-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.scrap-chip, .scrap-chip-add {
+  border: 1px solid var(--border); background: #fff; color: var(--text);
+  font-size: 13px; font-weight: 600; padding: 6px 11px; border-radius: 999px; cursor: pointer; white-space: nowrap;
+}
+.scrap-chip b { color: var(--muted); font-weight: 800; margin-left: 2px; }
+.scrap-chip.active { background: var(--primary); border-color: var(--primary); color: #fff; }
+.scrap-chip.active b { color: #fff; }
+.scrap-chip-add { color: var(--primary); border-style: dashed; }
+.grp-manage { display: flex; gap: 8px; margin-top: 10px; }
+.grp-manage button { border: 1px solid var(--border); background: #fff; color: var(--muted); font-size: 12px; font-weight: 700; padding: 6px 12px; border-radius: 8px; cursor: pointer; }
+.grp-del { color: #dc2626 !important; }
+
+/* 카드의 소속 그룹 칩 */
+.grp-chips { display: flex; flex-wrap: wrap; gap: 5px; margin: 2px 0 6px; }
+.grp-chip { background: #eef2ff; color: var(--primary-dark); font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 999px; }
+
+/* 카드 그룹지정 버튼/패널 */
+.grp-assign { border: 1px solid var(--border); background: #fff; color: var(--primary); font-size: 12px; font-weight: 700; padding: 5px 10px; border-radius: 8px; cursor: pointer; margin-left: auto; }
+.card-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.grp-assign-panel { display: none; margin-top: 10px; padding: 10px; background: #f7f8fa; border: 1px solid var(--border); border-radius: 8px; }
+.grp-assign-panel.open { display: block; }
+.grp-assign-title { font-size: 12px; font-weight: 700; color: var(--muted); margin-bottom: 8px; }
+.grp-check-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; }
+.grp-check-item { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--text); cursor: pointer; }
+.grp-check-item input { width: 17px; height: 17px; }
+.grp-empty { font-size: 13px; color: var(--muted); }
+.grp-new { border: 1px dashed var(--primary); background: #fff; color: var(--primary); font-size: 13px; font-weight: 700; padding: 7px 12px; border-radius: 8px; cursor: pointer; width: 100%; }
