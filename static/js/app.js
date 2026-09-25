@@ -150,6 +150,8 @@ document.querySelectorAll(".tab").forEach((tab) => {
     document.querySelectorAll(".panel").forEach((p) => p.classList.remove("active"));
     tab.classList.add("active");
     document.getElementById("panel-" + tab.dataset.tab).classList.add("active");
+    document.body.classList.toggle("tab-event", tab.dataset.tab === "event");
+    try { tab.scrollIntoView({ inline: "center", block: "nearest", behavior: "smooth" }); } catch (e) { /* 무시 */ }
     if (typeof syncSearchInput === "function") syncSearchInput();
     if (typeof updateCount === "function") updateCount(tab.dataset.tab);
   });
@@ -353,6 +355,7 @@ function renderTab(tab) {
   d.count = list.length;
   d.searching = !!d.query;
   if (tab === activeTab()) updateCount(tab);
+  if (tab === "event") { d.render(list); return; }  // 행사일정은 자체 렌더(앨범/캘린더·빈상태 포함)
   if (d.query && !list.length) { searchEmpty(d.el, d.query); return; }
   d.render(list);
 }
@@ -552,6 +555,137 @@ async function loadSocial() {
   } catch (e) { emptyState(el, "불러오지 못했어요. 잠시 후 다시 시도해 주세요."); }
 }
 
+// ----------------------------- 행사일정(앨범 / 캘린더) -----------------------------
+let eventView = "album";                 // album | calendar
+let eventCalYM = null;                    // 캘린더가 보는 [year, month(0-11)]
+async function loadEvent() {
+  const el = document.getElementById("list-event");
+  showLoading(el);
+  try {
+    const res = await fetch("/api/events");
+    setTabData("event", el, await res.json(), renderEvents);
+  } catch (e) { emptyState(el, "불러오지 못했어요. 잠시 후 다시 시도해 주세요."); }
+}
+function eventDateBadge(s) {
+  if (!s.start_date) return "일정 미정";
+  const a = s.start_date, b = s.end_date;
+  return (b && b !== a) ? `${a} ~ ${b}` : a;
+}
+function eventPlace(s) {
+  const p = [s.venue, s.region].filter(Boolean);
+  return p.length ? p.join(" · ") : "";
+}
+function eventAlbumCard(s) {
+  const key = registerItem({ url: s.url, source_url: s.source_url, title: s.title, published_at: s.published_at, author: s.author, content: s.content }, "event", s.source_url || s.url);
+  const link = s.source_url || s.url;
+  const t = escapeHtml(s.title || "(제목 없음)");
+  const titleHtml = link ? `<a href="${escapeHtml(link)}" target="_blank" rel="noopener">${t}</a>` : t;
+  const place = eventPlace(s);
+  const li = document.createElement("li");
+  li.className = "card event-card" + readClass(key);
+  li.dataset.key = key;
+  li.innerHTML = `
+    ${scrapBtnHtml(key)}
+    ${s.image_url ? `<div class="card-thumb"><img class="thumb-img" loading="lazy" src="/api/img?u=${encodeURIComponent(s.image_url)}" alt="" onerror="this.closest('.card-thumb').remove()"></div>` : ""}
+    <div class="card-body">
+      <div class="event-date">📅 ${escapeHtml(eventDateBadge(s))}</div>
+      <h3 class="card-title">${newBadgeHtml(s.published_at)}${titleHtml}</h3>
+      ${place ? `<div class="event-place">📍 ${escapeHtml(place)}</div>` : ""}
+      ${s.content ? `<p class="card-summary">${escapeHtml(s.content)}</p>` : ""}
+      <div class="card-actions">${link ? `<a href="${escapeHtml(link)}" target="_blank" rel="noopener">원문 보기 ↗</a>` : ""}</div>
+    </div>`;
+  return li;
+}
+function renderEventAlbum(list) {
+  const el = document.getElementById("list-event");
+  if (!list.length) {
+    el.innerHTML = `<li class="empty"><div class="empty-msg">표시할 행사가 아직 없어요.</div>`
+      + `<div class="empty-hint">관리자가 '수집 실행'을 누르면 국내 AI 행사가 모여요.</div></li>`;
+    return;
+  }
+  el.innerHTML = "";
+  const frag = document.createDocumentFragment();
+  list.forEach((s) => frag.appendChild(eventAlbumCard(s)));
+  el.appendChild(frag);
+}
+function renderEventCalendar(list) {
+  const cal = document.getElementById("cal-event");
+  const dated = list.filter((s) => s.start_date);
+  // 기본 표시 월: 다가오는 첫 행사의 달(없으면 이번 달)
+  if (!eventCalYM) {
+    let base = new Date();
+    const up = dated.map((s) => s.start_date).sort();
+    const future = up.find((d) => d >= new Date().toISOString().slice(0, 10)) || up[0];
+    if (future) { const [y, m] = future.split("-"); base = new Date(+y, +m - 1, 1); }
+    eventCalYM = [base.getFullYear(), base.getMonth()];
+  }
+  const [Y, M] = eventCalYM;
+  const first = new Date(Y, M, 1);
+  const startDow = first.getDay();               // 0=일
+  const daysInMonth = new Date(Y, M + 1, 0).getDate();
+  const ym = (y, m) => `${y}-${String(m + 1).padStart(2, "0")}`;
+  // 날짜별 행사 매핑
+  const byDay = {};
+  dated.forEach((s) => {
+    const sd = s.start_date, ed = s.end_date || s.start_date;
+    let d = new Date(sd + "T00:00"), end = new Date(ed + "T00:00");
+    let guard = 0;
+    while (d <= end && guard++ < 400) {
+      if (d.getFullYear() === Y && d.getMonth() === M) {
+        const day = d.getDate();
+        (byDay[day] = byDay[day] || []).push(s);
+      }
+      d.setDate(d.getDate() + 1);
+    }
+  });
+  const undated = list.length - dated.length;
+  const dows = ["일", "월", "화", "수", "목", "금", "토"];
+  let cells = "";
+  for (let i = 0; i < startDow; i++) cells += `<div class="cal-cell cal-empty"></div>`;
+  const todayIso = new Date().toISOString().slice(0, 10);
+  for (let day = 1; day <= daysInMonth; day++) {
+    const iso = `${ym(Y, M)}-${String(day).padStart(2, "0")}`;
+    const evs = byDay[day] || [];
+    const chips = evs.slice(0, 4).map((s) => {
+      const link = s.source_url || s.url;
+      const cont = s.start_date !== iso && (s.end_date || s.start_date) !== iso; // 연속(중간)일
+      return `<a class="cal-ev${cont ? " cont" : ""}" href="${escapeHtml(link)}" target="_blank" rel="noopener" title="${escapeHtml(s.title)}">${escapeHtml(s.title)}</a>`;
+    }).join("");
+    const more = evs.length > 4 ? `<span class="cal-more">+${evs.length - 4}</span>` : "";
+    cells += `<div class="cal-cell${iso === todayIso ? " today" : ""}"><div class="cal-day">${day}</div>${chips}${more}</div>`;
+  }
+  cal.innerHTML = `
+    <div class="cal-head">
+      <button class="cal-nav" id="cal-prev" aria-label="이전 달">‹</button>
+      <div class="cal-title">${Y}년 ${M + 1}월</div>
+      <button class="cal-nav" id="cal-next" aria-label="다음 달">›</button>
+    </div>
+    <div class="cal-grid cal-dow">${dows.map((d, i) => `<div class="cal-cell cal-dowc${i === 0 ? " sun" : ""}">${d}</div>`).join("")}</div>
+    <div class="cal-grid">${cells}</div>
+    ${undated ? `<div class="cal-note">날짜 미상 ${undated}건은 앨범에서 볼 수 있어요.</div>` : ""}`;
+  document.getElementById("cal-prev").onclick = () => { eventCalYM = M === 0 ? [Y - 1, 11] : [Y, M - 1]; renderTab("event"); };
+  document.getElementById("cal-next").onclick = () => { eventCalYM = M === 11 ? [Y + 1, 0] : [Y, M + 1]; renderTab("event"); };
+}
+function renderEvents(list) {
+  const albumEl = document.getElementById("list-event");
+  const calEl = document.getElementById("cal-event");
+  const isCal = eventView === "calendar";
+  albumEl.hidden = isCal;
+  calEl.hidden = !isCal;
+  if (isCal) renderEventCalendar(list); else renderEventAlbum(list);
+}
+// 앨범/캘린더 토글
+(function initEventView() {
+  const seg = document.getElementById("event-view-toggle");
+  if (!seg) return;
+  seg.querySelectorAll("button").forEach((b) => b.addEventListener("click", () => {
+    eventView = b.dataset.eview === "calendar" ? "calendar" : "album";
+    seg.querySelectorAll("button").forEach((x) => x.classList.toggle("active", x.dataset.eview === eventView));
+    if (eventView === "calendar") eventCalYM = null;  // 열 때 다가오는 달로 재설정
+    renderTab("event");
+  }));
+})();
+
 // ----------------------------- 상태 확인 -----------------------------
 function statusRow(t) {
   // 접속 성공 + 200 + HTML이면 정상, 그 외는 주의/실패
@@ -603,6 +737,7 @@ async function runStatus(group) {
 document.getElementById("status-cat-btn").addEventListener("click", () => runStatus("cat"));
 document.getElementById("status-news-btn").addEventListener("click", () => runStatus("news"));
 document.getElementById("status-biz-btn").addEventListener("click", () => runStatus("biz"));
+document.getElementById("status-event-btn").addEventListener("click", () => runStatus("event"));
 document.getElementById("status-boards-btn").addEventListener("click", () => runStatus("boards"));
 document.getElementById("status-social-btn").addEventListener("click", () => runStatus("social"));
 
@@ -614,6 +749,7 @@ const CRAWL_UI = {
   cat: { btn: "collect-cat", msg: "msg-cat", reload: () => loadCat() },
   news: { btn: "collect-news", msg: "msg-news", reload: () => loadNews() },
   biz: { btn: "collect-biz", msg: "msg-biz", reload: () => loadBiz() },
+  event: { btn: "collect-event", msg: "msg-event", reload: () => loadEvent() },
   boards: { btn: "collect-boards", msg: "msg-boards", reload: () => loadBoards() },
   social: { btn: "collect-social", msg: "msg-social", reload: () => loadSocial() },
 };
@@ -690,6 +826,9 @@ document.getElementById("collect-cat").addEventListener("click", (e) =>
 document.getElementById("collect-biz").addEventListener("click", (e) =>
   runCrawl(e.currentTarget, "biz", document.getElementById("msg-biz"), loadBiz)
 );
+document.getElementById("collect-event").addEventListener("click", (e) =>
+  runCrawl(e.currentTarget, "event", document.getElementById("msg-event"), loadEvent)
+);
 document.getElementById("collect-news").addEventListener("click", (e) =>
   runCrawl(e.currentTarget, "news", document.getElementById("msg-news"), loadNews)
 );
@@ -700,7 +839,7 @@ document.getElementById("collect-social").addEventListener("click", (e) =>
   runCrawl(e.currentTarget, "social", document.getElementById("msg-social"), loadSocial)
 );
 // ----------------------------- DB 비우기(관리자, 현재 탭만) -----------------------------
-const TAB_KO = { cat: "냥정보", news: "NC뉴스", biz: "업계동향", boards: "재단게시판", social: "재단소셜" };
+const TAB_KO = { cat: "냥정보", news: "NC뉴스", biz: "업계동향", event: "행사일정", boards: "재단게시판", social: "재단소셜" };
 function activeTab() {
   const t = document.querySelector(".tab.active");
   return (t && t.dataset.tab) || "cat";
@@ -787,6 +926,7 @@ async function loadMeta() {
     document.getElementById("last-cat").textContent = fmtLast(m.cat);
     document.getElementById("last-news").textContent = fmtLast(m.news);
     document.getElementById("last-biz").textContent = fmtLast(m.biz);
+    document.getElementById("last-event").textContent = fmtLast(m.event);
     document.getElementById("last-boards").textContent = fmtLast(m.boards);
     document.getElementById("last-social").textContent = fmtLast(m.social);
     const badge = document.getElementById("storage-badge");
@@ -1196,12 +1336,28 @@ if (toTop) {
   toTop.addEventListener("click", () => window.scrollTo({ top: 0, behavior: "smooth" }));
 }
 
+// ----------------------------- 탭바 가로 스크롤 + 끝 블러(페이드) -----------------------------
+(function initTabsFade() {
+  const wrap = document.getElementById("tabs-wrap");
+  const tabs = document.getElementById("tabs");
+  if (!wrap || !tabs) return;
+  const update = () => {
+    const max = tabs.scrollWidth - tabs.clientWidth;
+    wrap.classList.toggle("fade-left", tabs.scrollLeft > 4);
+    wrap.classList.toggle("fade-right", tabs.scrollLeft < max - 4);
+  };
+  tabs.addEventListener("scroll", update, { passive: true });
+  window.addEventListener("resize", update);
+  setTimeout(update, 0);
+})();
+
 // ----------------------------- 초기 로드 -----------------------------
 initAuth();
 loadMeta();
 loadCat();
 loadNews();
 loadBiz();
+loadEvent();
 loadBoards();
 loadSocial();
 resumeCrawls();  // 진행 중이던 수집이 있으면 폴링 재개(화면 껐다 켜도 이어짐)

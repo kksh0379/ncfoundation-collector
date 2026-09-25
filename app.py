@@ -15,7 +15,7 @@ from datetime import datetime, timedelta, timezone
 
 from flask import Flask, Response, jsonify, render_template, request, session
 
-from collector import boards, db, dedup, fetcher, google_news, social
+from collector import boards, db, dedup, events, fetcher, google_news, social
 
 app = Flask(__name__)
 # 초안 단계: 브라우저가 옛 JS/CSS를 캐시해 혼란을 주지 않도록 정적파일 캐시를 끈다.
@@ -299,13 +299,15 @@ def admin_purge():
         return jsonify({"ok": False, "error": "DB에 연결할 수 없어요(Neon 깨는 중일 수 있음). 20초 뒤 다시 시도해 주세요."}), 503
     data = request.get_json(silent=True) or {}
     scope = data.get("scope", "all")
-    groups = ["cat", "news", "biz", "boards", "social"] if scope == "all" else [scope]
+    groups = ["cat", "news", "biz", "event", "boards", "social"] if scope == "all" else [scope]
     _SEC = {"cat": "cat", "news": "nc", "biz": "biz"}
     deleted = {}
     try:
         for g in groups:
             if g in _SEC:
                 deleted[g] = db.clear_news_section(_SEC[g])
+            elif g == "event":
+                deleted["event"] = db.clear_events()
             elif g in ("boards", "social"):
                 deleted.update(db.clear_tables([g]))
     except Exception as e:  # noqa: BLE001
@@ -315,7 +317,7 @@ def admin_purge():
     if data.get("recollect"):
         days = data.get("days")
         for g in groups:
-            if _start_job(g, days=days if g in ("cat", "news", "biz") else None):
+            if _start_job(g, days=days if g in ("cat", "news", "biz", "event") else None):
                 started.append(g)
     return jsonify({"ok": True, "deleted": deleted, "recollect_started": started})
 
@@ -581,6 +583,7 @@ def meta():
         "cat": m.get("last_crawl_cat"),
         "news": m.get("last_crawl_news"),
         "biz": m.get("last_crawl_biz"),
+        "event": m.get("last_crawl_event"),
         "boards": m.get("last_crawl_boards"),
         "social": m.get("last_crawl_social"),
         "storage": db.BACKEND,  # postgres(영구) / sqlite(임시)
@@ -643,6 +646,11 @@ def get_catnews():
 @app.get("/api/biznews")
 def get_biznews():
     return _safe_list(lambda: db.list_news(section="biz"))
+
+
+@app.get("/api/events")
+def get_events():
+    return _safe_list(lambda: db.list_events())
 
 
 @app.get("/api/img")
@@ -737,6 +745,11 @@ def diag():
         from urllib.parse import quote as _quote
         targets.append(
             ("구글 뉴스(RSS) · 업계동향", google_news.RSS_URL + "?q=" + _quote("문화재단") + "&hl=ko&gl=KR&ceid=KR:ko", None)
+        )
+    if group in ("all", "event"):
+        from urllib.parse import quote as _quote
+        targets.append(
+            ("구글 뉴스(RSS) · 행사일정", google_news.RSS_URL + "?q=" + _quote("인공지능 컨퍼런스 개최") + "&hl=ko&gl=KR&ceid=KR:ko", None)
         )
     if group in ("all", "boards"):
         import json as _json
@@ -914,10 +927,16 @@ def _save_social(items):
     return {"new": new, "updated": updated, "duplicates": 0}
 
 
+def _save_event(items):
+    new, updated = db.upsert_event_many(items)
+    return {"new": new, "updated": updated, "duplicates": 0}
+
+
 _CRAWLERS = {
     "news": (google_news.crawl, _save_news),
     "cat": (google_news.crawl_cat, _save_cat),
     "biz": (google_news.crawl_biz, _save_biz),
+    "event": (events.crawl, _save_event),
     "boards": (boards.crawl_all, _save_boards),
     "social": (social.crawl_all, _save_social),
 }
@@ -931,8 +950,8 @@ def _do_crawl(group, progress=None, days=None):
     progress("DB 연결 중…")
     _ensure_db(force=True)  # 실제로 접속을 기다려 Neon을 깨운다(수집은 DB가 꼭 필요)
     try:
-        if group in ("news", "cat", "biz"):
-            # 뉴스류(뉴스/냥정보/업계동향): 수집 기간(days) 전달. 저장 시 ON CONFLICT로 중복 처리.
+        if group in ("news", "cat", "biz", "event"):
+            # 뉴스류(뉴스/냥정보/업계동향/행사일정): 수집 기간(days) 전달. 저장 시 ON CONFLICT로 중복 처리.
             items = crawl_fn(progress=progress, days=days)
         else:
             items = crawl_fn(progress=progress)

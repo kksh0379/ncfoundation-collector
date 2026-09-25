@@ -14,23 +14,23 @@
   <meta property="og:title" content="휴 스코프" />
   <meta property="og:description" content="재단·업계 뉴스와 재단 게시판·소셜 채널을 한눈에" />
   <meta property="og:url" content="{{ og_base }}/" />
-  <meta property="og:image" content="{{ og_base }}{{ url_for('static', filename='og-image.png', v='120') }}" />
+  <meta property="og:image" content="{{ og_base }}{{ url_for('static', filename='og-image.png', v='121') }}" />
   <meta property="og:image:width" content="1200" />
   <meta property="og:image:height" content="630" />
   <meta property="og:locale" content="ko_KR" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="휴 스코프" />
   <meta name="twitter:description" content="재단·업계 뉴스와 재단 게시판·소셜 채널을 한눈에" />
-  <meta name="twitter:image" content="{{ og_base }}{{ url_for('static', filename='og-image.png', v='120') }}" />
+  <meta name="twitter:image" content="{{ og_base }}{{ url_for('static', filename='og-image.png', v='121') }}" />
 
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="휴 스코프" />
-  <link rel="icon" href="{{ url_for('static', filename='favicon.svg', v='120') }}" type="image/svg+xml" />
-  <link rel="icon" href="{{ url_for('static', filename='icon-192.png', v='120') }}" type="image/png" sizes="192x192" />
-  <link rel="apple-touch-icon" href="{{ url_for('static', filename='apple-touch-icon.png', v='120') }}" />
-  <link rel="manifest" href="{{ url_for('static', filename='site.webmanifest', v='120') }}" />
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css', v='120') }}" />
+  <link rel="icon" href="{{ url_for('static', filename='favicon.svg', v='121') }}" type="image/svg+xml" />
+  <link rel="icon" href="{{ url_for('static', filename='icon-192.png', v='121') }}" type="image/png" sizes="192x192" />
+  <link rel="apple-touch-icon" href="{{ url_for('static', filename='apple-touch-icon.png', v='121') }}" />
+  <link rel="manifest" href="{{ url_for('static', filename='site.webmanifest', v='121') }}" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css', v='121') }}" />
 </head>
 <body>
   <header class="app-header">
@@ -51,13 +51,16 @@
     <button class="auth-btn admin-only" id="purge-db-btn">🗑 초기화</button>
   </header>
 
-  <nav class="tabs">
-    <button class="tab active" data-tab="cat">🐱 냥정보</button>
-    <button class="tab" data-tab="news">NC뉴스</button>
-    <button class="tab" data-tab="biz">업계동향</button>
-    <button class="tab" data-tab="boards">재단게시판</button>
-    <button class="tab" data-tab="social">재단소셜</button>
-  </nav>
+  <div class="tabs-wrap" id="tabs-wrap">
+    <nav class="tabs" id="tabs">
+      <button class="tab active" data-tab="cat">🐱 냥정보</button>
+      <button class="tab" data-tab="news">NC뉴스</button>
+      <button class="tab" data-tab="biz">업계동향</button>
+      <button class="tab" data-tab="event">행사일정</button>
+      <button class="tab" data-tab="boards">재단게시판</button>
+      <button class="tab" data-tab="social">재단소셜</button>
+    </nav>
+  </div>
 
   <!-- 검색(탭별) + 보기 방식 선택: 리스트(제목만) / 카드(썸네일·요약) -->
   <div class="viewbar">
@@ -71,6 +74,10 @@
     <div class="viewseg" id="view-toggle" role="group" aria-label="보기 방식">
       <button type="button" data-view="list" aria-label="리스트 보기" title="리스트">☰</button>
       <button type="button" data-view="card" class="active" aria-label="카드 보기" title="카드">▭</button>
+    </div>
+    <div class="viewseg" id="event-view-toggle" role="group" aria-label="행사 보기 방식">
+      <button type="button" data-eview="album" class="active" title="앨범">🖼</button>
+      <button type="button" data-eview="calendar" title="캘린더">📅</button>
     </div>
   </div>
 
@@ -141,6 +148,25 @@
     <div class="last-crawl" id="last-biz"></div>
     <div class="result-msg" id="msg-biz"></div>
     <ul class="list" id="list-biz"></ul>
+  </section>
+
+  <!-- 탭: 행사일정(국내 AI 행사) -->
+  <section class="panel" id="panel-event">
+    <div class="toolbar">
+      <span class="toolbar-title">행사일정 · 국내 AI 행사</span>
+      <button class="btn-status admin-only" id="status-event-btn">상태 확인</button>
+      <button class="btn-collect admin-only" id="collect-event">수집 실행</button>
+    </div>
+    <div class="legend admin-only">
+      <span class="chip chip-done">AI 관련 · 국내 개최 · 종료 전 행사만</span>
+      <span class="chip chip-plan">앨범/캘린더 · 날짜·장소 자동추출(구글 뉴스)</span>
+    </div>
+    <div class="last-crawl" id="last-event"></div>
+    <div class="result-msg" id="msg-event"></div>
+    <div class="event-body">
+      <ul class="list album-grid" id="list-event"></ul>
+      <div class="calendar" id="cal-event" hidden></div>
+    </div>
   </section>
 
   <!-- 탭2: 게시판 -->
@@ -283,7 +309,7 @@
   <footer class="app-footer">
     <div class="foot-left">
       <span class="foot-copy">© 2026 김상화</span>
-      <span class="ver">v1.18 · build 260925</span>
+      <span class="ver">v1.19 · build 260925</span>
       <span class="ver" id="storage-badge"></span>
     </div>
     <div class="foot-right">
@@ -295,6 +321,6 @@
 
   <button id="to-top" aria-label="맨 위로" hidden>↑</button>
 
-  <script src="{{ url_for('static', filename='js/app.js', v='120') }}"></script>
+  <script src="{{ url_for('static', filename='js/app.js', v='121') }}"></script>
 </body>
 </html>

@@ -143,6 +143,12 @@ _DDL = [
     f"""CREATE TABLE IF NOT EXISTS visit_log (
         id {_AUTO_PK}, ts TEXT, ip TEXT, ua TEXT, path TEXT, referer TEXT, lang TEXT
     )""",
+    # 행사일정(AI 국내 행사). start_date/end_date=행사 기간(ISO), venue/region=장소.
+    f"""CREATE TABLE IF NOT EXISTS events (
+        id {_AUTO_PK}, title TEXT, published_at TEXT, author TEXT, content TEXT,
+        url TEXT UNIQUE, source_url TEXT, venue TEXT, region TEXT,
+        start_date TEXT, end_date TEXT, image_url TEXT, collected_at TEXT
+    )""",
     # 아이디별 개인 상태(스크랩/읽음). kind='scrap'|'read', snapshot=스크랩 스냅샷 JSON.
     """CREATE TABLE IF NOT EXISTS user_state (
         username TEXT, ukey TEXT, kind TEXT, snapshot TEXT, ts BIGINT,
@@ -259,6 +265,8 @@ _NEWS_COLS = ("title", "published_at", "author", "content", "url",
 _BOARD_COLS = ("service", "category", "title", "published_at", "author",
                "content", "url", "image_url", "collected_at")
 _SOCIAL_COLS = ("channel", "account", "title", "published_at", "content", "url", "image_url", "collected_at")
+_EVENT_COLS = ("title", "published_at", "author", "content", "url", "source_url",
+               "venue", "region", "start_date", "end_date", "image_url", "collected_at")
 
 
 def _upsert_many(table, cols, items):
@@ -296,6 +304,28 @@ def upsert_board_many(items):
 
 def upsert_social_many(items):
     return _upsert_many("social", _SOCIAL_COLS, items)
+
+
+def upsert_event_many(items):
+    return _upsert_many("events", _EVENT_COLS, items)
+
+
+def list_events(limit=1000):
+    """행사 목록. 시작일 빠른 순(미상은 뒤), 최근 수집 순."""
+    with get_conn() as conn:
+        rows = conn.execute(_q(
+            "SELECT * FROM events ORDER BY "
+            "CASE WHEN start_date IS NULL OR start_date='' THEN 1 ELSE 0 END, "
+            "start_date ASC, id DESC LIMIT ?"), (limit,)).fetchall()
+        return [dict(r) for r in rows]
+
+
+def clear_events():
+    with get_conn() as conn:
+        row = conn.execute("SELECT COUNT(*) AS n FROM events").fetchone()
+        n = int(row["n"]) if row else 0
+        conn.execute("DELETE FROM events")
+    return n
 
 
 def all_news_min(section="nc"):
