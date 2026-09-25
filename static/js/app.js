@@ -256,21 +256,33 @@ function clearSearch() {
   if (cl) cl.hidden = true;
   renderTab(tab);
 }
-// 검색창 초기화(입력/지우기 버튼) — DOM 준비 후 연결
+// 현재 입력값으로 활성 탭을 즉시 검색.
+function doSearch() {
+  const inp = document.getElementById("tab-search");
+  if (!inp) return;
+  const tab = activeTab();
+  const v = (inp.value || "").trim();
+  const clr = document.getElementById("search-clear");
+  if (clr) clr.hidden = !inp.value;
+  if (TAB_DATA[tab]) { TAB_DATA[tab].query = v; renderTab(tab); }
+}
+// 검색창 초기화 — 입력(라이브)·엔터·검색버튼·지우기버튼 모두 연결
 (function initSearch() {
   const inp = document.getElementById("tab-search");
   const clr = document.getElementById("search-clear");
+  const sbtn = document.getElementById("search-btn");
   if (!inp) return;
   let timer = null;
   inp.addEventListener("input", () => {
-    const tab = activeTab();
-    const v = inp.value.trim();
     if (clr) clr.hidden = !inp.value;
     clearTimeout(timer);
-    timer = setTimeout(() => {
-      if (TAB_DATA[tab]) { TAB_DATA[tab].query = v; renderTab(tab); }
-    }, 180);
+    timer = setTimeout(doSearch, 180);       // 입력 중 라이브 필터
   });
+  inp.addEventListener("keydown", (e) => {   // 엔터(물리/키패드) → 즉시 검색
+    if (e.key === "Enter" && !e.isComposing) { e.preventDefault(); clearTimeout(timer); doSearch(); inp.blur(); }
+  });
+  inp.addEventListener("search", () => { clearTimeout(timer); doSearch(); });  // 모바일 검색키/x
+  if (sbtn) sbtn.addEventListener("click", () => { clearTimeout(timer); doSearch(); });  // 클릭·터치
   if (clr) clr.addEventListener("click", () => { clearSearch(); inp.focus(); });
 })();
 // 탭을 바꾸면 그 탭이 기억하던 검색어를 입력창에 복원
