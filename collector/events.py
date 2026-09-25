@@ -125,18 +125,26 @@ def _mk(y, m, d):
         return None
 
 
-def _infer_year(m, d, today):
-    """연도 없는 날짜의 연도 추정: 올해 기준, 이미 한참 지났으면 내년."""
-    cand = _mk(today.year, m, d)
-    if cand and cand < today - datetime.timedelta(days=45):
-        return _mk(today.year + 1, m, d) or cand
-    return cand or _mk(today.year + 1, m, d)
+def _infer_year(m, d, anchor):
+    """연도 없는 날짜의 연도 추정: '기사 작성일(anchor)' 기준으로 가장 가까운 연도.
+    (오늘 기준으로 하면 과거 기사의 날짜를 미래로 잘못 밀어버림 → 작성일 기준이 정확)"""
+    cand = _mk(anchor.year, m, d)
+    if not cand:
+        return _mk(anchor.year + 1, m, d)
+    # 작성일보다 두 달 이상 전이면(예: 12월 기사의 '1월') 다음 해로
+    if cand < anchor - datetime.timedelta(days=60):
+        return _mk(anchor.year + 1, m, d) or cand
+    # 작성일보다 한참(400일 초과) 뒤면 전년으로 보정
+    if cand > anchor + datetime.timedelta(days=400):
+        return _mk(anchor.year - 1, m, d) or cand
+    return cand
 
 
-def extract_dates(title, content, today=None):
+def extract_dates(title, content, today=None, pub=None):
     """기사에서 (시작, 종료) 날짜(ISO 'YYYY-MM-DD')를 추출. 없으면 (None, None).
-    한국어 자유서술의 흔한 패턴 위주(년/월/일, 범위)."""
+    한국어 자유서술 패턴 위주. 연도 없는 날짜는 기사 작성일(pub) 기준으로 연도 추정."""
     today = today or datetime.date.today()
+    anchor = pub or today                       # 연도 추정 기준(작성일 우선)
     text = f"{title}  {content}"
 
     # 1) YYYY년 M월 D일 [~ (YYYY년)? (M월)? D일]
@@ -158,7 +166,7 @@ def extract_dates(title, content, today=None):
                   r"(?:\s*(?:[~\-∼]|부터)\s*(?:(\d{1,2})\s*월\s*)?(\d{1,2})\s*일)?", text)
     if m:
         sm, sd = int(m.group(1)), int(m.group(2))
-        start = _infer_year(sm, sd, today)
+        start = _infer_year(sm, sd, anchor)
         end = start
         if m.group(4):
             em = int(m.group(3)) if m.group(3) else sm
@@ -218,7 +226,17 @@ def crawl(max_workers=24, max_items=0, progress=None, known_urls=None, days=None
         # 국내 행사
         if not is_domestic(title, content):
             continue
-        start, end = extract_dates(title, content, today)
+        # 연도 추정 기준: 기사 작성일(없으면 오늘)
+        pub = None
+        pubs = (e.get("published_at") or "")[:10]
+        try:
+            pub = datetime.date.fromisoformat(pubs) if pubs else None
+        except ValueError:
+            pub = None
+        start, end = extract_dates(title, content, today, pub)
+        # 오래된 기사(작성일이 1년 넘게 지남)는 지난 행사일 확률이 커서 제외
+        if pub and pub < today - datetime.timedelta(days=365):
+            continue
         # 행사 종료 = FALSE: 날짜가 잡혔고 종료일이 과거면 제외(미상은 유지)
         if end:
             try:
