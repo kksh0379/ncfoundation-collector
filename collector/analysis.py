@@ -206,7 +206,7 @@ def _post_messages(key, model, user):
     import requests
     # Claude 5 계열은 내부 추론(thinking)에도 출력 토큰을 쓰므로 넉넉히 잡아
     # 추론 + 완결 JSON이 모두 들어가게 한다(부족하면 stop_reason=max_tokens로 잘림).
-    max_tokens = int(os.environ.get("ANALYSIS_MAX_TOKENS", "16000"))
+    max_tokens = int(os.environ.get("ANALYSIS_MAX_TOKENS", "24000"))
     body = {"model": model, "max_tokens": max_tokens, "system": SYSTEM_PROMPT,
             "messages": [{"role": "user", "content": user}]}
     return requests.post(API_URL, headers={
@@ -228,6 +228,31 @@ def _text_from_response(j):
     return "".join(parts)
 
 
+def _pick_haiku(key):
+    for mid in list_models(key):
+        if "haiku" in mid:
+            return mid
+    return None
+
+
+def _attempt(key, model, user):
+    """1회 호출 결과를 dict로: {data, stop, text, http, err}."""
+    try:
+        r = _post_messages(key, model, user)
+    except Exception as e:  # noqa: BLE001
+        return {"err": f"LLM 요청 실패: {e}"}
+    if r.status_code == 404 and "not_found" in (r.text or ""):
+        return {"http": 404, "not_found": True}
+    if r.status_code >= 400:
+        return {"http": r.status_code, "err": f"LLM 오류 {r.status_code}: {r.text[:200]}"}
+    try:
+        j = r.json()
+    except Exception as e:  # noqa: BLE001
+        return {"err": f"LLM 응답 파싱 실패: {e}"}
+    txt = _text_from_response(j)
+    return {"data": _extract_json(txt), "stop": j.get("stop_reason"), "text": txt}
+
+
 def _call_llm(payload_text, prev_text):
     key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
     if not key:
@@ -237,35 +262,34 @@ def _call_llm(payload_text, prev_text):
         user += "\n\n[직전 리포트 요약(변화 비교용)]\n" + prev_text
     user += ("\n\n위 데이터로 스키마에 맞는 리포트 JSON 하나만 출력하라. "
              "recent_our/recent_peers가 이번 기간, baseline이 과거 흐름이다.")
+
     model = resolve_model(key)
-    try:
-        r = _post_messages(key, model, user)
-    except Exception as e:  # noqa: BLE001
-        return None, None, f"LLM 요청 실패: {e}"
-    # 모델명 오류(404 not_found)면 계정에서 쓸 수 있는 모델을 골라 1회 재시도
-    if r.status_code == 404 and "not_found" in (r.text or ""):
+    res = _attempt(key, model, user)
+    # 1) 모델명 404 → 계정 가용 모델로 교체 재시도
+    if res.get("not_found"):
         alt = _pick_model(list_models(key))
         if alt and alt != model:
             model = alt
-            try:
-                r = _post_messages(key, model, user)
-            except Exception as e:  # noqa: BLE001
-                return None, None, f"LLM 요청 실패: {e}"
-    if r.status_code >= 400:
+            res = _attempt(key, model, user)
+    if res.get("err"):
         avail = ", ".join(list_models(key)[:8]) or "(목록 조회 실패)"
-        return None, None, f"LLM 오류 {r.status_code}: {r.text[:200]} · 사용가능 모델 예: {avail}"
-    try:
-        j = r.json()
-    except Exception as e:  # noqa: BLE001
-        return None, None, f"LLM 응답 파싱 실패: {e}"
-    txt = _text_from_response(j)
-    if not txt:
-        return None, None, f"LLM 응답에 텍스트가 없어요 (stop_reason={j.get('stop_reason')})."
-    data = _extract_json(txt)
-    if data is None:
-        tail = "(출력이 잘렸을 수 있음)" if j.get("stop_reason") == "max_tokens" else ""
-        return None, None, f"LLM이 JSON을 반환하지 않았습니다 {tail}"
-    return data, model, None
+        return None, None, f"{res['err']} · 사용가능 모델 예: {avail}"
+    # 2) 정상 완결 JSON
+    if res.get("data") is not None:
+        return res["data"], model, None
+    # 3) 추론 과다로 잘림(max_tokens) → 추론이 적은 haiku로 1회 폴백
+    if res.get("stop") == "max_tokens":
+        hk = _pick_haiku(key)
+        if hk and hk != model:
+            res2 = _attempt(key, hk, user)
+            if res2.get("data") is not None:
+                return res2["data"], hk, None
+            if res2.get("stop") == "max_tokens":
+                return None, None, ("출력이 계속 잘려요(모델 추론 과다). "
+                                    "ANALYSIS_MAX_TOKENS를 32000 이상으로 올리거나 "
+                                    "ANALYSIS_MODEL을 haiku로 지정해 주세요.")
+        return None, None, "출력이 잘렸어요(max_tokens). ANALYSIS_MAX_TOKENS를 더 올려 주세요."
+    return None, None, "LLM이 JSON을 반환하지 않았습니다."
 
 
 def _extract_json(txt):
