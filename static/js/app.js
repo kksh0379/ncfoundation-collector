@@ -94,6 +94,33 @@ function scrapBtnHtml(key) {
 }
 function newBadgeHtml(iso) { return isToday(iso) ? `<span class="badge-new" title="오늘 등록">N</span>` : ""; }
 function readClass(key) { return isRead(key) ? " is-read" : ""; }
+// 카드 '링크 복사' 버튼
+function copyBtnHtml(url) {
+  if (!url) return "";
+  return `<button type="button" class="copy-btn" data-url="${escapeHtml(url)}">🔗 링크 복사</button>`;
+}
+async function copyToClipboard(text) {
+  try {
+    if (navigator.clipboard && window.isSecureContext) { await navigator.clipboard.writeText(text); return true; }
+  } catch (e) { /* 폴백으로 진행 */ }
+  try {
+    const ta = document.createElement("textarea");
+    ta.value = text; ta.style.position = "fixed"; ta.style.opacity = "0";
+    document.body.appendChild(ta); ta.select();
+    const ok = document.execCommand("copy");
+    document.body.removeChild(ta);
+    return ok;
+  } catch (e) { return false; }
+}
+// 위임: 링크 복사 버튼 클릭
+document.addEventListener("click", (e) => {
+  const b = e.target.closest(".copy-btn");
+  if (!b) return;
+  e.preventDefault(); e.stopPropagation();
+  const url = b.dataset.url;
+  if (!url) return;
+  copyToClipboard(url).then((ok) => toast(ok ? "링크를 복사했어요" : "복사 실패 — 원문을 길게 눌러 복사해 주세요"));
+});
 
 // 짧은 토스트 메시지
 let _toastTimer = null;
@@ -302,6 +329,7 @@ function renderCard(item, opts) {
         ${summaryHtml}
         <div class="card-actions">
           ${item.url ? `<a href="${escapeHtml(item.url)}" target="_blank" rel="noopener">원문 보기 ↗</a>` : ""}
+          ${copyBtnHtml(item.url)}
         </div>
       </div>
     </div>`;
@@ -529,6 +557,7 @@ function newsGroupNode(arr, tab) {
         <p class="card-summary">${escapeHtml(rep.content || "요약 없음")}</p>
         <div class="card-actions">
           ${repLink ? `<a href="${escapeHtml(repLink)}" target="_blank" rel="noopener">원문 보기 ↗</a>` : ""}
+          ${copyBtnHtml(repLink)}
         </div>
       </div>
     </div>`;
@@ -665,7 +694,7 @@ function eventAlbumCard(s) {
       <h3 class="card-title">${newBadgeHtml(s.published_at)}${titleHtml}</h3>
       ${place ? `<div class="event-place">📍 ${escapeHtml(place)}</div>` : ""}
       ${s.content ? `<p class="card-summary">${escapeHtml(s.content)}</p>` : ""}
-      <div class="card-actions">${link ? `<a href="${escapeHtml(link)}" target="_blank" rel="noopener">원문 보기 ↗</a>` : ""}</div>
+      <div class="card-actions">${link ? `<a href="${escapeHtml(link)}" target="_blank" rel="noopener">원문 보기 ↗</a>` : ""}${copyBtnHtml(link)}</div>
     </div>`;
   return li;
 }
@@ -1219,6 +1248,7 @@ function scrapCardNode(s) {
       <div class="grp-chips">${groupChipsHtml(s)}</div>
       <div class="card-actions">
         ${link ? `<a href="${escapeHtml(link)}" target="_blank" rel="noopener">원문 보기 ↗</a>` : ""}
+        ${copyBtnHtml(link)}
         <button class="grp-assign" type="button">🏷 그룹 지정</button>
       </div>
       <div class="grp-assign-panel">

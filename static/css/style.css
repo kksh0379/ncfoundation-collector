@@ -901,3 +901,10 @@ body.tab-event #view-toggle { display: none; }
 .checkbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; flex: 1; min-width: 0; }
 .checkbar label { display: inline-flex; align-items: center; gap: 5px; font-size: 14px; font-weight: 600; color: var(--text); cursor: pointer; white-space: nowrap; }
 .checkbar input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--primary); cursor: pointer; }
+
+/* 카드 링크 복사 버튼 */
+.copy-btn {
+  border: 1px solid var(--border); background: #fff; color: var(--primary);
+  font-size: 12px; font-weight: 700; padding: 5px 10px; border-radius: 8px; cursor: pointer;
+}
+.copy-btn:active { background: #eef2ff; }
