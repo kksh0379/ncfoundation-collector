@@ -33,6 +33,76 @@ function fmtDate(iso) {
   return iso.replace("T", " ");
 }
 
+// ===== 읽음 여부 / 스크랩 (로컬 저장) =====
+const LS_READ = "nv_read_v1", LS_SCRAP = "nv_scrap_v1";
+function lsGet(k, def) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : def; } catch (e) { return def; } }
+function lsSet(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* 무시 */ } }
+const READ = new Set(lsGet(LS_READ, []));
+let SCRAP = lsGet(LS_SCRAP, {});           // key -> 스냅샷
+function saveRead() { lsSet(LS_READ, Array.from(READ)); }
+function saveScrap() { lsSet(LS_SCRAP, SCRAP); }
+// 게시글 고유키: 원문/URL 기준
+function keyOf(it) { return String(it.url || it.source_url || it.title || "").trim(); }
+function isRead(k) { return READ.has(k); }
+function markRead(k) { if (k && !READ.has(k)) { READ.add(k); saveRead(); } }
+function isScrapped(k) { return !!SCRAP[k]; }
+function todayStr() { const n = new Date(), p = (x) => String(x).padStart(2, "0"); return n.getFullYear() + "-" + p(n.getMonth() + 1) + "-" + p(n.getDate()); }
+function isToday(iso) { return !!iso && String(iso).slice(0, 10) === todayStr(); }
+
+// 화면에 렌더된 항목의 스냅샷 보관(스크랩 저장·복원용)
+const ITEM_INDEX = {};
+function registerItem(it, tab, link) {
+  const k = keyOf(it); if (!k) return k;
+  ITEM_INDEX[k] = {
+    key: k, title: it.title || "", link: link || it.source_url || it.url || "", url: it.url || "",
+    date: it.published_at || "", author: it.author || it.source || "", tab: tab || "",
+    service: it.service || "", category: it.category || "", channel: it.channel || "",
+    account: it.account || "", content: it.content || "",
+  };
+  return k;
+}
+// 카드 우상단 스크랩 버튼 + 오늘글 N딱지 HTML
+function scrapBtnHtml(key) {
+  return `<button class="scrap-btn${isScrapped(key) ? " on" : ""}" type="button" data-key="${escapeHtml(key)}" aria-label="스크랩" title="스크랩">`
+    + `<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M6 3h12c.55 0 1 .45 1 1v17l-7-3.9L5 21V4c0-.55.45-1 1-1z"/></svg></button>`;
+}
+function newBadgeHtml(iso) { return isToday(iso) ? `<span class="badge-new" title="오늘 등록">N</span>` : ""; }
+function readClass(key) { return isRead(key) ? " is-read" : ""; }
+
+// 짧은 토스트 메시지
+let _toastTimer = null;
+function toast(msg) {
+  let t = document.getElementById("toast");
+  if (!t) { t = document.createElement("div"); t.id = "toast"; t.className = "toast"; document.body.appendChild(t); }
+  t.textContent = msg; t.classList.add("show");
+  clearTimeout(_toastTimer); _toastTimer = setTimeout(() => t.classList.remove("show"), 1400);
+}
+// 스크랩 토글(+토스트, 로컬 저장, 화면 반영)
+function toggleScrap(key) {
+  if (!key) return;
+  if (SCRAP[key]) { delete SCRAP[key]; saveScrap(); toast("스크랩을 취소했어요"); }
+  else {
+    const snap = ITEM_INDEX[key] || SCRAP[key];
+    if (!snap) return;
+    SCRAP[key] = Object.assign({}, snap, { ts: Date.now() });
+    saveScrap(); toast("스크랩했어요 ⭐");
+  }
+  document.querySelectorAll('.scrap-btn[data-key]').forEach((b) => {
+    if (b.dataset.key === key) b.classList.toggle("on", isScrapped(key));
+  });
+  updateScrapBadge();
+  const m = document.getElementById("scrap-modal");
+  if (m && !m.hidden) renderScraps();
+}
+
+// 위임: 원문 링크 클릭 → 읽음 처리 / 스크랩 버튼 클릭 → 토글
+document.addEventListener("click", (e) => {
+  const sb = e.target.closest(".scrap-btn");
+  if (sb) { e.preventDefault(); e.stopPropagation(); toggleScrap(sb.dataset.key); return; }
+  const a = e.target.closest('a[target="_blank"]');
+  if (a) { const card = a.closest("[data-key]"); if (card) { markRead(card.dataset.key); card.classList.add("is-read"); } }
+});
+
 // ----------------------------- 탭 전환 -----------------------------
 document.querySelectorAll(".tab").forEach((tab) => {
   tab.addEventListener("click", () => {
@@ -163,6 +233,8 @@ function renderInfinite(el, units, makeNode, emptyMsg) {
 
 // ----------------------------- 카드 렌더링 -----------------------------
 function renderCard(item, opts) {
+  const tab = opts.tab || "";
+  const key = registerItem(item, tab, item.url);
   const meta = [];
   if (opts.badge) meta.push(`<span class="badge">${escapeHtml(opts.badge)}</span>`);
   meta.push(escapeHtml(fmtDate(item.published_at)));
@@ -176,12 +248,14 @@ function renderCard(item, opts) {
     ? `<p class="card-summary">${escapeHtml(item.content)}</p>`
     : (item.image_url ? "" : `<p class="card-summary">요약 없음</p>`);
   const li = document.createElement("li");
-  li.className = "card card-news";
+  li.className = "card card-news" + readClass(key);
+  li.dataset.key = key;
   li.innerHTML = `
+    ${scrapBtnHtml(key)}
     <div class="card-main">
       ${newsThumb(item)}
       <div class="card-body">
-        <h3 class="card-title">${titleHtml}</h3>
+        <h3 class="card-title">${newBadgeHtml(item.published_at)}${titleHtml}</h3>
         <div class="card-meta">${meta.join(" · ")}</div>
         ${summaryHtml}
         <div class="card-actions">
@@ -193,8 +267,9 @@ function renderCard(item, opts) {
 }
 
 function renderList(el, items, opts) {
+  const tab = (el.id || "").replace(/^list-/, "");
   renderInfinite(el, items,
-    (item) => renderCard(item, { badge: opts.badgeFn ? opts.badgeFn(item) : null }),
+    (item) => renderCard(item, { badge: opts.badgeFn ? opts.badgeFn(item) : null, tab }),
     `표시할 데이터가 아직 없어요.`);
 }
 
@@ -345,9 +420,10 @@ function newsThumb(rep, proxy) {
 }
 
 // 뉴스 그룹 1개 → 카드 노드(아코디언 핸들러 포함)
-function newsGroupNode(arr) {
+function newsGroupNode(arr, tab) {
   const rep = arr[0];  // 그룹 내 최신(작성일 내림차순 첫 항목)
   const repLink = rep.source_url || rep.url;  // 원문 보기: 실제 기사 URL 우선
+  const key = registerItem(rep, tab, repLink);
   const meta = [escapeHtml(fmtDate(rep.published_at))];
   if (rep.author) meta.push(escapeHtml(rep.author));
   if (arr.length > 1) meta.push(`<span class="badge">${arr.length}개 매체</span>`);
@@ -356,12 +432,14 @@ function newsGroupNode(arr) {
   const titleHtml = repLink
     ? `<a href="${escapeHtml(repLink)}" target="_blank" rel="noopener">${t}</a>` : t;
   const li = document.createElement("li");
-  li.className = "card card-news";
+  li.className = "card card-news" + readClass(key);
+  li.dataset.key = key;
   // 뉴스류(뉴스/냥정보/업계동향)는 대표이미지가 언론사 핫링크 차단으로 들쭉날쭉해 표시 제거(텍스트 카드).
   let html = `
+    ${scrapBtnHtml(key)}
     <div class="card-main">
       <div class="card-body">
-        <h3 class="card-title">${titleHtml}</h3>
+        <h3 class="card-title">${newBadgeHtml(rep.published_at)}${titleHtml}</h3>
         <div class="card-meta">${meta.join(" · ")}</div>
         <p class="card-summary">${escapeHtml(rep.content || "요약 없음")}</p>
         <div class="card-actions">
@@ -401,7 +479,8 @@ function renderNewsGroups(el, items) {
     if (!map.has(k)) map.set(k, []);
     map.get(k).push(it);
   });
-  renderInfinite(el, Array.from(map.values()), newsGroupNode,
+  const tab = (el.id || "").replace(/^list-/, "");
+  renderInfinite(el, Array.from(map.values()), (arr) => newsGroupNode(arr, tab),
     `표시할 데이터가 아직 없어요.`);
 }
 
@@ -791,6 +870,62 @@ document.getElementById("notes-close").addEventListener("click", () => (notesMod
 notesModal.addEventListener("click", (e) => { if (e.target === notesModal) notesModal.hidden = true; });
 document.querySelectorAll(".notes-tab").forEach((b) =>
   b.addEventListener("click", () => showNotes(b.dataset.notes)));
+
+// ----------------------------- 나의 스크랩(풀팝업) -----------------------------
+function updateScrapBadge() {
+  const b = document.getElementById("scrap-badge");
+  if (!b) return;
+  const n = Object.keys(SCRAP).length;
+  if (n) { b.textContent = n > 99 ? "99+" : n; b.hidden = false; } else { b.hidden = true; }
+}
+function scrapCardNode(s) {
+  const li = document.createElement("li");
+  li.className = "card card-news" + readClass(s.key);
+  li.dataset.key = s.key;
+  const meta = [];
+  if (s.tab) meta.push(escapeHtml(TAB_KO[s.tab] || s.tab));
+  if (s.date) meta.push(escapeHtml(fmtDate(s.date)));
+  if (s.author) meta.push(escapeHtml(s.author));
+  const link = s.link || s.url;
+  const t = escapeHtml(s.title || "(제목 없음)");
+  const titleHtml = link ? `<a href="${escapeHtml(link)}" target="_blank" rel="noopener">${t}</a>` : t;
+  li.innerHTML = `
+    ${scrapBtnHtml(s.key)}
+    <div class="card-main"><div class="card-body">
+      <h3 class="card-title">${newBadgeHtml(s.date)}${titleHtml}</h3>
+      <div class="card-meta">${meta.join(" · ")}</div>
+      ${s.content ? `<p class="card-summary">${escapeHtml(s.content)}</p>` : ""}
+      <div class="card-actions">${link ? `<a href="${escapeHtml(link)}" target="_blank" rel="noopener">원문 보기 ↗</a>` : ""}</div>
+    </div></div>`;
+  return li;
+}
+function renderScraps() {
+  const el = document.getElementById("scrap-list");
+  const items = Object.values(SCRAP).sort((a, b) => (b.ts || 0) - (a.ts || 0));
+  const h = document.getElementById("scrap-count-h");
+  if (h) h.textContent = items.length ? `(${items.length})` : "";
+  if (!items.length) {
+    el.innerHTML = `<li class="empty"><div class="empty-msg">아직 스크랩한 글이 없어요.</div>`
+      + `<div class="empty-hint">글 카드의 🔖 아이콘을 눌러 스크랩하세요.</div></li>`;
+    return;
+  }
+  el.innerHTML = "";
+  const frag = document.createDocumentFragment();
+  items.forEach((s) => frag.appendChild(scrapCardNode(s)));
+  el.appendChild(frag);
+}
+function openScraps() {
+  renderScraps();
+  document.getElementById("scrap-modal").hidden = false;
+  document.body.classList.add("modal-open");
+}
+function closeScraps() {
+  document.getElementById("scrap-modal").hidden = true;
+  document.body.classList.remove("modal-open");
+}
+document.getElementById("scrap-open-btn").addEventListener("click", openScraps);
+document.getElementById("scrap-close").addEventListener("click", closeScraps);
+updateScrapBadge();
 
 // ----------------------------- 로그(관리자): 수집 / 접속 -----------------------------
 const runlogModal = document.getElementById("runlog-modal");

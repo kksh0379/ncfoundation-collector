@@ -14,23 +14,23 @@
   <meta property="og:title" content="휴 스코프" />
   <meta property="og:description" content="재단·업계 뉴스와 재단 게시판·소셜 채널을 한눈에" />
   <meta property="og:url" content="{{ og_base }}/" />
-  <meta property="og:image" content="{{ og_base }}{{ url_for('static', filename='og-image.png', v='117') }}" />
+  <meta property="og:image" content="{{ og_base }}{{ url_for('static', filename='og-image.png', v='118') }}" />
   <meta property="og:image:width" content="1200" />
   <meta property="og:image:height" content="630" />
   <meta property="og:locale" content="ko_KR" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="휴 스코프" />
   <meta name="twitter:description" content="재단·업계 뉴스와 재단 게시판·소셜 채널을 한눈에" />
-  <meta name="twitter:image" content="{{ og_base }}{{ url_for('static', filename='og-image.png', v='117') }}" />
+  <meta name="twitter:image" content="{{ og_base }}{{ url_for('static', filename='og-image.png', v='118') }}" />
 
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="휴 스코프" />
-  <link rel="icon" href="{{ url_for('static', filename='favicon.svg', v='117') }}" type="image/svg+xml" />
-  <link rel="icon" href="{{ url_for('static', filename='icon-192.png', v='117') }}" type="image/png" sizes="192x192" />
-  <link rel="apple-touch-icon" href="{{ url_for('static', filename='apple-touch-icon.png', v='117') }}" />
-  <link rel="manifest" href="{{ url_for('static', filename='site.webmanifest', v='117') }}" />
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css', v='117') }}" />
+  <link rel="icon" href="{{ url_for('static', filename='favicon.svg', v='118') }}" type="image/svg+xml" />
+  <link rel="icon" href="{{ url_for('static', filename='icon-192.png', v='118') }}" type="image/png" sizes="192x192" />
+  <link rel="apple-touch-icon" href="{{ url_for('static', filename='apple-touch-icon.png', v='118') }}" />
+  <link rel="manifest" href="{{ url_for('static', filename='site.webmanifest', v='118') }}" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css', v='118') }}" />
 </head>
 <body>
   <header class="app-header">
@@ -45,6 +45,7 @@
       </svg>
       <span class="brand-name">휴 <b>스코프</b></span>
     </a>
+    <button class="auth-btn scrap-open" id="scrap-open-btn" aria-label="나의 스크랩">🔖 스크랩<span class="scrap-badge" id="scrap-badge" hidden></span></button>
     <button class="auth-btn admin-only" id="notes-btn">📓 노트</button>
     <button class="auth-btn admin-only" id="runlog-btn">📋 로그</button>
     <button class="auth-btn admin-only" id="purge-db-btn">🗑 초기화</button>
@@ -259,10 +260,21 @@
     </div>
   </div>
 
+  <!-- 나의 스크랩 풀팝업 -->
+  <div class="fullmodal" id="scrap-modal" hidden>
+    <div class="fullmodal-head">
+      <span class="fullmodal-title">🔖 나의 스크랩 <span id="scrap-count-h"></span></span>
+      <button class="fullmodal-close" id="scrap-close" aria-label="닫기">✕</button>
+    </div>
+    <div class="fullmodal-body">
+      <ul class="list scrap-list" id="scrap-list"></ul>
+    </div>
+  </div>
+
   <footer class="app-footer">
     <div class="foot-left">
       <span class="foot-copy">© 2026 김상화</span>
-      <span class="ver">v1.15 · build 260925</span>
+      <span class="ver">v1.16 · build 260925</span>
       <span class="ver" id="storage-badge"></span>
     </div>
     <div class="foot-right">
@@ -273,6 +285,6 @@
 
   <button id="to-top" aria-label="맨 위로" hidden>↑</button>
 
-  <script src="{{ url_for('static', filename='js/app.js', v='117') }}"></script>
+  <script src="{{ url_for('static', filename='js/app.js', v='118') }}"></script>
 </body>
 </html>
