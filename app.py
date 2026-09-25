@@ -425,6 +425,13 @@ BOARD_STATUS = {"나의AAC": "완료", "프로젝토리": "완료", "FAIR AI": "
 SOCIAL_STATUS = {"유튜브": "완료", "인스타그램": "구현 예정"}
 
 
+@app.route("/favicon.ico")
+def favicon():
+    # 파비콘을 직접 요청하는 브라우저(/favicon.ico) 대비 → SVG 파비콘으로 넘김.
+    from flask import redirect, url_for as _url_for
+    return redirect(_url_for("static", filename="favicon.svg"), code=302)
+
+
 @app.route("/")
 def index():
     _log_visit()  # 방문 기록(백그라운드, 페이지 로딩 안 막음)
