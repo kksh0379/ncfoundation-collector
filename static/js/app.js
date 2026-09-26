@@ -1628,6 +1628,16 @@ async function loadReport(id) {
       if (!timer) timer = setInterval(poll, 2500); poll();
     }).catch(() => { runBtn.disabled = false; msg.textContent = "시작 실패"; });
   });
+  // 상단 버튼 → 풀팝업 열기/닫기
+  const modal = document.getElementById("report-modal");
+  const openBtn = document.getElementById("report-open-btn");
+  const closeBtn = document.getElementById("report-close");
+  if (openBtn && modal) openBtn.addEventListener("click", () => {
+    modal.hidden = false; document.body.classList.add("modal-open"); loadReport();
+    // 진행 중 분석이 있으면 폴링 재개
+    if (!timer) fetch("/api/report/status").then((r) => r.json()).then((st) => { if (st.running && !timer) { timer = setInterval(poll, 2500); poll(); } }).catch(() => {});
+  });
+  if (closeBtn && modal) closeBtn.addEventListener("click", () => { modal.hidden = true; document.body.classList.remove("modal-open"); });
 })();
 
 // ----------------------------- 탭바 가로 스크롤 + 끝 블러(페이드) -----------------------------

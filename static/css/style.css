@@ -958,3 +958,7 @@ body.tab-report .viewbar { display: none; }
 
 /* 리포트 요약(제3자 개괄) */
 .rp-summary { background: #eef4ff; border: 1px solid #cfe0ff; border-left: 4px solid var(--primary); border-radius: 8px; padding: 12px 14px; font-size: 14px; line-height: 1.65; color: var(--text); margin: 4px 0 14px; }
+
+/* 헤더 AI 리포트 버튼 */
+.auth-btn.report-open { display: inline-flex; align-items: center; gap: 4px; }
+.auth-btn.report-open .ai-ci { flex: 0 0 auto; display: block; }

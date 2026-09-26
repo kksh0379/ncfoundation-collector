@@ -14,23 +14,23 @@
   <meta property="og:title" content="휴 스코프" />
   <meta property="og:description" content="재단·업계 뉴스와 재단 게시판·소셜 채널을 한눈에" />
   <meta property="og:url" content="{{ og_base }}/" />
-  <meta property="og:image" content="{{ og_base }}{{ url_for('static', filename='og-image.png', v='141') }}" />
+  <meta property="og:image" content="{{ og_base }}{{ url_for('static', filename='og-image.png', v='142') }}" />
   <meta property="og:image:width" content="1200" />
   <meta property="og:image:height" content="630" />
   <meta property="og:locale" content="ko_KR" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="휴 스코프" />
   <meta name="twitter:description" content="재단·업계 뉴스와 재단 게시판·소셜 채널을 한눈에" />
-  <meta name="twitter:image" content="{{ og_base }}{{ url_for('static', filename='og-image.png', v='141') }}" />
+  <meta name="twitter:image" content="{{ og_base }}{{ url_for('static', filename='og-image.png', v='142') }}" />
 
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="휴 스코프" />
-  <link rel="icon" href="{{ url_for('static', filename='favicon.svg', v='141') }}" type="image/svg+xml" />
-  <link rel="icon" href="{{ url_for('static', filename='icon-192.png', v='141') }}" type="image/png" sizes="192x192" />
-  <link rel="apple-touch-icon" href="{{ url_for('static', filename='apple-touch-icon.png', v='141') }}" />
-  <link rel="manifest" href="{{ url_for('static', filename='site.webmanifest', v='141') }}" />
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css', v='141') }}" />
+  <link rel="icon" href="{{ url_for('static', filename='favicon.svg', v='142') }}" type="image/svg+xml" />
+  <link rel="icon" href="{{ url_for('static', filename='icon-192.png', v='142') }}" type="image/png" sizes="192x192" />
+  <link rel="apple-touch-icon" href="{{ url_for('static', filename='apple-touch-icon.png', v='142') }}" />
+  <link rel="manifest" href="{{ url_for('static', filename='site.webmanifest', v='142') }}" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css', v='142') }}" />
 </head>
 <body>
   <header class="app-header">
@@ -45,7 +45,13 @@
       </svg>
       <span class="brand-name">휴 <b>스코프</b></span>
     </a>
-    <button class="auth-btn scrap-open" id="scrap-open-btn" aria-label="나의 스크랩">🔖 스크랩<span class="scrap-badge" id="scrap-badge" hidden></span></button>
+    <button class="auth-btn report-open" id="report-open-btn" aria-label="AI 리포트">
+      <svg class="ai-ci" viewBox="0 0 24 24" width="17" height="17" aria-hidden="true">
+        <circle cx="10" cy="10.5" r="6.4" fill="none" stroke="currentColor" stroke-width="2"/>
+        <line x1="14.6" y1="15.1" x2="20" y2="20.5" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>
+        <text x="10" y="13.1" text-anchor="middle" font-size="6.6" font-weight="800" fill="currentColor" font-family="Arial, Helvetica, sans-serif">AI</text>
+        <path d="M18.5 2 L19.3 4 L21.3 4.8 L19.3 5.6 L18.5 7.6 L17.7 5.6 L15.7 4.8 L17.7 4 Z" fill="currentColor"/>
+      </svg>리포트</button>
     <button class="auth-btn admin-only" id="notes-btn">📓 노트</button>
     <button class="auth-btn admin-only" id="runlog-btn">📋 로그</button>
     <button class="auth-btn admin-only" id="purge-db-btn">🗑 초기화</button>
@@ -54,7 +60,7 @@
   <div class="tabs-wrap" id="tabs-wrap">
     <nav class="tabs" id="tabs">
       <button class="tab active" data-tab="cat" aria-label="냥정보">
-        <img class="cat-photo" src="{{ url_for('static', filename='cat-tab.png', v='141') }}" alt="" />냥정보</button>
+        <img class="cat-photo" src="{{ url_for('static', filename='cat-tab.png', v='142') }}" alt="" />냥정보</button>
       <button class="tab" data-tab="game">🕹 게임정보</button>
       <button class="tab" data-tab="news" aria-label="NC 뉴스">
         <span class="nc-mark">nc</span>뉴스</button>
@@ -66,7 +72,6 @@
           <rect x="2" y="2" width="20" height="20" rx="5" fill="#e0201b"/>
           <path d="M10 8 L16 12 L10 16 Z" fill="#fff"/>
         </svg>재단</button>
-      <button class="tab" data-tab="report">🧠 리포트</button>
     </nav>
   </div>
 
@@ -252,19 +257,25 @@
     <ul class="list" id="list-social"></ul>
   </section>
 
-  <!-- 탭: AI 재단 동향 분석 리포트(관리자) -->
-  <section class="panel" id="panel-report">
-    <div class="report-bar">
-      <select id="report-snap" class="report-snap" aria-label="리포트 스냅샷"></select>
-      <button class="btn-collect admin-only" id="run-report">🧠 분석 실행</button>
+  <!-- AI 재단 동향 분석 리포트 (상단 버튼 → 풀팝업) -->
+  <div class="fullmodal" id="report-modal" hidden>
+    <div class="fullmodal-head">
+      <span class="fullmodal-title">🔍 AI 재단 동향 리포트</span>
+      <button class="fullmodal-close" id="report-close" aria-label="닫기">✕</button>
     </div>
-    <div class="report-note">
-      뉴스·재단YT 데이터로 <b>NC문화재단</b>과 동종 재단의 변화·추세·신규신호를 AI가 <b>제3자 관점</b>으로 비교 분석해요.
-      결과는 실행 시점별로 저장되어 <b>지난 리포트와 비교</b>됩니다. (열람은 누구나 · 분석 실행은 관리자)
+    <div class="fullmodal-body">
+      <div class="report-bar">
+        <select id="report-snap" class="report-snap" aria-label="리포트 스냅샷"></select>
+        <button class="btn-collect admin-only" id="run-report">분석 실행</button>
+      </div>
+      <div class="report-note">
+        뉴스·재단YT 데이터로 <b>NC문화재단</b>과 동종 재단의 변화·추세·신규신호를 AI가 <b>제3자 관점</b>으로 비교 분석해요.
+        결과는 실행 시점별로 저장되어 <b>지난 리포트와 비교</b>됩니다. (열람은 누구나 · 분석 실행은 관리자)
+      </div>
+      <div class="result-msg" id="msg-report"></div>
+      <div id="report-body"></div>
     </div>
-    <div class="result-msg" id="msg-report"></div>
-    <div id="report-body"></div>
-  </section>
+  </div>
 
   <!-- 상태 확인 팝업 -->
   <div class="modal" id="status-modal" hidden>
@@ -351,7 +362,7 @@
   <footer class="app-footer">
     <div class="foot-left">
       <span class="foot-copy">© 2026 김상화</span>
-      <span class="ver">v1.45 · build 260926</span>
+      <span class="ver">v1.46 · build 260926</span>
       <span class="ver" id="storage-badge"></span>
     </div>
     <div class="foot-right">
@@ -363,6 +374,6 @@
 
   <button id="to-top" aria-label="맨 위로" hidden>↑</button>
 
-  <script src="{{ url_for('static', filename='js/app.js', v='141') }}"></script>
+  <script src="{{ url_for('static', filename='js/app.js', v='142') }}"></script>
 </body>
 </html>
