@@ -38,12 +38,20 @@ body {
   display: flex;
   align-items: center;
   gap: 9px;
-  flex: 1;
+  flex: 0 1 auto;
   min-width: 0;
   color: #fff;
   text-decoration: none;
 }
 .brand-mark { flex: 0 0 auto; color: #fff; }
+/* 헤더 버튼이 많아져도 안 깨지게 가로 스크롤 */
+.header-actions {
+  flex: 1 1 auto; min-width: 0;
+  display: flex; align-items: center; gap: 8px;
+  overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none;
+}
+.header-actions::-webkit-scrollbar { display: none; }
+.header-actions .auth-btn { flex: 0 0 auto; }
 .brand-name {
   font-size: 18px;
   font-weight: 600;
