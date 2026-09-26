@@ -1995,6 +1995,28 @@ async function loadReport(id) {
   setTimeout(update, 0);
 })();
 
+// 분류 체크바: 스크롤 가능한 쪽 끝을 페이드(마스크)로 흐리게 → '더 있다'는 걸 명확히 인지.
+(function initCheckbarFade() {
+  const bars = Array.from(document.querySelectorAll(".checkbar"));
+  if (!bars.length) return;
+  const upd = (el) => {
+    const max = el.scrollWidth - el.clientWidth;
+    if (max <= 2) { el.style.maskImage = el.style.webkitMaskImage = ""; return; }  // 스크롤 불필요
+    const l = el.scrollLeft > 2, r = el.scrollLeft < max - 2;
+    const g = `linear-gradient(to right, ${l ? "transparent" : "#000"} 0, #000 22px, `
+      + `#000 calc(100% - 22px), ${r ? "transparent" : "#000"} 100%)`;
+    el.style.maskImage = g; el.style.webkitMaskImage = g;
+  };
+  bars.forEach((el) => { upd(el); el.addEventListener("scroll", () => upd(el), { passive: true }); });
+  // 탭 전환으로 숨겨졌다 보일 때(clientWidth 변화) 자동 갱신
+  if (window.ResizeObserver) {
+    const ro = new ResizeObserver((entries) => entries.forEach((e) => upd(e.target)));
+    bars.forEach((el) => ro.observe(el));
+  } else {
+    window.addEventListener("resize", () => bars.forEach(upd));
+  }
+})();
+
 // ----------------------------- 초기 로드 -----------------------------
 initAuth();
 loadMeta();
