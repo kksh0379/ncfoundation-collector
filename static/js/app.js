@@ -514,10 +514,23 @@ function secBucket(it) {
   const c = it.category || "";
   return SEC_CATS.includes(c) ? c : "보안트렌드"; // 알 수 없는 값은 트렌드로
 }
+const IMP_RANK = { CRITICAL: 0, HIGH: 1, MEDIUM: 2, LOW: 3 };
+let secSort = "date";  // "date"(최신순) | "importance"(중요도순)
+function sortSecurity(items) {
+  if (secSort !== "importance") return items;  // 최신순: 서버가 이미 날짜 내림차순
+  return items.slice().sort((a, b) => {
+    const ra = IMP_RANK[(a.ai_importance || "").toUpperCase()] ?? 9;
+    const rb = IMP_RANK[(b.ai_importance || "").toUpperCase()] ?? 9;
+    if (ra !== rb) return ra - rb;
+    return (b.published_at || "").localeCompare(a.published_at || "");  // 동급이면 최신 우선
+  });
+}
 function filterSecByCat(items) {
-  if (secCats.size >= SEC_CATS.length) return items;  // 전부 선택 = 전체
-  if (secCats.size === 0) return [];                   // 모두 해제 = 없음
-  return items.filter((it) => secCats.has(secBucket(it)));
+  let out;
+  if (secCats.size >= SEC_CATS.length) out = items;       // 전부 선택 = 전체
+  else if (secCats.size === 0) out = [];                    // 모두 해제 = 없음
+  else out = items.filter((it) => secCats.has(secBucket(it)));
+  return sortSecurity(out);
 }
 async function loadSecurity() {
   const el = document.getElementById("list-security");
@@ -548,6 +561,17 @@ async function loadSecurity() {
     if (TAB_DATA.security) renderTab("security");
   });
   syncUI();
+})();
+(function initSecSort() {
+  const seg = document.getElementById("sec-sort");
+  if (!seg) return;
+  seg.addEventListener("click", (e) => {
+    const b = e.target.closest("button[data-sort]");
+    if (!b) return;
+    secSort = b.dataset.sort;
+    seg.querySelectorAll("button").forEach((x) => x.classList.toggle("active", x === b));
+    if (TAB_DATA.security) renderTab("security");
+  });
 })();
 
 async function loadCat() {
@@ -606,12 +630,20 @@ function secAiHtml(rep) {
     ? `<div class="ai-tags">${tags.map((t) => `<span class="ai-tag">${escapeHtml(t)}</span>`).join("")}</div>` : "";
   let ins = {};
   try { ins = JSON.parse(rep.ai_insight || "{}"); } catch (e) { ins = {}; }
+  const facts = [];
+  if (ins.org) facts.push(`🏢 ${ins.org}`);
+  if (ins.attack) facts.push(`💥 ${ins.attack}`);
+  if (ins.cve) facts.push(`🆔 ${ins.cve}`);
+  if (ins.scale) facts.push(`📊 ${ins.scale}`);
+  if (ins.action) facts.push(`🛠 ${ins.action}`);
+  const factsHtml = facts.length
+    ? `<div class="ai-facts">${facts.map((f) => `<span class="ai-fact">${escapeHtml(f)}</span>`).join("")}</div>` : "";
   const rows = [];
   if (ins.implication) rows.push(`<div class="ai-row"><b>🛡 시사점</b> ${escapeHtml(ins.implication)}</div>`);
   if (ins.check) rows.push(`<div class="ai-row"><b>✔ 확인</b> ${escapeHtml(ins.check)}</div>`);
   if (ins.prevention) rows.push(`<div class="ai-row"><b>🧯 예방</b> ${escapeHtml(ins.prevention)}</div>`);
   const insightHtml = rows.length ? `<div class="ai-insight">${rows.join("")}</div>` : "";
-  return tagsHtml + insightHtml;
+  return tagsHtml + factsHtml + insightHtml;
 }
 
 // 뉴스 그룹 1개 → 카드 노드(아코디언 핸들러 포함)

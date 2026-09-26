@@ -203,6 +203,10 @@
         <label><input type="checkbox" data-cat="정책·규제" checked /> 정책·규제</label>
         <label><input type="checkbox" data-cat="보안트렌드" checked /> 보안트렌드</label>
       </div>
+      <div class="seg sec-sort" id="sec-sort" role="group" aria-label="정렬">
+        <button type="button" data-sort="date" class="active">최신순</button>
+        <button type="button" data-sort="importance">중요도순</button>
+      </div>
       <button class="btn-status admin-only" id="status-security-btn">상태 확인</button>
       <button class="btn-collect admin-only" id="collect-security">수집 실행</button>
       <button class="btn-collect admin-only" id="secai-btn" title="AI 자동 태깅·중요도·시사점">🧠 AI 분석</button>
@@ -392,7 +396,7 @@
   <footer class="app-footer">
     <div class="foot-left">
       <span class="foot-copy">© 2026 김상화</span>
-      <span class="ver">v1.58 · build 260926</span>
+      <span class="ver">v1.59 · build 260926</span>
       <span class="ver" id="storage-badge"></span>
     </div>
     <div class="foot-right">

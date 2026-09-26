@@ -40,10 +40,17 @@ SYSTEM_PROMPT = (
     "- insight.summary: 사건/내용 핵심요약 1~2문장.\n"
     "- insight.implication: 기업 보안담당자 관점의 시사점 1문장.\n"
     "- insight.check: 조직에서 즉시 확인할 사항 1개(짧게).\n"
-    "- insight.prevention: 유사사고 예방/대응 조치 1개(짧게).\n\n"
+    "- insight.prevention: 유사사고 예방/대응 조치 1개(짧게).\n"
+    "- insight.org: 관련 기업/기관(모르면 빈 문자열).\n"
+    "- insight.attack: 공격 유형/경로(해당 없으면 빈 문자열, 예: 크리덴셜 스터핑·랜섬웨어·SQL Injection).\n"
+    "- insight.cve: CVE 번호(있으면 'CVE-YYYY-NNNN', 없으면 빈 문자열).\n"
+    "- insight.scale: 유출/피해 규모(있으면 숫자 포함, 없으면 빈 문자열).\n"
+    "- insight.action: 조치/정부·기관 대응/과징금·처분(있으면, 없으면 빈 문자열).\n"
+    "추정하지 말고 기사에 근거가 없으면 해당 필드는 빈 문자열로 둔다.\n\n"
     "출력은 '완결된 JSON 배열' 하나만. 각 원소는 "
     '{"i": <입력번호>, "tags": [..], "importance": "..", "keep": true/false, '
-    '"insight": {"summary": "..", "implication": "..", "check": "..", "prevention": ".."}} '
+    '"insight": {"summary": "..", "implication": "..", "check": "..", "prevention": "..", '
+    '"org": "..", "attack": "..", "cve": "..", "scale": "..", "action": ".."}} '
     "형태. 설명·코드펜스 없이 배열만, 반드시 끝까지 닫을 것. 한국어로."
 )
 
@@ -133,7 +140,8 @@ def _norm(el):
     if imp not in IMPORTANCE:
         imp = "MEDIUM"
     ins = el.get("insight") or {}
-    insight = {k: (ins.get(k) or "") for k in ("summary", "implication", "check", "prevention")}
+    fields = ("summary", "implication", "check", "prevention", "org", "attack", "cve", "scale", "action")
+    insight = {k: (str(ins.get(k)).strip() if ins.get(k) else "") for k in fields}
     insight["keep"] = bool(el.get("keep", True))
     return {"tags": tags, "importance": imp, "insight": insight}
 
