@@ -106,11 +106,12 @@
       <div class="feats">
         <div class="feat"><div class="ic">🐱</div><h3>냥정보 · 게임정보</h3><p>반려묘·게임 뉴스를 취향대로 모아보기</p></div>
         <div class="feat"><div class="ic">📰</div><h3>NC 뉴스 · 업계동향</h3><p>재단·본사·자회사와 동종 재단 소식</p></div>
-        <div class="feat"><div class="ic">🛡️</div><h3>보안뉴스</h3><p>개인정보·해킹·취약점·보안 정책/트렌드</p></div>
+        <div class="feat"><div class="ic">🛡️</div><h3>보안뉴스</h3><p>개인정보·해킹·취약점·개보위 처분 + AI 자동 중요도</p></div>
+        <div class="feat"><div class="ic">🔐</div><h3>월간 보안 리포트</h3><p>정보보안·개인정보 담당자용 지난달 브리핑(자동)</p></div>
         <div class="feat"><div class="ic">📅</div><h3>행사일정</h3><p>국내 문화행사를 앨범·캘린더로</p></div>
         <div class="feat"><div class="ic">▶️</div><h3>재단 YT</h3><p>재단·주요 재단 유튜브 최신 영상</p></div>
         <div class="feat"><div class="ic">🔖</div><h3>스크랩 · 그룹</h3><p>관심 글을 계정에 저장하고 그룹으로 정리</p></div>
-        <div class="feat"><div class="ic">🔍</div><h3>AI 동향 리포트</h3><p>업계 변화를 AI가 제3자 관점으로 요약</p></div>
+        <div class="feat"><div class="ic">🔍</div><h3>AI 동향 리포트</h3><p>재단 동향을 AI가 제3자 관점으로 요약·비교</p></div>
       </div>
     </section>
 
@@ -138,6 +139,11 @@
           <div class="cap"><span class="n">04</span><h3>AI 재단 동향 리포트</h3></div>
           <p>뉴스·유튜브 데이터로 NC문화재단과 동종 재단의 변화·추세·신규 신호를 AI가 요약. 로그인 없이도 열람 가능해요.</p>
           <div class="frame"><img src="{{ url_for('static', filename='intro/shot-report.png') }}" alt="AI 동향 리포트 화면" loading="lazy" /></div>
+        </div>
+        <div class="shot">
+          <div class="cap"><span class="n">05</span><h3>월간 보안 리포트 <span style="font-size:12px;color:var(--muted);font-weight:600">담당자용</span></h3></div>
+          <p>정보보안·개인정보보호 담당자를 위한 지난달 보안 브리핑. 주요 사고·취약점(CVE)·<b>개보위·공정위 처분</b>·트렌드와 담당자 점검 권고까지, 매월 자동으로 만들어져요.</p>
+          <div class="frame"><img src="{{ url_for('static', filename='intro/shot-secreport.png') }}" alt="월간 보안 리포트 화면" loading="lazy" /></div>
         </div>
       </div>
     </section>
