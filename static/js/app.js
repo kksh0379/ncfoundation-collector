@@ -1510,6 +1510,8 @@ function renderReport(payload) {
   }
   const m = d._meta || {}; const c = m.counts || {}; const b = d.brief || {};
   let h = "";
+  // 00 요약(제3자 개괄)
+  if (d.summary) h += `<div class="rp-summary">${escapeHtml(d.summary)}</div>`;
   // 01 Executive Brief
   const tiles = [["동종 재단", b.foundations], ["최근 콘텐츠", b.recent_contents ?? c.recent_peers],
     ["활동 수", b.activities], ["신규 활동", b.new_activities]]
@@ -1556,8 +1558,8 @@ function renderReport(payload) {
   if (d.our_position) {
     const p = d.our_position;
     const col = (t, a) => (a && a.length) ? `<div class="rp-pos"><div class="rp-pos-k">${t}</div><ul>${rpList(a)}</ul></div>` : "";
-    h += rpSection("07 · 우리 재단 Position",
-      `<div class="rp-poswrap">${col("상대적으로 강함", p.strong)}${col("업계와 유사", p.similar)}${col("업계↑ 우리는 적음", p.less)}${col("우리 특화", p.unique)}</div>`
+    h += rpSection("07 · NC문화재단 포지션",
+      `<div class="rp-poswrap">${col("상대적으로 활발", p.strong)}${col("업계와 유사", p.similar)}${col("업계↑·NC 확인 적음", p.less)}${col("NC 특화", p.unique)}</div>`
       + (p.recent_change ? `<div class="rp-detail">최근 변화: ${escapeHtml(p.recent_change)}</div>` : "") + rpEvidence(p.evidence));
   }
   // 08 Benchmark

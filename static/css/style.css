@@ -955,3 +955,6 @@ body.tab-report .viewbar { display: none; }
 .rp-ev li { font-size: 12.5px; line-height: 1.5; margin-bottom: 4px; }
 .rp-ev-meta { display: block; font-size: 11px; color: var(--muted); }
 .rp-note { font-size: 12px; color: #7a5b00; background: #fff8e1; border: 1px solid #f5d98b; border-radius: 8px; padding: 10px 12px; margin-top: 10px; }
+
+/* 리포트 요약(제3자 개괄) */
+.rp-summary { background: #eef4ff; border: 1px solid #cfe0ff; border-left: 4px solid var(--primary); border-radius: 8px; padding: 12px 14px; font-size: 14px; line-height: 1.65; color: var(--text); margin: 4px 0 14px; }
