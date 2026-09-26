@@ -528,7 +528,7 @@ async function loadNews() {
 
 // 보안뉴스 분류(체크박스): 개인정보 / 해킹·침해 / 취약점 / 정책·규제 / 보안트렌드.
 // 서버가 검색어 그룹명을 category로 저장하므로, 저장된 category로 버킷을 정한다.
-const SEC_CATS = ["개인정보", "해킹·침해", "취약점", "정책·규제", "보안트렌드"];
+const SEC_CATS = ["개인정보", "해킹·침해", "취약점", "정책·규제", "개보위·처분", "보안트렌드"];
 let secCats = new Set(SEC_CATS);
 function secBucket(it) {
   const c = it.category || "";
@@ -1860,8 +1860,15 @@ function renderSecurityReport(payload) {
       + `<div class="rp-detail">${escapeHtml(x.note || "")}</div></div>`).join(""));
   }
   if (d.regulatory && d.regulatory.length) {
-    h += rpSection("04 · 법·제도·규제", d.regulatory.map((x) =>
-      `<div class="rp-item"><b>${escapeHtml(x.title || "")}</b><div class="rp-detail">${escapeHtml(x.note || "")}</div></div>`).join(""));
+    h += rpSection("04 · 개보위·규제기관 처분", d.regulatory.map((x) => {
+      const facts = [];
+      if (x.org) facts.push(`🏛 ${x.org}`);
+      if (x.penalty) facts.push(`💰 ${x.penalty}`);
+      if (x.target) facts.push(`🎯 ${x.target}`);
+      const factsHtml = facts.length ? `<div class="ai-facts">${facts.map((f) => `<span class="ai-fact">${escapeHtml(f)}</span>`).join("")}</div>` : "";
+      return `<div class="rp-item"><b>${escapeHtml(x.title || "")}</b>${factsHtml}`
+        + `<div class="rp-detail">${escapeHtml(x.note || "")}</div></div>`;
+    }).join(""));
   }
   if (d.trends && d.trends.length) {
     h += rpSection("05 · 보안 트렌드", d.trends.map((x) =>
