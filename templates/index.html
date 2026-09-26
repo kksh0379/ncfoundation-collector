@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>휴 스코프</title>
+  <meta name="description" content="재단·업계 뉴스와 재단 게시판·소셜 채널을 한 곳에서 모아보는 통합 스코프." />
+  <meta name="theme-color" content="#2d6cdf" />
+
+  <!-- 링크 미리보기(카톡·슬랙·트위터 등) Open Graph -->
+  {% set og_base = 'https://' + request.host %}
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="휴 스코프" />
+  <meta property="og:title" content="휴 스코프" />
+  <meta property="og:description" content="재단·업계 뉴스와 재단 게시판·소셜 채널을 한눈에" />
+  <meta property="og:url" content="{{ og_base }}/" />
+  <meta property="og:image" content="{{ og_base }}{{ url_for('static', filename='og-image.png', v='145') }}" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:locale" content="ko_KR" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="휴 스코프" />
+  <meta name="twitter:description" content="재단·업계 뉴스와 재단 게시판·소셜 채널을 한눈에" />
+  <meta name="twitter:image" content="{{ og_base }}{{ url_for('static', filename='og-image.png', v='145') }}" />
+
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="휴 스코프" />
+  <link rel="icon" href="{{ url_for('static', filename='favicon.svg', v='145') }}" type="image/svg+xml" />
+  <link rel="icon" href="{{ url_for('static', filename='icon-192.png', v='145') }}" type="image/png" sizes="192x192" />
+  <link rel="apple-touch-icon" href="{{ url_for('static', filename='apple-touch-icon.png', v='145') }}" />
+  <link rel="manifest" href="{{ url_for('static', filename='site.webmanifest', v='145') }}" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css', v='145') }}" />
+</head>
+<body>
+  <header class="app-header">
+    <a class="brand" href="/" aria-label="휴 스코프 홈">
+      <svg class="brand-mark" viewBox="0 0 32 32" width="28" height="28" aria-hidden="true">
+        <circle cx="16" cy="16" r="12" fill="none" stroke="currentColor" stroke-width="2.4"/>
+        <circle cx="16" cy="16" r="3.4" fill="currentColor"/>
+        <line x1="16" y1="1" x2="16" y2="5.5" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>
+        <line x1="16" y1="26.5" x2="16" y2="31" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>
+        <line x1="1" y1="16" x2="5.5" y2="16" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>
+        <line x1="26.5" y1="16" x2="31" y2="16" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>
+      </svg>
+      <span class="brand-name">휴 <b>스코프</b></span>
+    </a>
+    <div class="header-actions" id="header-actions">
+    <button class="auth-btn report-open" id="report-open-btn" aria-label="AI 리포트">
+      <svg class="ai-ci" viewBox="0 0 24 24" width="17" height="17" aria-hidden="true">
+        <circle cx="10" cy="10.5" r="6.4" fill="none" stroke="currentColor" stroke-width="2"/>
+        <line x1="14.6" y1="15.1" x2="20" y2="20.5" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>
+        <text x="10" y="13.1" text-anchor="middle" font-size="6.6" font-weight="800" fill="currentColor" font-family="Arial, Helvetica, sans-serif">AI</text>
+        <path d="M18.5 2 L19.3 4 L21.3 4.8 L19.3 5.6 L18.5 7.6 L17.7 5.6 L15.7 4.8 L17.7 4 Z" fill="currentColor"/>
+      </svg>리포트</button>
+    <button class="auth-btn scrap-open" id="scrap-open-btn" aria-label="나의 스크랩">🔖 스크랩<span class="scrap-badge" id="scrap-badge" hidden></span></button>
+    <button class="auth-btn admin-only" id="notes-btn">📓 노트</button>
+    <button class="auth-btn admin-only" id="runlog-btn">📋 로그</button>
+    <button class="auth-btn admin-only" id="purge-db-btn">🗑 초기화</button>
+    </div>
+  </header>
+
+  <div class="tabs-wrap" id="tabs-wrap">
+    <nav class="tabs" id="tabs">
+      <button class="tab active" data-tab="cat" aria-label="냥정보">
+        <img class="cat-photo" src="{{ url_for('static', filename='cat-tab.png', v='145') }}" alt="" />냥정보</button>
+      <button class="tab" data-tab="game">🕹 게임정보</button>
+      <button class="tab" data-tab="news" aria-label="NC 뉴스">
+        <span class="nc-mark">nc</span>뉴스</button>
+      <button class="tab" data-tab="biz">📊 업계동향</button>
+      <button class="tab" data-tab="security">🛡 보안뉴스</button>
+      <button class="tab" data-tab="event">📅 행사일정</button>
+      <button class="tab" data-tab="boards">📋 재단게시판</button>
+      <button class="tab" data-tab="social" aria-label="재단 영상">
+        <svg class="yt-ci" viewBox="0 0 24 24" width="19" height="19" aria-hidden="true">
+          <rect x="2" y="2" width="20" height="20" rx="5" fill="#e0201b"/>
+          <path d="M10 8 L16 12 L10 16 Z" fill="#fff"/>
+        </svg>재단</button>
+    </nav>
+  </div>
+
+  <!-- 검색(탭별) + 보기 방식 선택: 리스트(제목만) / 카드(썸네일·요약) -->
+  <div class="viewbar">
+    <div class="search-box">
+      <input type="search" id="tab-search" class="search-input" placeholder="이 탭에서 검색…"
+             autocomplete="off" enterkeyhint="search" aria-label="현재 탭 검색" />
+      <button type="button" class="search-clear" id="search-clear" aria-label="검색어 지우기" hidden>✕</button>
+      <button type="button" class="search-btn" id="search-btn" aria-label="검색">🔍</button>
+    </div>
+    <span class="result-count" id="result-count" aria-live="polite"></span>
+    <div class="viewseg" id="view-toggle" role="group" aria-label="보기 방식">
+      <button type="button" data-view="list" aria-label="리스트 보기" title="리스트">☰</button>
+      <button type="button" data-view="card" class="active" aria-label="카드 보기" title="카드">▭</button>
+    </div>
+    <div class="viewseg" id="event-view-toggle" role="group" aria-label="행사 보기 방식">
+      <button type="button" data-eview="album" class="active" aria-label="앨범 보기" title="앨범">
+        <svg viewBox="0 0 20 20" width="17" height="17" aria-hidden="true"><path fill="currentColor" d="M3 3h6v6H3V3zm8 0h6v6h-6V3zM3 11h6v6H3v-6zm8 0h6v6h-6v-6z"/></svg>
+      </button>
+      <button type="button" data-eview="calendar" aria-label="캘린더 보기" title="캘린더">
+        <svg viewBox="0 0 20 20" width="17" height="17" aria-hidden="true"><path fill="currentColor" d="M6 1v2M14 1v2M3 4h14a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1zm-.5 4h15" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round"/><rect x="5" y="10.5" width="2.6" height="2.6" rx="0.5" fill="currentColor"/><rect x="9" y="10.5" width="2.6" height="2.6" rx="0.5" fill="currentColor"/><rect x="13" y="10.5" width="2.6" height="2.6" rx="0.5" fill="currentColor"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- 탭0: 고양이(반려묘) 뉴스 -->
+  <section class="panel active" id="panel-cat">
+    <div class="toolbar">
+      <div class="checkbar" id="cat-cats" role="group" aria-label="분류 선택">
+        <label><input type="checkbox" data-cat="all" checked /> 전체</label>
+        {% for c in cat_categories %}
+        <label><input type="checkbox" data-cat="{{ c }}" checked /> {{ c }}</label>
+        {% endfor %}
+      </div>
+      <button class="btn-status admin-only" id="status-cat-btn">상태 확인</button>
+      <button class="btn-collect admin-only" id="collect-cat">수집 실행</button>
+    </div>
+    <div class="legend admin-only">
+      <span class="chip chip-done">사료·영양 / 행동·심리 / 업계 트렌드 / 사회·제도 / 반려묘 보험</span>
+      <span class="chip chip-plan">최근 5년 · 구글 뉴스(RSS)</span>
+    </div>
+    <div class="last-crawl" id="last-cat"></div>
+    <div class="result-msg" id="msg-cat"></div>
+    <ul class="list" id="list-cat"></ul>
+  </section>
+
+  <!-- 탭: 게임정보 -->
+  <section class="panel" id="panel-game">
+    <div class="toolbar">
+      <div class="checkbar" id="game-cats" role="group" aria-label="분류 선택">
+        <label><input type="checkbox" data-cat="all" checked /> 전체</label>
+        {% for c in game_categories %}
+        <label><input type="checkbox" data-cat="{{ c }}" checked /> {{ c }}</label>
+        {% endfor %}
+      </div>
+      <button class="btn-status admin-only" id="status-game-btn">상태 확인</button>
+      <button class="btn-collect admin-only" id="collect-game">수집 실행</button>
+    </div>
+    <div class="legend admin-only">
+      <span class="chip chip-done">신작·출시 / 업데이트 / e스포츠 / 업계 / 콘솔 / 인디</span>
+      <span class="chip chip-plan">최근 5년 · 구글 뉴스(RSS)</span>
+    </div>
+    <div class="last-crawl" id="last-game"></div>
+    <div class="result-msg" id="msg-game"></div>
+    <ul class="list" id="list-game"></ul>
+  </section>
+
+  <!-- 탭1: 뉴스 -->
+  <section class="panel" id="panel-news">
+    <div class="toolbar">
+      <div class="checkbar" id="news-cats" role="group" aria-label="뉴스 분류 선택">
+        <label><input type="checkbox" data-cat="all" /> 전체</label>
+        <label><input type="checkbox" data-cat="재단" checked /> 재단</label>
+        <label><input type="checkbox" data-cat="본사" /> 본사</label>
+        <label><input type="checkbox" data-cat="자회사" /> 자회사</label>
+      </div>
+      <button class="btn-status admin-only" id="status-news-btn">상태 확인</button>
+      <button class="btn-collect admin-only" id="collect-news">수집 실행</button>
+    </div>
+    <div class="legend admin-only">
+      <span class="chip chip-done">재단 · 엔씨문화재단/NC문화재단</span>
+      <span class="chip chip-done">본사 · 엔씨소프트·자회사(NC AI/QA/IDS·게임스튜디오), 야구 제외</span>
+      <span class="chip chip-plan">최근 5년 · 구글 뉴스(RSS)</span>
+    </div>
+    <div class="last-crawl" id="last-news"></div>
+    <div class="result-msg" id="msg-news"></div>
+    <ul class="list" id="list-news"></ul>
+  </section>
+
+  <!-- 탭: 업계동향 -->
+  <section class="panel" id="panel-biz">
+    <div class="toolbar">
+      <span class="toolbar-title">업계동향 · 재단/공익법인</span>
+      <button class="btn-status admin-only" id="status-biz-btn">상태 확인</button>
+      <button class="btn-collect admin-only" id="collect-biz">수집 실행</button>
+    </div>
+    <div class="legend admin-only">
+      <span class="chip chip-done">업계 키워드(문화재단·공익법인 등) 또는 주요 재단</span>
+      <span class="chip chip-plan">제목 채용·입찰·휴관·티켓 제외 · 구글 뉴스(RSS)</span>
+    </div>
+    <div class="last-crawl" id="last-biz"></div>
+    <div class="result-msg" id="msg-biz"></div>
+    <ul class="list" id="list-biz"></ul>
+  </section>
+
+  <!-- 탭: 보안뉴스(개인정보·정보보안) -->
+  <section class="panel" id="panel-security">
+    <div class="toolbar">
+      <div class="checkbar" id="sec-cats" role="group" aria-label="보안 분류 선택">
+        <label><input type="checkbox" data-cat="all" checked /> 전체</label>
+        <label><input type="checkbox" data-cat="개인정보" checked /> 개인정보</label>
+        <label><input type="checkbox" data-cat="해킹·침해" checked /> 해킹·침해</label>
+        <label><input type="checkbox" data-cat="취약점" checked /> 취약점</label>
+        <label><input type="checkbox" data-cat="정책·규제" checked /> 정책·규제</label>
+        <label><input type="checkbox" data-cat="개보위·처분" checked /> 개보위·처분</label>
+        <label><input type="checkbox" data-cat="보안트렌드" checked /> 보안트렌드</label>
+      </div>
+      <div class="seg sec-sort" id="sec-sort" role="group" aria-label="정렬">
+        <button type="button" data-sort="date" class="active">최신순</button>
+        <button type="button" data-sort="importance">중요도순</button>
+      </div>
+      <button class="btn-status admin-only" id="status-security-btn">상태 확인</button>
+      <button class="btn-collect admin-only" id="collect-security">수집 실행</button>
+    </div>
+    <div class="legend admin-only">
+      <span class="chip chip-done">개인정보 유출·해킹·랜섬웨어·취약점(CVE/제로데이)</span>
+      <span class="chip chip-done">개인정보보호법·ISMS·과징금 · AI/클라우드/제로트러스트 트렌드</span>
+      <span class="chip chip-plan">사고＋행위 조합 검색 · 광고/시세성 제외 · 구글 뉴스(RSS)</span>
+    </div>
+    <div class="last-crawl" id="last-security"></div>
+    <div class="result-msg" id="msg-security"></div>
+    <ul class="list" id="list-security"></ul>
+  </section>
+
+  <!-- 탭: 행사일정(국내 AI 행사) -->
+  <section class="panel" id="panel-event">
+    <div class="toolbar">
+      <span class="toolbar-title">행사일정 · 국내 행사</span>
+      <button class="btn-status admin-only" id="status-event-btn">상태 확인</button>
+      <button class="btn-collect admin-only" id="collect-event">수집 실행</button>
+    </div>
+    <div class="legend admin-only">
+      <span class="chip chip-done">국내 개최 · 종료 전 행사</span>
+      <span class="chip chip-plan">앨범/캘린더 · 날짜·장소 자동추출(구글 뉴스)</span>
+    </div>
+    <div class="event-note">
+      ⚠️ 행사 정보(날짜·장소·개최 여부)는 뉴스 기사에서 <b>자동으로 추출</b>한 것이라 실제와 다르거나 누락·오류가 있을 수 있어요. 참여·신청 전 반드시 <b>원문과 공식 채널</b>에서 확인해 주세요.
+    </div>
+    <div class="last-crawl" id="last-event"></div>
+    <div class="result-msg" id="msg-event"></div>
+    <div class="event-body">
+      <ul class="list album-grid" id="list-event"></ul>
+      <div class="calendar" id="cal-event" hidden></div>
+    </div>
+  </section>
+
+  <!-- 탭2: 게시판 -->
+  <section class="panel" id="panel-boards">
+    <div class="toolbar">
+      <div class="checkbar" id="board-cats" role="group" aria-label="서비스 선택">
+        <label><input type="checkbox" data-cat="all" checked /> 전체</label>
+        {% for s in services %}
+        <label><input type="checkbox" data-cat="{{ s }}" checked /> {{ s }}</label>
+        {% endfor %}
+      </div>
+      <button class="btn-status admin-only" id="status-boards-btn">상태 확인</button>
+      <button class="btn-collect admin-only" id="collect-boards">수집 실행</button>
+    </div>
+    <div class="legend">
+      {% for s in board_status %}
+      <span class="chip chip-{{ 'done' if s.status=='완료' else ('wip' if s.status=='구현 중' else 'plan') }}">{{ s.name }} · {{ s.status }}</span>
+      {% endfor %}
+    </div>
+    <div class="last-crawl" id="last-boards"></div>
+    <div class="result-msg" id="msg-boards"></div>
+    <ul class="list" id="list-boards"></ul>
+  </section>
+
+  <!-- 탭: 재단YT(유튜브) -->
+  <section class="panel" id="panel-social">
+    <div class="toolbar">
+      <div class="checkbar" id="social-cats" role="group" aria-label="유튜브 분류 선택">
+        <label><input type="checkbox" data-cat="all" /> 전체</label>
+        <label><input type="checkbox" data-cat="재단" checked /> 재단</label>
+        <label><input type="checkbox" data-cat="주요재단" /> 주요 재단</label>
+      </div>
+      <button class="btn-status admin-only" id="status-social-btn">상태 확인</button>
+      <button class="btn-collect admin-only" id="collect-social">수집 실행</button>
+    </div>
+    <div class="legend admin-only">
+      <span class="chip chip-done">재단 · NC문화재단 유튜브 채널</span>
+      <span class="chip chip-plan">주요 재단 · 기관명 유튜브 검색(업계동향 목록)</span>
+    </div>
+    <div class="last-crawl" id="last-social"></div>
+    <div class="result-msg" id="msg-social"></div>
+    <ul class="list" id="list-social"></ul>
+  </section>
+
+  <!-- AI 재단 동향 분석 리포트 (상단 버튼 → 풀팝업) -->
+  <div class="fullmodal" id="report-modal" hidden>
+    <div class="fullmodal-head">
+      <span class="fullmodal-title" id="report-title">🔍 AI 재단 동향 리포트</span>
+      <button class="fullmodal-close" id="report-close" aria-label="닫기">✕</button>
+    </div>
+    <div class="fullmodal-body">
+      <div class="seg rep-kind" id="rep-kind" role="group" aria-label="리포트 종류">
+        <button type="button" data-kind="foundation" class="active">재단 동향</button>
+        <button type="button" data-kind="security">🛡 보안(월간)</button>
+      </div>
+      <div class="report-bar">
+        <select id="report-snap" class="report-snap" aria-label="리포트 스냅샷"></select>
+        <button class="btn-collect admin-only" id="run-report">분석 실행</button>
+        <button class="btn-status admin-only" id="report-del" title="현재 선택한 스냅샷 삭제">🗑 삭제</button>
+        <button class="btn-status admin-only" id="report-purge" title="전체 리포트 스냅샷 삭제">전체 초기화</button>
+      </div>
+      <div class="report-note" id="report-note-foundation">
+        뉴스·재단YT 데이터로 <b>NC문화재단</b>과 동종 재단의 변화·추세·신규신호를 AI가 <b>제3자 관점</b>으로 비교 분석해요.
+        결과는 실행 시점별로 저장되어 <b>지난 리포트와 비교</b>됩니다. (열람은 누구나 · 분석 실행은 관리자)
+      </div>
+      <div class="report-note" id="report-note-security" hidden>
+        보안뉴스 데이터로 <b>정보보안·개인정보보호 담당자</b>를 위한 <b>월간 보안 브리핑</b>을 AI가 만들어요.
+        주요 사고·취약점(CVE)·<b>개보위·공정위 처분</b>·트렌드와 <b>담당자 점검 권고</b>를 제공합니다. (기본 대상: <b>지난달</b> · 월 단위)
+      </div>
+      <div class="result-msg" id="msg-report"></div>
+      <div id="report-body"></div>
+    </div>
+  </div>
+
+  <!-- 상태 확인 팝업 -->
+  <div class="modal" id="status-modal" hidden>
+    <div class="modal-box">
+      <div class="modal-head">
+        <span>연결 상태 확인</span>
+        <button class="modal-close" id="status-close" aria-label="닫기">✕</button>
+      </div>
+      <div class="modal-body" id="status-modal-body"></div>
+    </div>
+  </div>
+
+  <!-- 로그인 팝업 (일반 / 관리자) -->
+  <div class="modal" id="login-modal" hidden>
+    <div class="modal-box">
+      <div class="modal-head">
+        <span>로그인</span>
+        <button class="modal-close" id="login-close" aria-label="닫기">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="login-role" id="login-role" role="group" aria-label="로그인 유형">
+          <button type="button" data-role="user" class="active">일반 사용자</button>
+          <button type="button" data-role="admin">관리자</button>
+        </div>
+        <form id="login-form" class="login-form">
+          <div id="login-id-wrap">
+            <input type="text" id="login-id" placeholder="아이디 (tester1~tester10)" autocomplete="username" />
+          </div>
+          <input type="password" id="login-pw" placeholder="비밀번호" autocomplete="current-password" />
+          <div class="login-err" id="login-err"></div>
+          <button type="submit" class="btn-collect" id="login-submit">로그인</button>
+        </form>
+        <div class="login-hint">테스트 계정: <b>tester1 ~ tester10</b> / 비밀번호 <b>1234</b></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 로그 팝업 (관리자 전용): 수집 로그 / 접속 로그 -->
+  <div class="modal" id="runlog-modal" hidden>
+    <div class="modal-box notes-box">
+      <div class="modal-head">
+        <span>로그</span>
+        <button class="modal-close" id="runlog-close" aria-label="닫기">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="notes-tabs">
+          <button class="notes-tab active" data-log="run">📋 수집 로그</button>
+          <button class="notes-tab" data-log="visit">👥 접속 로그</button>
+        </div>
+        <div id="runlog-body"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 개발노트 / 패치내역 팝업 (관리자 전용) -->
+  <div class="modal" id="notes-modal" hidden>
+    <div class="modal-box notes-box">
+      <div class="modal-head">
+        <span>개발노트 / 패치내역</span>
+        <button class="modal-close" id="notes-close" aria-label="닫기">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="notes-tabs">
+          <button class="notes-tab active" data-notes="devnote">📓 개발노트</button>
+          <button class="notes-tab" data-notes="changelog">📅 패치내역</button>
+        </div>
+        <div class="notes-md" id="notes-content"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 나의 스크랩 풀팝업 -->
+  <div class="fullmodal" id="scrap-modal" hidden>
+    <div class="fullmodal-head">
+      <span class="fullmodal-title">🔖 나의 스크랩 <span id="scrap-count-h"></span></span>
+      <button class="fullmodal-close" id="scrap-close" aria-label="닫기">✕</button>
+    </div>
+    <div class="scrap-controls" id="scrap-controls"></div>
+    <div class="fullmodal-body">
+      <ul class="list scrap-list" id="scrap-list"></ul>
+    </div>
+  </div>
+
+  <footer class="app-footer">
+    <div class="foot-left">
+      <span class="foot-copy">© 2026 김상화</span>
+      <span class="ver">v1.76 · build 260926</span>
+      <span class="ver" id="storage-badge"></span>
+    </div>
+    <div class="foot-right">
+      <span class="foot-user loggedin-only" id="foot-user"></span>
+      <button class="foot-auth loggedout-only" id="login-btn">로그인</button>
+      <button class="foot-auth loggedin-only" id="logout-btn">로그아웃</button>
+    </div>
+  </footer>
+
+  <button id="to-top" aria-label="맨 위로" hidden>↑</button>
+
+  <script src="{{ url_for('static', filename='js/app.js', v='145') }}"></script>
+</body>
+</html>
