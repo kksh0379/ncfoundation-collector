@@ -148,6 +148,8 @@ def build_input(window_days=90):
     peer_org_counts = {}
     for x in peers:
         peer_org_counts[x["org"]] = peer_org_counts.get(x["org"], 0) + 1
+    # 동종 재단 수: 이름이 식별된 고유 기관 수('기타'=미상 제외)
+    peer_orgs = len([k for k in peer_org_counts if k and k != "기타"])
 
     def trim(items):
         return [{k: (v[:110] if k == "snippet" and isinstance(v, str) else v)
@@ -162,7 +164,7 @@ def build_input(window_days=90):
             "our_quarters": quarter_counts(our),
             "peer_quarters": quarter_counts(peers),
             "peer_org_totals": dict(sorted(peer_org_counts.items(), key=lambda kv: -kv[1])[:12]),
-            "our_total": len(our), "peer_total": len(peers),
+            "our_total": len(our), "peer_total": len(peers), "peer_orgs": peer_orgs,
         },
     }
 
@@ -332,6 +334,7 @@ def run(window_days=90, progress=None):
         "recent_peers": len(inp["recent_peers"]),
         "our_total": inp["baseline"]["our_total"],
         "peer_total": inp["baseline"]["peer_total"],
+        "peer_orgs": inp["baseline"].get("peer_orgs", 0),
     }
     if counts["recent_our"] + counts["recent_peers"] == 0:
         return None, "최근 기간에 분석할 콘텐츠가 없습니다. 먼저 뉴스/재단YT를 수집해 주세요."

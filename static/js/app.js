@@ -1693,10 +1693,16 @@ function renderReport(payload) {
   let h = "";
   // 00 요약(제3자 개괄)
   if (d.summary) h += `<div class="rp-summary">${escapeHtml(d.summary)}</div>`;
-  // 01 Executive Brief
-  const tiles = [["동종 재단", b.foundations], ["최근 콘텐츠", b.recent_contents ?? c.recent_peers],
-    ["활동 수", b.activities], ["신규 활동", b.new_activities]]
-    .map(([k, v]) => `<div class="rp-tile"><div class="rp-tile-n">${v ?? "–"}</div><div class="rp-tile-k">${k}</div></div>`).join("");
+  // 01 Executive Brief — 서버가 실제로 아는 카운트로 항상 채운다(LLM 누락 시에도 0/– 방지).
+  const num = (v) => (typeof v === "number" ? v.toLocaleString() : (v ?? "–"));
+  const ourN = c.recent_our, peerN = c.recent_peers;
+  const totalN = (c.our_total != null && c.peer_total != null) ? c.our_total + c.peer_total : null;
+  const tiles = [
+    ["동종 재단", b.foundations ?? c.peer_orgs],   // 이번 기간 식별된 동종 기관 수
+    ["우리 콘텐츠", ourN],                          // NC재단+NC YT (최근 기간)
+    ["동종 콘텐츠", peerN],                          // 동종/업계 (최근 기간)
+    ["누적 데이터", totalN],                         // 전체 수집 누계
+  ].map(([k, v]) => `<div class="rp-tile"><div class="rp-tile-n">${num(v)}</div><div class="rp-tile-k">${k}</div></div>`).join("");
   h += rpSection("01 · Executive Brief",
     `<div class="rp-tiles">${tiles}</div>`
     + (b.highlights && b.highlights.length ? `<ul class="rp-hl">${rpList(b.highlights)}</ul>` : ""));
