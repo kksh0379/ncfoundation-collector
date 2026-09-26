@@ -207,13 +207,14 @@ evidence의 url/title은 반드시 입력 데이터에 실제 존재하는 것�
 - 사고 과정·설명·코드펜스 없이, 완결된 JSON 객체 하나만 출력한다(반드시 끝까지 닫을 것)."""
 
 
-def _post_messages(key, model, user):
+def _post_messages(key, model, user, no_think=True):
     import requests
-    # Claude 5 계열은 내부 추론(thinking)에도 출력 토큰을 쓰므로 넉넉히 잡아
-    # 추론 + 완결 JSON이 모두 들어가게 한다(부족하면 stop_reason=max_tokens로 잘림).
     max_tokens = int(os.environ.get("ANALYSIS_MAX_TOKENS", "16000"))
     body = {"model": model, "max_tokens": max_tokens, "system": SYSTEM_PROMPT,
             "messages": [{"role": "user", "content": user}]}
+    if no_think:
+        # 내부 추론(thinking)을 꺼서 출력 예산을 JSON에만 쓰게 한다(잘림 방지 + 비용 절감).
+        body["thinking"] = {"type": "disabled"}
     return requests.post(API_URL, headers={
         "x-api-key": key, "anthropic-version": "2023-06-01",
         "content-type": "application/json",
@@ -243,9 +244,15 @@ def _pick_haiku(key):
 def _attempt(key, model, user):
     """1회 호출 결과를 dict로: {data, stop, text, http, err}."""
     try:
-        r = _post_messages(key, model, user)
+        r = _post_messages(key, model, user, no_think=True)
     except Exception as e:  # noqa: BLE001
         return {"err": f"LLM 요청 실패: {e}"}
+    # thinking 파라미터를 모델이 거부(400)하면 파라미터 없이 재시도
+    if r.status_code == 400 and "thinking" in (r.text or ""):
+        try:
+            r = _post_messages(key, model, user, no_think=False)
+        except Exception as e:  # noqa: BLE001
+            return {"err": f"LLM 요청 실패: {e}"}
     if r.status_code == 404 and "not_found" in (r.text or ""):
         return {"http": 404, "not_found": True}
     if r.status_code >= 400:
