@@ -33,7 +33,7 @@ flowchart TB
 
   subgraph SERVER["🖥 Flask 서버 · app.py"]
     READ["조회 API GET<br/>/api/catnews · /gamenews · /news · /biznews · /secnews<br/>/api/events · /boards · /social · /meta"]
-    RPTAPI["리포트 API<br/>/api/report/list · /get · /status · /run"]
+    RPTAPI["리포트·보안AI API<br/>/api/report/list · /get · /status · /run<br/>/api/security/analyze · /status"]
     AUTH["계정·개인화 API<br/>/api/login · /logout · /me · /mydata<br/>/api/scrap · /read · /groups · /scrap/groups"]
     CRAWLAPI["수집 API 관리자<br/>/api/crawl/:group/start · /status<br/>/api/admin/purge · /api/notes"]
     SCHED["내부 스케줄러 + 외부 크론<br/>/api/cron"]
@@ -46,6 +46,7 @@ flowchart TB
     SOC["social.py<br/>재단YT 수집"]
     DED["dedup.py<br/>동일기사 묶기"]
     ANA["analysis.py<br/>AI 리포트 생성"]
+    SECAI["security_ai.py<br/>보안뉴스 AI 태깅·중요도"]
   end
 
   subgraph EXT["🌐 외부 서비스"]
@@ -66,6 +67,9 @@ flowchart TB
   CRAWLAPI -->|수집 실행| COLLECT
   SCHED -->|정기 배치| COLLECT
   RPTAPI -->|분석 실행 관리자| ANA
+  RPTAPI -->|보안 AI 분석 관리자| SECAI
+  SECAI --> CLAUDE
+  SECAI -->|태깅·중요도 저장| DB
   GNEWS --> GRSS
   EV --> GRSS
   SOC --> YTAPI
@@ -126,6 +130,9 @@ flowchart TB
 - **`YOUTUBE_API_KEY`** — 재단YT(NC 채널 전 영상 + 주요 재단 유튜브 검색)에 필요. 없으면 재단은 RSS 최신만, 주요 재단은 건너뜀.
 - **`ANTHROPIC_API_KEY`** — 🧠 AI 리포트에 필요(Anthropic Console에서 발급, 유료). 없으면 리포트 생성 불가.
 - **`ANALYSIS_MODEL`** — 리포트에 쓸 모델. 기본 `claude-3-5-sonnet-latest`. (선택)
+- **`SEC_AI_LIMIT`** — 보안뉴스 🧠 AI 분석 1회 실행당 분석할 기사 수 상한. 기본 `60`. (선택)
+- **`SEC_AI_BATCH`** — AI 분석 1회 LLM 호출당 기사 수. 기본 `10`. (선택)
+- **`SEC_AI_MAX_TOKENS`** — AI 분석 응답 토큰 상한. 기본 `8000`. (선택)
 - **`BACKFILL_DAYS`** — 최초 자동 백필 기간(일). 기본 `1825`(5년).
 - **`BATCH_DAYS`** — 정기 배치의 뉴스 수집 창(일). 기본 `30`.
 - **`AUTO_BACKFILL`** — 부팅 시 DB 비면 자동 수집할지. 기본 꺼짐(`0`).
@@ -172,7 +179,12 @@ flowchart TB
 - 5개 분류(체크박스, 다중선택): **개인정보 / 해킹·침해 / 취약점 / 정책·규제 / 보안트렌드**. 검색어 그룹명을 `category`로 저장하고, 화면에서 체크박스로 필터.
 - gl=KR·hl=ko RSS라 국내 매체 중심(국내 관련성)이며, 국내에도 영향이 큰 글로벌 벤더(MS/Google/Apple/AWS 등) 사고도 자연히 포함.
 - 광고·홍보·시세성(할인·프로모션·코인 시세·주가·채용 등) 제목은 제외. 동일 사건은 `news` 클러스터링으로 "N개 매체" 묶음.
-- 명세의 AI 자동 태깅/중요도/요약 필드는 후속 단계(현재는 RSS+키워드 기반 수집·분류).
+- **AI 후처리(관리자 🧠 AI 분석)**: 수집된 보안뉴스를 Claude API로 **배치 분석**해 기사별로 자동 태깅·중요도·시사점을 채운다.
+  - 태그(복수): 개인정보/개인정보유출/해킹/랜섬웨어/악성코드/피싱·스미싱/취약점/제로데이/계정탈취/데이터유출/공급망공격/클라우드보안/AI보안/보안정책/법령·규제/과징금·제재/보안기술/보안트렌드.
+  - 중요도: CRITICAL(심각)/HIGH(높음)/MEDIUM(보통)/LOW(낮음) — 카드에 색 배지.
+  - 시사점: 보안담당자 관점 시사점·조직 확인사항·예방조치(카드에 표시), keep(참고가치 여부) 저장.
+  - 저장: `news`의 `ai_tags/ai_importance/ai_insight/ai_at` 컬럼(섹션 재사용, 스키마 마이그레이션 자동). 이미 분석된 기사는 건너뛰고 신규만(증분). 1회 상한 `SEC_AI_LIMIT`.
+  - 엔진: `collector/security_ai.py` (리포트와 동일한 `ANTHROPIC_API_KEY`·모델 자동선택 재사용). 키 없으면 수집·필터까지만 동작.
 
 ### 재단게시판 (모두 내부 API 연동 완료)
 - 대표홈페이지·프로젝토리·나의AAC·FAIR AI. 각 사이트가 목록을 JS로 렌더하는 SPA라 정적 HTML 대신 실제 호출되는 내부 API(JSON)로 수집.
@@ -232,6 +244,7 @@ flowchart TB
 - `collector/boards.py` — 게시판 수집(사이트별 내부 API).
 - `collector/social.py` — 재단YT(NC 채널 Data API + 주요 재단 유튜브 검색).
 - `collector/analysis.py` — AI 리포트(데이터 정리·중복 묶기·LLM 호출·JSON 스키마).
+- `collector/security_ai.py` — 보안뉴스 AI 후처리(배치 태깅·중요도·시사점, analysis의 LLM 연결부 재사용).
 - `collector/dedup.py` — 동일 기사 그룹화.
 - `collector/db.py` — 저장소(Postgres/SQLite, 직접 접속), news/boards/social/events/user_state/report_snapshot.
 - `collector/fetcher.py` / `collector/extractor.py` — HTTP 헬퍼 / 본문·이미지 추출.

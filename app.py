@@ -15,7 +15,7 @@ from datetime import datetime, timedelta, timezone
 
 from flask import Flask, Response, jsonify, render_template, request, session
 
-from collector import analysis, boards, db, dedup, events, fetcher, google_news, social
+from collector import analysis, boards, db, dedup, events, fetcher, google_news, security_ai, social
 
 app = Flask(__name__)
 # 초안 단계: 브라우저가 옛 JS/CSS를 캐시해 혼란을 주지 않도록 정적파일 캐시를 끈다.
@@ -1204,6 +1204,65 @@ def report_get():
         prev = ids[i + 1] if i + 1 < len(ids) else None
     return jsonify({"id": row["id"], "created_at": row["created_at"], "period": row["period"],
                     "model": row["model"], "prev_id": prev, "data": data})
+
+
+# ---------------------------- 보안뉴스 AI 후처리(태깅·중요도·시사점) ----------------------------
+_SECAI_JOB = {"running": False, "progress": "", "result": None, "started_ts": 0}
+SECAI_LIMIT = int(os.environ.get("SEC_AI_LIMIT", "60"))  # 1회 실행당 분석 상한(비용 관리)
+
+
+def _security_ai_run(limit):
+    st = _SECAI_JOB
+    try:
+        _ensure_db(force=True)
+        rows = db.security_needs_ai(limit)
+        if not rows:
+            st["result"] = {"ok": True, "analyzed": 0, "note": "새로 분석할 보안뉴스가 없어요."}
+            st["progress"] = "완료 · 대상 없음"
+            return
+        st["progress"] = f"AI 분석 0/{len(rows)}"
+        data, err = security_ai.analyze(rows, progress=lambda m: st.update(progress=m))
+        if data:
+            n = db.apply_security_ai(data)
+            st["result"] = {"ok": True, "analyzed": n, "error": err}
+            st["progress"] = f"완료 · {n}건 분석" + (" (일부 실패)" if err else "")
+        else:
+            st["result"] = {"ok": False, "error": err or "분석 결과 없음"}
+            st["progress"] = f"오류: {err or '결과 없음'}"
+    except Exception as e:  # noqa: BLE001
+        st["result"] = {"ok": False, "error": str(e)}
+        st["progress"] = f"오류: {e}"
+    finally:
+        st["running"] = False
+
+
+@app.post("/api/security/analyze")
+def security_analyze():
+    if not _admin_ok():
+        return jsonify({"error": "unauthorized"}), 401
+    if _SECAI_JOB.get("running") and (time.time() - _SECAI_JOB.get("started_ts", 0) < 1800):
+        return jsonify({"running": True, "already": True})
+    limit = request.args.get("limit", default=SECAI_LIMIT, type=int)
+    _SECAI_JOB.update(running=True, progress="분석 준비…", result=None, started_ts=time.time())
+    threading.Thread(target=_security_ai_run, args=(limit,), daemon=True).start()
+    return jsonify({"running": True})
+
+
+@app.get("/api/security/analyze/status")
+def security_analyze_status():
+    st = dict(_SECAI_JOB)
+    if st.get("running") and (time.time() - st.get("started_ts", 0) > 1800):
+        _SECAI_JOB["running"] = False
+        st["running"] = False
+        st["progress"] = "중단됨(시간 초과)"
+    stats = {}
+    try:
+        if _ensure_db():
+            stats = db.security_ai_stats()
+    except Exception:  # noqa: BLE001
+        stats = {}
+    return jsonify({"running": st.get("running"), "progress": st.get("progress"),
+                    "result": st.get("result"), "stats": stats})
 
 
 # ---------------------------- 배치 스케줄 ----------------------------

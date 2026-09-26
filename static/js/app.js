@@ -588,6 +588,32 @@ function newsThumb(rep, proxy) {
     onerror="this.closest('.card-thumb').remove()"></div>`;
 }
 
+// 보안뉴스 AI 후처리(태깅·중요도·시사점) → 카드에 얹을 HTML. ai 필드 없으면 "".
+const IMP_META = {
+  CRITICAL: { ko: "심각", cls: "imp-crit" },
+  HIGH: { ko: "높음", cls: "imp-high" },
+  MEDIUM: { ko: "보통", cls: "imp-med" },
+  LOW: { ko: "낮음", cls: "imp-low" },
+};
+function impBadgeHtml(rep) {
+  const m = IMP_META[(rep.ai_importance || "").toUpperCase()];
+  return m ? `<span class="imp-badge ${m.cls}">${m.ko}</span>` : "";
+}
+function secAiHtml(rep) {
+  if (!rep.ai_at) return "";               // 아직 AI 분석 안 된 기사
+  const tags = (rep.ai_tags || "").split(",").map((t) => t.trim()).filter(Boolean);
+  const tagsHtml = tags.length
+    ? `<div class="ai-tags">${tags.map((t) => `<span class="ai-tag">${escapeHtml(t)}</span>`).join("")}</div>` : "";
+  let ins = {};
+  try { ins = JSON.parse(rep.ai_insight || "{}"); } catch (e) { ins = {}; }
+  const rows = [];
+  if (ins.implication) rows.push(`<div class="ai-row"><b>🛡 시사점</b> ${escapeHtml(ins.implication)}</div>`);
+  if (ins.check) rows.push(`<div class="ai-row"><b>✔ 확인</b> ${escapeHtml(ins.check)}</div>`);
+  if (ins.prevention) rows.push(`<div class="ai-row"><b>🧯 예방</b> ${escapeHtml(ins.prevention)}</div>`);
+  const insightHtml = rows.length ? `<div class="ai-insight">${rows.join("")}</div>` : "";
+  return tagsHtml + insightHtml;
+}
+
 // 뉴스 그룹 1개 → 카드 노드(아코디언 핸들러 포함)
 function newsGroupNode(arr, tab) {
   const rep = arr[0];  // 그룹 내 최신(작성일 내림차순 첫 항목)
@@ -608,9 +634,10 @@ function newsGroupNode(arr, tab) {
     ${scrapBtnHtml(key)}
     <div class="card-main">
       <div class="card-body">
-        <h3 class="card-title">${newBadgeHtml(rep.published_at)}${titleHtml}</h3>
+        <h3 class="card-title">${impBadgeHtml(rep)}${newBadgeHtml(rep.published_at)}${titleHtml}</h3>
         <div class="card-meta">${meta.join(" · ")}</div>
         <p class="card-summary">${escapeHtml(rep.content || "요약 없음")}</p>
+        ${secAiHtml(rep)}
         <div class="card-actions">
           ${repLink ? `<a href="${escapeHtml(repLink)}" target="_blank" rel="noopener">원문 보기 ↗</a>` : ""}
           ${copyBtnHtml(repLink)}
@@ -1018,6 +1045,36 @@ document.getElementById("collect-biz").addEventListener("click", (e) =>
 document.getElementById("collect-security").addEventListener("click", (e) =>
   runCrawl(e.currentTarget, "security", document.getElementById("msg-security"), loadSecurity)
 );
+// 보안뉴스 AI 후처리(태깅·중요도·시사점) 실행 + 상태 폴링
+(function initSecAI() {
+  const btn = document.getElementById("secai-btn");
+  const msg = document.getElementById("msg-secai");
+  if (!btn) return;
+  let timer = null;
+  const poll = async () => {
+    try {
+      const st = await (await fetch("/api/security/analyze/status")).json();
+      const s = st.stats || {};
+      const tail = (s.total != null) ? ` · 분석완료 ${s.analyzed || 0}/${s.total}` : "";
+      msg.textContent = (st.progress || "") + tail;
+      if (!st.running) {
+        clearInterval(timer); timer = null; btn.disabled = false;
+        if (st.result && st.result.ok) { msg.textContent = `🧠 AI 분석 완료 · ${st.result.analyzed || 0}건${tail}`; loadSecurity(); }
+        else if (st.result && st.result.error) { msg.style.color = "#c0392b"; msg.textContent = "AI 분석 실패: " + st.result.error; }
+      }
+    } catch (e) { /* 다음 폴링에서 재시도 */ }
+  };
+  btn.addEventListener("click", async () => {
+    btn.disabled = true; msg.style.color = ""; msg.innerHTML = catSpin("AI 분석 시작…");
+    try {
+      const r = await fetch("/api/security/analyze", { method: "POST" });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error || ("서버 오류 " + r.status));
+      if (timer) clearInterval(timer);
+      timer = setInterval(poll, 2000); poll();
+    } catch (e) { btn.disabled = false; msg.style.color = "#c0392b"; msg.textContent = "실행 실패: " + e.message; }
+  });
+})();
 document.getElementById("collect-event").addEventListener("click", (e) =>
   runCrawl(e.currentTarget, "event", document.getElementById("msg-event"), loadEvent)
 );

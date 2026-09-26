@@ -126,7 +126,8 @@ _DDL = [
     f"""CREATE TABLE IF NOT EXISTS news (
         id {_AUTO_PK}, title TEXT, published_at TEXT, author TEXT, content TEXT,
         url TEXT UNIQUE, content_hash TEXT, group_key TEXT, source_url TEXT,
-        category TEXT, image_url TEXT, section TEXT, collected_at TEXT
+        category TEXT, image_url TEXT, section TEXT, collected_at TEXT,
+        ai_tags TEXT, ai_importance TEXT, ai_insight TEXT, ai_at TEXT
     )""",
     f"""CREATE TABLE IF NOT EXISTS boards (
         id {_AUTO_PK}, service TEXT, category TEXT, title TEXT, published_at TEXT,
@@ -177,6 +178,11 @@ def init_db():
             conn.execute("ALTER TABLE news ADD COLUMN IF NOT EXISTS category TEXT")
             conn.execute("ALTER TABLE news ADD COLUMN IF NOT EXISTS image_url TEXT")
             conn.execute("ALTER TABLE news ADD COLUMN IF NOT EXISTS section TEXT")
+            # 보안뉴스 AI 후처리(자동 태깅/중요도/시사점)
+            conn.execute("ALTER TABLE news ADD COLUMN IF NOT EXISTS ai_tags TEXT")
+            conn.execute("ALTER TABLE news ADD COLUMN IF NOT EXISTS ai_importance TEXT")
+            conn.execute("ALTER TABLE news ADD COLUMN IF NOT EXISTS ai_insight TEXT")
+            conn.execute("ALTER TABLE news ADD COLUMN IF NOT EXISTS ai_at TEXT")
             conn.execute("ALTER TABLE boards ADD COLUMN IF NOT EXISTS image_url TEXT")
             conn.execute("ALTER TABLE social ADD COLUMN IF NOT EXISTS image_url TEXT")
         else:
@@ -191,6 +197,9 @@ def init_db():
                 conn.execute("ALTER TABLE news ADD COLUMN image_url TEXT")
             if "section" not in cols:
                 conn.execute("ALTER TABLE news ADD COLUMN section TEXT")
+            for _c in ("ai_tags", "ai_importance", "ai_insight", "ai_at"):
+                if _c not in cols:
+                    conn.execute(f"ALTER TABLE news ADD COLUMN {_c} TEXT")
             bcols = {r["name"] for r in conn.execute("PRAGMA table_info(boards)").fetchall()}
             if "image_url" not in bcols:
                 conn.execute("ALTER TABLE boards ADD COLUMN image_url TEXT")
@@ -564,6 +573,50 @@ def list_news(limit=3000, category=None, section="nc"):
                 (*cargs, limit),
             ).fetchall()
         return [dict(r) for r in rows]
+
+
+def security_needs_ai(limit=60):
+    """AI 후처리(태깅/중요도/시사점)가 아직 안 된 보안뉴스 rows(최신순)."""
+    with get_conn() as conn:
+        rows = conn.execute(
+            _q("SELECT url, title, content, category, published_at FROM news "
+               "WHERE section = ? AND (ai_at IS NULL OR ai_at = '') "
+               "ORDER BY published_at DESC, id DESC LIMIT ?"),
+            ("sec", limit),
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
+def apply_security_ai(data, at=None):
+    """data: {url: {tags:[...], importance, insight(dict/str)}} → news에 저장. 반환 저장 건수."""
+    import json as _json
+    from datetime import datetime as _dt
+    at = at or _dt.now().isoformat(timespec="minutes")
+    n = 0
+    with get_conn() as conn:
+        cur = conn.cursor()
+        for url, d in (data or {}).items():
+            tags = d.get("tags") or []
+            tags_s = ",".join(t for t in tags if t) if isinstance(tags, list) else str(tags)
+            imp = (d.get("importance") or "").upper()
+            insight = d.get("insight")
+            insight_s = insight if isinstance(insight, str) else _json.dumps(insight or {}, ensure_ascii=False)
+            cur.execute(
+                _q("UPDATE news SET ai_tags=?, ai_importance=?, ai_insight=?, ai_at=? WHERE url=?"),
+                (tags_s, imp, insight_s, at, url),
+            )
+            n += 1
+    return n
+
+
+def security_ai_stats():
+    """보안뉴스 총건수/AI 분석 완료 건수."""
+    with get_conn() as conn:
+        total = conn.execute(_q("SELECT COUNT(*) AS c FROM news WHERE section = ?"), ("sec",)).fetchone()
+        done = conn.execute(
+            _q("SELECT COUNT(*) AS c FROM news WHERE section = ? AND ai_at IS NOT NULL AND ai_at <> ''"),
+            ("sec",)).fetchone()
+        return {"total": (dict(total)["c"] if total else 0), "analyzed": (dict(done)["c"] if done else 0)}
 
 
 def list_boards(service=None, limit=500):
