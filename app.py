@@ -1007,6 +1007,8 @@ def _do_crawl(group, progress=None, days=None):
             _purge_biz_nc(progress)  # 업계동향에 섞인 NC 기사 정리(NC뉴스와 분리)
         if group in ("news", "cat", "game", "biz", "security"):
             _enrich_news_images(progress)  # 이미지 없는 최근 기사에 대표 이미지(og:image) 보강
+        if group == "security":
+            _run_security_ai(progress)  # 보안뉴스는 수집 직후 AI 분석(태깅·중요도·시사점) 자동 실행
         progress(f"완료 · 신규 {result.get('new', 0)}건 · 갱신 {result.get('updated', 0)}건")
     except Exception as e:  # noqa: BLE001
         print(f"[crawl] {group} 오류: {e}", flush=True)
@@ -1269,7 +1271,34 @@ def report_get():
 
 # ---------------------------- 보안뉴스 AI 후처리(태깅·중요도·시사점) ----------------------------
 _SECAI_JOB = {"running": False, "progress": "", "result": None, "started_ts": 0}
-SECAI_LIMIT = int(os.environ.get("SEC_AI_LIMIT", "60"))  # 1회 실행당 분석 상한(비용 관리)
+SECAI_LIMIT = int(os.environ.get("SEC_AI_LIMIT", "60"))  # 1회 분석 배치 상한(비용 관리)
+SECAI_CRAWL_MAX = int(os.environ.get("SEC_AI_CRAWL_MAX", "200"))  # 수집 1회당 자동분석 총 상한
+
+
+def _run_security_ai(progress=None):
+    """보안뉴스 수집 직후 자동 AI 분석. 아직 분석 안 된 기사만(증분), 수집 1회당 총 SECAI_CRAWL_MAX까지.
+    ANTHROPIC_API_KEY 없으면 조용히 skip(수집 자체는 정상). 나머지 미분석분은 다음 수집에서 이어서."""
+    progress = progress or (lambda m: None)
+    if not os.environ.get("ANTHROPIC_API_KEY", "").strip():
+        return
+    done = 0
+    try:
+        while done < SECAI_CRAWL_MAX:
+            rows = db.security_needs_ai(min(SECAI_LIMIT, SECAI_CRAWL_MAX - done))
+            if not rows:
+                break
+            progress(f"AI 분석 {done}건 처리…")
+            data, err = security_ai.analyze(rows, progress=progress)
+            if not data:
+                break  # 키/모델 문제 등 → 중단(다음 수집에서 재시도)
+            n = db.apply_security_ai(data)
+            done += n
+            if n < len(rows):
+                break  # 일부만 성공 → 무한루프 방지(나머지는 다음 수집에서)
+        if done:
+            print(f"[secai] 수집 후 자동 분석 {done}건", flush=True)
+    except Exception as e:  # noqa: BLE001
+        print(f"[secai] 자동 분석 실패: {e}", flush=True)
 
 
 def _security_ai_run(limit):

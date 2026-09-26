@@ -1138,36 +1138,7 @@ document.getElementById("collect-biz").addEventListener("click", (e) =>
 document.getElementById("collect-security").addEventListener("click", (e) =>
   runCrawl(e.currentTarget, "security", document.getElementById("msg-security"), loadSecurity)
 );
-// 보안뉴스 AI 후처리(태깅·중요도·시사점) 실행 + 상태 폴링
-(function initSecAI() {
-  const btn = document.getElementById("secai-btn");
-  const msg = document.getElementById("msg-secai");
-  if (!btn) return;
-  let timer = null;
-  const poll = async () => {
-    try {
-      const st = await (await fetch("/api/security/analyze/status")).json();
-      const s = st.stats || {};
-      const tail = (s.total != null) ? ` · 분석완료 ${s.analyzed || 0}/${s.total}` : "";
-      msg.textContent = (st.progress || "") + tail;
-      if (!st.running) {
-        clearInterval(timer); timer = null; btn.disabled = false;
-        if (st.result && st.result.ok) { msg.textContent = `🧠 AI 분석 완료 · ${st.result.analyzed || 0}건${tail}`; loadSecurity(); }
-        else if (st.result && st.result.error) { msg.style.color = "#c0392b"; msg.textContent = "AI 분석 실패: " + st.result.error; }
-      }
-    } catch (e) { /* 다음 폴링에서 재시도 */ }
-  };
-  btn.addEventListener("click", async () => {
-    btn.disabled = true; msg.style.color = ""; msg.innerHTML = catSpin("AI 분석 시작…");
-    try {
-      const r = await fetch("/api/security/analyze", { method: "POST" });
-      const j = await r.json();
-      if (!r.ok) throw new Error(j.error || ("서버 오류 " + r.status));
-      if (timer) clearInterval(timer);
-      timer = setInterval(poll, 2000); poll();
-    } catch (e) { btn.disabled = false; msg.style.color = "#c0392b"; msg.textContent = "실행 실패: " + e.message; }
-  });
-})();
+// (보안뉴스 AI 분석은 수집/재수집 시 서버에서 자동 실행 — 별도 수동 버튼 없음)
 document.getElementById("collect-event").addEventListener("click", (e) =>
   runCrawl(e.currentTarget, "event", document.getElementById("msg-event"), loadEvent)
 );
