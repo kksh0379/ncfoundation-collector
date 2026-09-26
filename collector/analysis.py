@@ -265,43 +265,44 @@ def _attempt(key, model, user):
     return {"data": _extract_json(txt), "stop": j.get("stop_reason"), "text": txt}
 
 
+# 리포트를 두 번에 나눠 생성(각 절반) → 출력이 잘리지 않게. 어떤 모델·추론 상태에서도 완결.
+_PART1 = ["period_label", "summary", "brief", "changes_since_last", "industry_trends", "trends"]
+_PART2 = ["emerging_signals", "foundation_moves", "our_position", "benchmarks", "review_tasks", "confidence_note"]
+
+
 def _call_llm(payload_text, prev_text):
     key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
     if not key:
         return None, None, "ANTHROPIC_API_KEY 환경변수가 없습니다(관리자가 Render에 설정 필요)."
-    user = "[분석 입력 데이터]\n" + payload_text
+    base = "[분석 입력 데이터]\n" + payload_text
     if prev_text:
-        user += "\n\n[직전 리포트 요약(변화 비교용)]\n" + prev_text
-    user += ("\n\n위 데이터로 스키마에 맞는 리포트 JSON 하나만 출력하라. "
-             "recent_our/recent_peers가 이번 기간, baseline이 과거 흐름이다.")
+        base += "\n\n[직전 리포트 요약(변화 비교용)]\n" + prev_text
+    base += "\n\nrecent_our/recent_peers가 이번 기간, baseline이 과거 흐름이다."
 
     model = resolve_model(key)
-    res = _attempt(key, model, user)
-    # 1) 모델명 404 → 계정 가용 모델로 교체 재시도
-    if res.get("not_found"):
-        alt = _pick_model(list_models(key))
-        if alt and alt != model:
-            model = alt
-            res = _attempt(key, model, user)
-    if res.get("err"):
-        avail = ", ".join(list_models(key)[:8]) or "(목록 조회 실패)"
-        return None, None, f"{res['err']} · 사용가능 모델 예: {avail}"
-    # 2) 정상 완결 JSON
-    if res.get("data") is not None:
-        return res["data"], model, None
-    # 3) 추론 과다로 잘림(max_tokens) → 추론이 적은 haiku로 1회 폴백
-    if res.get("stop") == "max_tokens":
-        hk = _pick_haiku(key)
-        if hk and hk != model:
-            res2 = _attempt(key, hk, user)
-            if res2.get("data") is not None:
-                return res2["data"], hk, None
-            if res2.get("stop") == "max_tokens":
-                return None, None, ("출력이 계속 잘려요(모델 추론 과다). "
-                                    "ANALYSIS_MAX_TOKENS를 32000 이상으로 올리거나 "
-                                    "ANALYSIS_MODEL을 haiku로 지정해 주세요.")
-        return None, None, "출력이 잘렸어요(max_tokens). ANALYSIS_MAX_TOKENS를 더 올려 주세요."
-    return None, None, "LLM이 JSON을 반환하지 않았습니다."
+    merged, errs, used = {}, [], model
+    for idx, fields in enumerate((_PART1, _PART2), 1):
+        u = base + ("\n\n[이번 출력 범위] 아래 키만 포함한 '완결된' JSON 객체 하나만 출력하라"
+                    "(나머지 키·설명·코드펜스 없이): " + ", ".join(fields))
+        res = _attempt(key, used, u)
+        if res.get("not_found"):
+            alt = _pick_model(list_models(key))
+            if alt and alt != used:
+                used = alt
+                res = _attempt(key, used, u)
+        if res.get("err"):
+            avail = ", ".join(list_models(key)[:8]) or "(목록 조회 실패)"
+            errs.append(f"파트{idx} {res['err']} · 가용 모델 예: {avail}")
+            continue
+        if isinstance(res.get("data"), dict):
+            merged.update(res["data"])
+        elif res.get("stop") == "max_tokens":
+            errs.append(f"파트{idx} 출력 잘림")
+        else:
+            errs.append(f"파트{idx} JSON 없음")
+    if not merged:
+        return None, None, ("리포트 생성 실패 — " + " / ".join(errs) if errs else "빈 응답")
+    return merged, used, None
 
 
 def _extract_json(txt):
