@@ -52,6 +52,9 @@ body {
 }
 .header-actions::-webkit-scrollbar { display: none; }
 .header-actions .auth-btn { flex: 0 0 auto; }
+/* 버튼(리포트·스크랩·관리자)을 헤더 우측에 붙임. 여유 공간이 있으면 오른쪽 정렬,
+   버튼이 많아 넘치면 margin-left:auto가 자연히 사라져 가로 스크롤이 정상 동작. */
+.header-actions > .auth-btn:first-child { margin-left: auto; }
 .brand-name {
   font-size: 18px;
   font-weight: 600;
