@@ -599,23 +599,58 @@ async function loadSecurity() {
   });
 })();
 
+// 체크박스(다중선택) 필터 공통: 체크바 DOM에서 분류 목록을 읽어 Set으로 관리하고
+// prefilter 함수를 돌려준다. (냥정보·게임정보·재단게시판 등 동적 분류 탭 공용)
+function makeCheckFilter(tab, boxId, bucketFn) {
+  const box = document.getElementById(boxId);
+  const cats = box ? Array.from(box.querySelectorAll("[data-cat]"))
+    .map((cb) => cb.dataset.cat).filter((c) => c !== "all") : [];
+  let selected = new Set(cats);  // 기본: 전체 선택
+  if (box) {
+    const allBox = box.querySelector('[data-cat="all"]');
+    const catBoxes = cats.map((c) => box.querySelector(`[data-cat="${CSS.escape(c)}"]`));
+    const syncUI = () => {
+      catBoxes.forEach((cb) => { if (cb) cb.checked = selected.has(cb.dataset.cat); });
+      if (allBox) allBox.checked = cats.every((c) => selected.has(c));
+    };
+    box.addEventListener("change", (e) => {
+      const cb = e.target; const cat = cb.dataset.cat;
+      if (cat === "all") selected = cb.checked ? new Set(cats) : new Set();
+      else if (cb.checked) selected.add(cat); else selected.delete(cat);
+      syncUI();
+      if (TAB_DATA[tab]) renderTab(tab);
+    });
+    syncUI();
+  }
+  return (items) => {
+    if (selected.size >= cats.length) return items;   // 전부 선택 = 전체
+    if (selected.size === 0) return [];                // 모두 해제 = 없음
+    return items.filter((it) => selected.has(bucketFn(it)));
+  };
+}
+const filterCatByCat = makeCheckFilter("cat", "cat-cats", (it) => it.category || "");
+const filterGameByCat = makeCheckFilter("game", "game-cats", (it) => it.category || "");
+const filterBoardsBySvc = makeCheckFilter("boards", "board-cats", (it) => it.service || "");
+
 async function loadCat() {
   const el = document.getElementById("list-cat");
   showLoading(el);
-  const category = ddValue("dd-cat-category");
   try {
-    const res = await fetch("/api/catnews?category=" + encodeURIComponent(category));
+    const res = await fetch("/api/catnews?category=all");   // 전체 받아 분류는 클라이언트에서
     setTabData("cat", el, await res.json(), (list) => renderNewsGroups(el, list));
+    TAB_DATA.cat.prefilter = filterCatByCat;
+    renderTab("cat");
   } catch (e) { emptyState(el, "불러오지 못했어요. 잠시 후 다시 시도해 주세요."); }
 }
 
 async function loadGame() {
   const el = document.getElementById("list-game");
   showLoading(el);
-  const category = ddValue("dd-game-category");
   try {
-    const res = await fetch("/api/gamenews?category=" + encodeURIComponent(category));
+    const res = await fetch("/api/gamenews?category=all");
     setTabData("game", el, await res.json(), (list) => renderNewsGroups(el, list));
+    TAB_DATA.game.prefilter = filterGameByCat;
+    renderTab("game");
   } catch (e) { emptyState(el, "불러오지 못했어요. 잠시 후 다시 시도해 주세요."); }
 }
 
@@ -747,11 +782,12 @@ function ddValue(id) {
 async function loadBoards() {
   const el = document.getElementById("list-boards");
   showLoading(el);
-  const service = ddValue("dd-service");
   try {
-    const res = await fetch("/api/boards?service=" + encodeURIComponent(service));
+    const res = await fetch("/api/boards?service=all");   // 전체 받아 분류는 클라이언트에서
     setTabData("boards", el, await res.json(),
       (list) => renderList(el, list, { badgeFn: (it) => `${it.service} · ${it.category}` }));
+    TAB_DATA.boards.prefilter = filterBoardsBySvc;
+    renderTab("boards");
   } catch (e) { emptyState(el, "불러오지 못했어요. 잠시 후 다시 시도해 주세요."); }
 }
 
@@ -1216,9 +1252,7 @@ function setupDropdown(id, onChange) {
 document.addEventListener("click", () =>
   document.querySelectorAll(".dropdown-menu").forEach((m) => (m.hidden = true))
 );
-setupDropdown("dd-cat-category", loadCat);
-setupDropdown("dd-game-category", loadGame);
-setupDropdown("dd-service", loadBoards);
+// (냥정보/게임정보/재단게시판 분류는 셀렉트박스 → 체크박스 다중선택으로 이관됨)
 
 // ----------------------------- 마지막 수집 일시 -----------------------------
 function fmtLast(ts) {

@@ -105,16 +105,11 @@
   <!-- 탭0: 고양이(반려묘) 뉴스 -->
   <section class="panel active" id="panel-cat">
     <div class="toolbar">
-      <div class="dropdown" id="dd-cat-category" data-value="all">
-        <button type="button" class="dropdown-btn" aria-haspopup="listbox" aria-expanded="false">
-          <span class="dropdown-label">전체</span><span class="dropdown-caret">▾</span>
-        </button>
-        <ul class="dropdown-menu" role="listbox" hidden>
-          <li role="option" data-value="all" class="selected">전체</li>
-          {% for c in cat_categories %}
-          <li role="option" data-value="{{ c }}">{{ c }}</li>
-          {% endfor %}
-        </ul>
+      <div class="checkbar" id="cat-cats" role="group" aria-label="분류 선택">
+        <label><input type="checkbox" data-cat="all" checked /> 전체</label>
+        {% for c in cat_categories %}
+        <label><input type="checkbox" data-cat="{{ c }}" checked /> {{ c }}</label>
+        {% endfor %}
       </div>
       <button class="btn-status admin-only" id="status-cat-btn">상태 확인</button>
       <button class="btn-collect admin-only" id="collect-cat">수집 실행</button>
@@ -131,16 +126,11 @@
   <!-- 탭: 게임정보 -->
   <section class="panel" id="panel-game">
     <div class="toolbar">
-      <div class="dropdown" id="dd-game-category" data-value="all">
-        <button type="button" class="dropdown-btn" aria-haspopup="listbox" aria-expanded="false">
-          <span class="dropdown-label">전체</span><span class="dropdown-caret">▾</span>
-        </button>
-        <ul class="dropdown-menu" role="listbox" hidden>
-          <li role="option" data-value="all" class="selected">전체</li>
-          {% for c in game_categories %}
-          <li role="option" data-value="{{ c }}">{{ c }}</li>
-          {% endfor %}
-        </ul>
+      <div class="checkbar" id="game-cats" role="group" aria-label="분류 선택">
+        <label><input type="checkbox" data-cat="all" checked /> 전체</label>
+        {% for c in game_categories %}
+        <label><input type="checkbox" data-cat="{{ c }}" checked /> {{ c }}</label>
+        {% endfor %}
       </div>
       <button class="btn-status admin-only" id="status-game-btn">상태 확인</button>
       <button class="btn-collect admin-only" id="collect-game">수집 실행</button>
@@ -247,16 +237,11 @@
   <!-- 탭2: 게시판 -->
   <section class="panel" id="panel-boards">
     <div class="toolbar">
-      <div class="dropdown" id="dd-service" data-value="all">
-        <button type="button" class="dropdown-btn" aria-haspopup="listbox" aria-expanded="false">
-          <span class="dropdown-label">전체 서비스</span><span class="dropdown-caret">▾</span>
-        </button>
-        <ul class="dropdown-menu" role="listbox" hidden>
-          <li role="option" data-value="all" class="selected">전체 서비스</li>
-          {% for s in services %}
-          <li role="option" data-value="{{ s }}">{{ s }}</li>
-          {% endfor %}
-        </ul>
+      <div class="checkbar" id="board-cats" role="group" aria-label="서비스 선택">
+        <label><input type="checkbox" data-cat="all" checked /> 전체</label>
+        {% for s in services %}
+        <label><input type="checkbox" data-cat="{{ s }}" checked /> {{ s }}</label>
+        {% endfor %}
       </div>
       <button class="btn-status admin-only" id="status-boards-btn">상태 확인</button>
       <button class="btn-collect admin-only" id="collect-boards">수집 실행</button>
@@ -406,7 +391,7 @@
   <footer class="app-footer">
     <div class="foot-left">
       <span class="foot-copy">© 2026 김상화</span>
-      <span class="ver">v1.67 · build 260926</span>
+      <span class="ver">v1.68 · build 260926</span>
       <span class="ver" id="storage-badge"></span>
     </div>
     <div class="foot-right">
