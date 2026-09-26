@@ -603,6 +603,12 @@ def favicon():
     return redirect(_url_for("static", filename="favicon.svg"), code=302)
 
 
+@app.route("/intro")
+def intro():
+    # 주변 테스터에게 공유하는 서비스 소개(랜딩) 페이지. 로그인·DB 없이 정적으로 뜬다.
+    return render_template("intro.html")
+
+
 @app.route("/")
 def index():
     _log_visit()  # 방문 기록(백그라운드, 페이지 로딩 안 막음)

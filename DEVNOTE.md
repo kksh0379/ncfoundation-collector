@@ -143,6 +143,7 @@
 ## 9. 링크
 
 - 사이트: https://ncfoundation-collector.onrender.com
+- 소개(공유용) 페이지: https://ncfoundation-collector.onrender.com/intro
 - 저장소: https://github.com/kksh0379/ncfoundation-collector
 - Render: https://dashboard.render.com
 - Anthropic Console(API 키): https://console.anthropic.com
@@ -161,5 +162,6 @@
 - `collector/dedup.py` — 동일 기사 그룹화.
 - `collector/db.py` — 저장소(Postgres/SQLite, 직접 접속), news/boards/social/events/user_state/report_snapshot.
 - `collector/fetcher.py` / `collector/extractor.py` — HTTP 헬퍼 / 본문·이미지 추출.
-- `templates/index.html`, `static/js/app.js`, `static/css/style.css` — 화면.
+- `templates/index.html`, `static/js/app.js`, `static/css/style.css` — 앱 화면.
+- `templates/intro.html`, `static/intro/*.png` — 서비스 소개(랜딩) 페이지(`/intro`, 로그인·DB 없이 정적).
 - `DEVNOTE.md`(이 문서), `CHANGELOG.md`(변경 이력).

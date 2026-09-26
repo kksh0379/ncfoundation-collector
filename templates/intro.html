@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>휴 스코프 — 재단 뉴스·행사·동향을 한눈에</title>
+  <meta name="description" content="NC문화재단과 업계의 뉴스·행사·유튜브·동향을 자동으로 모아 보여주는 모바일 뉴스 콜렉터. 냥정보·게임정보부터 AI 동향 리포트까지." />
+  <link rel="icon" href="{{ url_for('static', filename='favicon.svg') }}" />
+  <link rel="apple-touch-icon" href="{{ url_for('static', filename='apple-touch-icon.png') }}" />
+  <meta property="og:title" content="휴 스코프 — 재단 뉴스·행사·동향을 한눈에" />
+  <meta property="og:description" content="뉴스·행사·유튜브·동향을 자동으로 모아 보여주는 모바일 콜렉터. AI 동향 리포트까지." />
+  <meta property="og:image" content="{{ url_for('static', filename='og-image.png') }}" />
+  <meta property="og:type" content="website" />
+  <style>
+    :root{
+      --primary:#2d6cdf; --primary-dark:#1f54b3; --bg:#f4f5f7; --card:#fff;
+      --text:#1c1e21; --muted:#6b7280; --border:#e4e6eb;
+    }
+    *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+    html{scroll-behavior:smooth}
+    body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+      background:var(--bg);color:var(--text);line-height:1.6;
+      padding-bottom:calc(24px + env(safe-area-inset-bottom,0px))}
+    .wrap{max-width:560px;margin:0 auto;padding:0 20px}
+    a{color:inherit}
+
+    /* Hero */
+    .hero{background:linear-gradient(160deg,#2d6cdf 0%,#1f54b3 100%);color:#fff;
+      padding:44px 20px 40px;text-align:center;position:relative;overflow:hidden}
+    .hero::after{content:"";position:absolute;inset:0;
+      background:radial-gradient(circle at 80% -10%,rgba(255,255,255,.18),transparent 55%)}
+    .hero-in{position:relative;max-width:560px;margin:0 auto}
+    .logo{font-size:34px;font-weight:800;letter-spacing:-.5px;margin:0}
+    .logo b{font-weight:800}
+    .tagline{font-size:16px;margin:12px 0 0;opacity:.95}
+    .sub{font-size:13.5px;margin:6px 0 0;opacity:.8}
+    .hero-cta{display:inline-block;margin-top:22px;background:#fff;color:var(--primary);
+      font-weight:800;font-size:15px;text-decoration:none;padding:13px 30px;border-radius:999px;
+      box-shadow:0 6px 18px rgba(0,0,0,.18)}
+    .hero-note{font-size:12px;opacity:.8;margin-top:12px}
+
+    /* Sections */
+    section{padding:38px 0 4px}
+    .kicker{color:var(--primary);font-weight:800;font-size:12.5px;letter-spacing:.6px;
+      text-transform:uppercase;margin:0 0 6px}
+    h2{font-size:21px;margin:0 0 6px;letter-spacing:-.3px}
+    .lead{color:var(--muted);font-size:14.5px;margin:0 0 20px}
+
+    /* Feature grid */
+    .feats{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:8px}
+    .feat{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:16px 14px}
+    .feat .ic{font-size:22px;line-height:1}
+    .feat h3{font-size:14.5px;margin:9px 0 3px}
+    .feat p{font-size:12.5px;color:var(--muted);margin:0}
+    @media (max-width:360px){.feats{grid-template-columns:1fr}}
+
+    /* Screenshot showcase */
+    .shots{display:flex;flex-direction:column;gap:34px;margin-top:22px}
+    .shot{background:var(--card);border:1px solid var(--border);border-radius:20px;
+      padding:20px;box-shadow:0 8px 24px rgba(20,30,60,.06)}
+    .shot .cap{display:flex;align-items:baseline;gap:8px;margin:0 0 4px}
+    .shot .cap .n{background:var(--primary);color:#fff;font-size:12px;font-weight:800;
+      border-radius:8px;padding:2px 8px;flex:none}
+    .shot h3{font-size:16px;margin:0}
+    .shot p{font-size:13px;color:var(--muted);margin:6px 0 14px}
+    .shot .frame{border:1px solid var(--border);border-radius:16px;overflow:hidden;
+      background:#f4f5f7;box-shadow:inset 0 0 0 1px rgba(0,0,0,.02)}
+    .shot img{display:block;width:100%;height:auto}
+
+    /* Try box */
+    .try{background:#0f1b33;color:#fff;border-radius:20px;padding:26px 22px;margin-top:20px}
+    .try h2{color:#fff}
+    .try .lead{color:#b9c2d6}
+    .steps{list-style:none;padding:0;margin:14px 0 0;counter-reset:s}
+    .steps li{position:relative;padding:10px 0 10px 40px;border-top:1px solid rgba(255,255,255,.1);
+      font-size:14px}
+    .steps li:first-child{border-top:0}
+    .steps li::before{counter-increment:s;content:counter(s);position:absolute;left:0;top:10px;
+      width:26px;height:26px;border-radius:50%;background:var(--primary);color:#fff;
+      font-weight:800;font-size:13px;display:flex;align-items:center;justify-content:center}
+    .creds{background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.14);
+      border-radius:12px;padding:14px 16px;margin-top:16px;font-size:13.5px}
+    .creds .row{display:flex;justify-content:space-between;gap:12px;padding:4px 0}
+    .creds .row span:first-child{color:#9fb0cf}
+    .creds code{background:rgba(255,255,255,.14);border-radius:6px;padding:2px 8px;
+      font-size:13px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+    .try-cta{display:block;text-align:center;margin-top:18px;background:var(--primary);color:#fff;
+      font-weight:800;text-decoration:none;padding:14px;border-radius:12px;font-size:15px}
+
+    footer{text-align:center;color:var(--muted);font-size:12px;padding:34px 20px 10px}
+    .disc{font-size:11.5px;color:#9aa1ac;margin-top:6px}
+  </style>
+</head>
+<body>
+  <div class="hero">
+    <div class="hero-in">
+      <h1 class="logo">휴 <b>스코프</b></h1>
+      <p class="tagline">재단 뉴스·행사·동향을 한 손에서.</p>
+      <p class="sub">NC문화재단과 업계 소식을 자동으로 모아 보여주는 모바일 뉴스 콜렉터</p>
+      <a class="hero-cta" href="{{ url_for('index') }}">▶ 지금 둘러보기</a>
+      <p class="hero-note">설치 없이 브라우저에서 바로 · 스마트폰 최적화</p>
+    </div>
+  </div>
+
+  <div class="wrap">
+    <section id="features">
+      <p class="kicker">What it does</p>
+      <h2>이런 걸 모아드려요</h2>
+      <p class="lead">흩어져 있는 소식을 탭 하나로. 검색·스크랩·자동 수집까지 한 번에.</p>
+      <div class="feats">
+        <div class="feat"><div class="ic">🐱</div><h3>냥정보 · 게임정보</h3><p>반려묘·게임 뉴스를 취향대로 모아보기</p></div>
+        <div class="feat"><div class="ic">📰</div><h3>NC 뉴스 · 업계동향</h3><p>재단·본사·자회사와 동종 재단 소식</p></div>
+        <div class="feat"><div class="ic">📅</div><h3>행사일정</h3><p>국내 문화행사를 앨범·캘린더로</p></div>
+        <div class="feat"><div class="ic">▶️</div><h3>재단 YT</h3><p>재단·주요 재단 유튜브 최신 영상</p></div>
+        <div class="feat"><div class="ic">🔖</div><h3>스크랩 · 그룹</h3><p>관심 글을 계정에 저장하고 그룹으로 정리</p></div>
+        <div class="feat"><div class="ic">🔍</div><h3>AI 동향 리포트</h3><p>업계 변화를 AI가 제3자 관점으로 요약</p></div>
+      </div>
+    </section>
+
+    <section id="screens">
+      <p class="kicker">Screens</p>
+      <h2>실제 화면 미리보기</h2>
+      <p class="lead">아래는 앱의 실제 화면이에요.</p>
+      <div class="shots">
+        <div class="shot">
+          <div class="cap"><span class="n">01</span><h3>탭별 피드 + 스마트 검색</h3></div>
+          <p>냥정보·게임·뉴스·업계동향을 탭으로 넘겨보고, 카드마다 원문 보기·링크 복사·스크랩. 노출 게시물 수도 바로 표시돼요.</p>
+          <div class="frame"><img src="{{ url_for('static', filename='intro/shot-feed.png') }}" alt="메인 피드 화면" loading="lazy" /></div>
+        </div>
+        <div class="shot">
+          <div class="cap"><span class="n">02</span><h3>행사일정 — 캘린더</h3></div>
+          <p>국내 문화행사를 앨범형과 캘린더형으로. 날짜·행사명·장소를 한눈에 보고, 선택하면 원문으로 이동해요.</p>
+          <div class="frame"><img src="{{ url_for('static', filename='intro/shot-calendar.png') }}" alt="행사 캘린더 화면" loading="lazy" /></div>
+        </div>
+        <div class="shot">
+          <div class="cap"><span class="n">03</span><h3>나의 스크랩 + 그룹핑</h3></div>
+          <p>관심 글을 계정에 저장하고, 원하는 이름의 그룹으로 분류. 스크랩 안에서 검색도 됩니다.</p>
+          <div class="frame"><img src="{{ url_for('static', filename='intro/shot-scraps.png') }}" alt="스크랩·그룹 화면" loading="lazy" /></div>
+        </div>
+        <div class="shot">
+          <div class="cap"><span class="n">04</span><h3>AI 재단 동향 리포트</h3></div>
+          <p>뉴스·유튜브 데이터로 NC문화재단과 동종 재단의 변화·추세·신규 신호를 AI가 요약. 로그인 없이도 열람 가능해요.</p>
+          <div class="frame"><img src="{{ url_for('static', filename='intro/shot-report.png') }}" alt="AI 동향 리포트 화면" loading="lazy" /></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="try">
+      <div class="try">
+        <p class="kicker" style="color:#7fa5ff">Try it</p>
+        <h2>테스터로 사용해보기</h2>
+        <p class="lead">아래 계정으로 로그인하면 스크랩·그룹 기능까지 모두 써볼 수 있어요. (열람·검색은 로그인 없이도 가능)</p>
+        <ol class="steps">
+          <li>아래 <b>지금 열기</b> 버튼으로 앱에 접속</li>
+          <li>우측 하단(푸터)의 <b>로그인</b> → <b>일반</b> 선택</li>
+          <li>테스터 계정으로 로그인 후 마음껏 스크랩·그룹핑</li>
+        </ol>
+        <div class="creds">
+          <div class="row"><span>아이디</span><span><code>tester1</code> ~ <code>tester10</code></span></div>
+          <div class="row"><span>비밀번호</span><span><code>1234</code> (공통)</span></div>
+        </div>
+        <a class="try-cta" href="{{ url_for('index') }}">지금 열기 →</a>
+      </div>
+    </section>
+  </div>
+
+  <footer>
+    휴 스코프 · 재단 뉴스·행사·동향 콜렉터
+    <div class="disc">※ 뉴스·행사·리포트는 공개 데이터를 자동 수집·요약한 것으로 실제와 다를 수 있어요. 베타 테스트용입니다.</div>
+  </footer>
+</body>
+</html>
