@@ -958,8 +958,14 @@ body.tab-event #view-toggle { display: none; }
 .cal-note { margin-top: 12px; font-size: 12px; color: var(--muted); text-align: center; }
 
 /* NC뉴스 분류 체크박스 */
-.checkbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; flex: 1; min-width: 0; }
-.checkbar label { display: inline-flex; align-items: center; gap: 5px; font-size: 14px; font-weight: 600; color: var(--text); cursor: pointer; white-space: nowrap; }
+/* 분류 체크박스: 한 줄(줄바꿈 없음) + 가로 스크롤(항목이 많아도 안 깨지게) */
+.checkbar {
+  display: flex; flex-wrap: nowrap; align-items: center; gap: 14px;
+  flex: 1; min-width: 0;
+  overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none;
+}
+.checkbar::-webkit-scrollbar { display: none; }
+.checkbar label { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 5px; font-size: 14px; font-weight: 600; color: var(--text); cursor: pointer; white-space: nowrap; }
 .checkbar input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--primary); cursor: pointer; }
 
 /* 카드 링크 복사 버튼 */
