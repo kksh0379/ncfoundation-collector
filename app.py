@@ -1188,17 +1188,31 @@ def report_get():
 BATCH_DAYS = int(os.environ.get("BATCH_DAYS", "30"))  # 정기 배치 뉴스 수집 창(최근 N일)
 
 
+_BATCH_GROUPS = ("cat", "game", "news", "biz", "event", "boards", "social")
+_batch_state = {"running": False, "ts": 0}
+
+
 def _batch_all():
-    """뉴스/게시판/소셜을 백그라운드 작업으로 시작(비차단). 시작된 그룹 목록 반환.
-    뉴스는 최근 BATCH_DAYS(기본 30일)만 훑는다(증분이라 겹쳐도 새 기사만 저장)."""
-    print(f"[batch] 수집 배치 시작 (뉴스류 최근 {BATCH_DAYS}일)", flush=True)
-    started = []
-    # 뉴스류(냥정보/게임/뉴스/업계동향/행사)는 최근 BATCH_DAYS 창으로, 게시판/소셜은 전체.
-    for group in ("cat", "game", "news", "biz", "event", "boards", "social"):
-        days = BATCH_DAYS if group in ("cat", "game", "news", "biz", "event") else None
-        if _start_job(group, days=days):
-            started.append(group)
-    return started
+    """전 탭을 '순차'로 수집(한 번에 하나씩) → 동시 다중 크롤링에 의한 메모리·DB 과부하 방지.
+    비차단: 단일 백그라운드 스레드가 그룹을 차례로 처리한다. 뉴스류는 최근 BATCH_DAYS 창."""
+    if _batch_state["running"] and (time.time() - _batch_state["ts"] < 3600):
+        print("[batch] 이미 배치 진행 중 → 건너뜀", flush=True)
+        return []
+    _batch_state.update(running=True, ts=time.time())
+
+    def _run():
+        print(f"[batch] 순차 수집 배치 시작 (뉴스류 최근 {BATCH_DAYS}일)", flush=True)
+        for group in _BATCH_GROUPS:
+            try:
+                days = BATCH_DAYS if group in ("cat", "game", "news", "biz", "event") else None
+                _do_crawl(group, days=days)
+            except Exception as e:  # noqa: BLE001
+                print(f"[batch] {group} 오류: {e}", flush=True)
+        _batch_state["running"] = False
+        print("[batch] 순차 수집 배치 완료", flush=True)
+
+    threading.Thread(target=_run, daemon=True).start()
+    return list(_BATCH_GROUPS)
 
 
 def _start_scheduler():
@@ -1245,11 +1259,21 @@ def _auto_backfill():
         print("[backfill] 기존 데이터 있음 → 백필 건너뜀", flush=True)
         return
     days = int(os.environ.get("BACKFILL_DAYS", "1825"))  # 기본 5년(뉴스 필터 RECENT_DAYS와 일치)
-    print(f"[backfill] DB 비어있음 → 자동 백필 시작(뉴스류 최근 {days}일 + 게시판/소셜)", flush=True)
-    for group in ("cat", "game", "news", "biz", "event"):
-        _start_job(group, days=days)
-    _start_job("boards")
-    _start_job("social")
+    print(f"[backfill] DB 비어있음 → 자동 백필 시작(뉴스류 최근 {days}일 + 게시판/소셜, 순차)", flush=True)
+
+    def _run():
+        for group in ("cat", "game", "news", "biz", "event"):
+            try:
+                _do_crawl(group, days=days)
+            except Exception as e:  # noqa: BLE001
+                print(f"[backfill] {group} 오류: {e}", flush=True)
+        for group in ("boards", "social"):
+            try:
+                _do_crawl(group)
+            except Exception as e:  # noqa: BLE001
+                print(f"[backfill] {group} 오류: {e}", flush=True)
+
+    threading.Thread(target=_run, daemon=True).start()
 
 
 # DB keep-alive: Neon 무료는 5분 놀면 잠든다. 앱이 상시 가동(Render Starter)이면,
