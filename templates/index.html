@@ -68,6 +68,7 @@
       <button class="tab" data-tab="news" aria-label="NC 뉴스">
         <span class="nc-mark">nc</span>뉴스</button>
       <button class="tab" data-tab="biz">📊 업계동향</button>
+      <button class="tab" data-tab="security">🛡 보안뉴스</button>
       <button class="tab" data-tab="event">📅 행사일정</button>
       <button class="tab" data-tab="boards">📋 재단게시판</button>
       <button class="tab" data-tab="social" aria-label="재단 영상">
@@ -189,6 +190,30 @@
     <div class="last-crawl" id="last-biz"></div>
     <div class="result-msg" id="msg-biz"></div>
     <ul class="list" id="list-biz"></ul>
+  </section>
+
+  <!-- 탭: 보안뉴스(개인정보·정보보안) -->
+  <section class="panel" id="panel-security">
+    <div class="toolbar">
+      <div class="checkbar" id="sec-cats" role="group" aria-label="보안 분류 선택">
+        <label><input type="checkbox" data-cat="all" checked /> 전체</label>
+        <label><input type="checkbox" data-cat="개인정보" checked /> 개인정보</label>
+        <label><input type="checkbox" data-cat="해킹·침해" checked /> 해킹·침해</label>
+        <label><input type="checkbox" data-cat="취약점" checked /> 취약점</label>
+        <label><input type="checkbox" data-cat="정책·규제" checked /> 정책·규제</label>
+        <label><input type="checkbox" data-cat="보안트렌드" checked /> 보안트렌드</label>
+      </div>
+      <button class="btn-status admin-only" id="status-security-btn">상태 확인</button>
+      <button class="btn-collect admin-only" id="collect-security">수집 실행</button>
+    </div>
+    <div class="legend admin-only">
+      <span class="chip chip-done">개인정보 유출·해킹·랜섬웨어·취약점(CVE/제로데이)</span>
+      <span class="chip chip-done">개인정보보호법·ISMS·과징금 · AI/클라우드/제로트러스트 트렌드</span>
+      <span class="chip chip-plan">사고＋행위 조합 검색 · 광고/시세성 제외 · 구글 뉴스(RSS)</span>
+    </div>
+    <div class="last-crawl" id="last-security"></div>
+    <div class="result-msg" id="msg-security"></div>
+    <ul class="list" id="list-security"></ul>
   </section>
 
   <!-- 탭: 행사일정(국내 AI 행사) -->
@@ -365,7 +390,7 @@
   <footer class="app-footer">
     <div class="foot-left">
       <span class="foot-copy">© 2026 김상화</span>
-      <span class="ver">v1.55 · build 260926</span>
+      <span class="ver">v1.56 · build 260926</span>
       <span class="ver" id="storage-badge"></span>
     </div>
     <div class="foot-right">

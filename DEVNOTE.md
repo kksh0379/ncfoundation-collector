@@ -32,7 +32,7 @@ flowchart TB
   end
 
   subgraph SERVER["🖥 Flask 서버 · app.py"]
-    READ["조회 API GET<br/>/api/catnews · /gamenews · /news · /biznews<br/>/api/events · /boards · /social · /meta"]
+    READ["조회 API GET<br/>/api/catnews · /gamenews · /news · /biznews · /secnews<br/>/api/events · /boards · /social · /meta"]
     RPTAPI["리포트 API<br/>/api/report/list · /get · /status · /run"]
     AUTH["계정·개인화 API<br/>/api/login · /logout · /me · /mydata<br/>/api/scrap · /read · /groups · /scrap/groups"]
     CRAWLAPI["수집 API 관리자<br/>/api/crawl/:group/start · /status<br/>/api/admin/purge · /api/notes"]
@@ -92,12 +92,13 @@ flowchart TB
 | 🕹 게임정보 | 게임 뉴스(신작·업데이트·e스포츠·업계·콘솔·인디) | 구글 뉴스 RSS |
 | nc 뉴스 | NC문화재단/엔씨소프트/자회사(전체·재단·본사·자회사 체크박스) | 구글 뉴스 RSS |
 | 📊 업계동향 | 문화·공익 재단 및 주요 재단 뉴스(NC 제외) | 구글 뉴스 RSS |
+| 🛡 보안뉴스 | 개인정보·정보보안(유출·해킹·취약점·정책·트렌드, 5개 분류 체크박스) | 구글 뉴스 RSS |
 | 📅 행사일정 | 국내 행사(앨범/캘린더, 날짜·장소 자동추출) | 구글 뉴스 RSS + 본문 파싱 |
 | 📋 재단게시판 | 대표홈페이지·프로젝토리·나의AAC·FAIR AI | 각 사이트 내부 API |
 | ▶ 재단YT | NC문화재단 채널(재단) + 주요 재단 유튜브 검색(주요 재단) | 유튜브 Data API |
 | 🧠 리포트 | AI 재단 동향 분석 리포트 **(관리자 전용)** | LLM(Anthropic) |
 
-- 뉴스류(냥정보/게임정보/nc/업계동향/행사)는 모두 `news` 테이블을 쓰고 `section`(cat/game/nc/biz/event) 컬럼으로 구분한다.
+- 뉴스류(냥정보/게임정보/nc/업계동향/보안뉴스/행사)는 모두 `news` 테이블을 쓰고 `section`(cat/game/nc/biz/sec/event) 컬럼으로 구분한다.
 
 ---
 
@@ -165,6 +166,14 @@ flowchart TB
 - 연도 추정은 **기사 작성일 기준**(오늘 기준이면 과거 기사를 미래로 오인).
 - 앨범(카드) + 캘린더(월 그리드 색막대 + 아젠다 목록, 클릭 시 원문).
 
+### 보안뉴스
+- 개인정보보호·정보보안 전반: 실제 사고(유출·해킹·랜섬웨어)뿐 아니라 취약점(CVE·제로데이), 정책·법령(개인정보보호법·ISMS·과징금), 보안 트렌드(AI/클라우드 보안·제로트러스트 등)까지.
+- **단순 키워드 노출이 아니라 "사고 키워드 + 행위/결과 키워드" 조합**으로 검색(예: `개인정보+유출`, `랜섬웨어+피해`, `취약점+악용`)해 실무 참고가치 위주로 수집.
+- 5개 분류(체크박스, 다중선택): **개인정보 / 해킹·침해 / 취약점 / 정책·규제 / 보안트렌드**. 검색어 그룹명을 `category`로 저장하고, 화면에서 체크박스로 필터.
+- gl=KR·hl=ko RSS라 국내 매체 중심(국내 관련성)이며, 국내에도 영향이 큰 글로벌 벤더(MS/Google/Apple/AWS 등) 사고도 자연히 포함.
+- 광고·홍보·시세성(할인·프로모션·코인 시세·주가·채용 등) 제목은 제외. 동일 사건은 `news` 클러스터링으로 "N개 매체" 묶음.
+- 명세의 AI 자동 태깅/중요도/요약 필드는 후속 단계(현재는 RSS+키워드 기반 수집·분류).
+
 ### 재단게시판 (모두 내부 API 연동 완료)
 - 대표홈페이지·프로젝토리·나의AAC·FAIR AI. 각 사이트가 목록을 JS로 렌더하는 SPA라 정적 HTML 대신 실제 호출되는 내부 API(JSON)로 수집.
 
@@ -218,7 +227,7 @@ flowchart TB
 ## 10. 코드 맵
 
 - `app.py` — 라우트(화면·API), 로그인/계정, DB 보장·keep-alive, 수집 작업·상태, 스케줄러/크론/백필, DB 초기화, 개인화(스크랩/읽음/그룹), 리포트 실행.
-- `collector/google_news.py` — 뉴스류 수집(재단/본사·냥정보·게임·업계동향 카테고리, 구간 분할, 본문/이미지, 필터).
+- `collector/google_news.py` — 뉴스류 수집(재단/본사·냥정보·게임·업계동향·보안뉴스 카테고리, 구간 분할, 본문/이미지, 필터).
 - `collector/events.py` — 행사일정(국내 판별·날짜/장소 추출·본문 파싱 폴백).
 - `collector/boards.py` — 게시판 수집(사이트별 내부 API).
 - `collector/social.py` — 재단YT(NC 채널 Data API + 주요 재단 유튜브 검색).

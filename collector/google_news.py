@@ -497,3 +497,50 @@ def crawl_biz(max_workers=24, max_items=0, progress=None, known_urls=None, days=
                  known_urls=known_urls, days=days, categories=BIZ_CATEGORIES,
                  keyword_filter=False, title_exclude=BIZ_EXCLUDE_TITLE,
                  body_exclude=BIZ_EXCLUDE_BODY)
+
+
+# ---- 보안뉴스: 개인정보·정보보안 사고/취약점/정책/트렌드 ----
+# 원칙: "사고 키워드 + 행위/결과 키워드" 조합으로 검색해 단순 키워드 노출이 아니라
+# 실제 보안 실무 참고가치가 있는 기사 위주로 모은다(수집 로직 명세 기반).
+# 카테고리(=체크박스 필터 버킷): 개인정보 / 해킹·침해 / 취약점 / 정책·규제 / 보안트렌드.
+# 구글 뉴스 RSS는 gl=KR·hl=ko라 국내 매체 중심으로 잡히며, 국내에도 영향이 큰
+# 글로벌 벤더(MS/Google/Apple/AWS 등) 사고도 자연히 포함된다.
+SECURITY_CATEGORIES = {
+    "개인정보": [
+        "(개인정보 OR 고객정보 OR 회원정보 OR 계정정보 OR 민감정보 OR 고유식별정보) "
+        "(유출 OR 노출 OR 침해 OR 탈취 OR 도용 OR 해킹)",
+    ],
+    "해킹·침해": [
+        "(해킹 OR 침해사고 OR 랜섬웨어 OR 악성코드 OR 멀웨어 OR 피싱 OR 스미싱 OR 디도스 OR DDoS "
+        "OR \"사이버 공격\" OR \"공급망 공격\" OR \"APT 공격\" OR 웹셸 OR 백도어) "
+        "(피해 OR 공격 OR 침해 OR 탈취 OR 감염 OR 유출)",
+    ],
+    "취약점": [
+        "(취약점 OR 제로데이 OR CVE OR RCE OR \"원격코드실행\" OR \"권한 상승\" OR \"인증 우회\") "
+        "(발견 OR 공개 OR 악용 OR 긴급 OR 패치 OR 경고)",
+    ],
+    "정책·규제": [
+        "(개인정보보호법 OR 개인정보보호위원회 OR 개인정보위 OR ISMS OR \"ISMS-P\" OR \"정보보호 공시\" "
+        "OR 과징금 OR 과태료 OR 행정처분 OR KISA) "
+        "(개정 OR 처분 OR 과징금 OR 과태료 OR 조사 OR 위반 OR 시행 OR 가이드라인 OR 발표)",
+    ],
+    "보안트렌드": [
+        "(\"AI 보안\" OR \"생성형 AI 보안\" OR 제로트러스트 OR \"Zero Trust\" OR \"클라우드 보안\" "
+        "OR \"API 보안\" OR EDR OR XDR OR SIEM OR SOAR OR SASE OR DLP OR 보안관제 "
+        "OR \"위협 인텔리전스\" OR DevSecOps OR \"공급망 보안\" OR 패스키 OR 다중인증 OR MFA)",
+    ],
+}
+# 제목에 있으면 버림: 광고·프로모션·홍보성/무관(코인 시세·주가·채용 등).
+SEC_EXCLUDE_TITLE = [
+    "할인", "프로모션", "출시 기념", "구매 이벤트", "쿠폰", "사은품",
+    "채용", "웨비나 초대", "세미나 개최", "설명회 개최",
+    "코인 시세", "비트코인 시세", "가상자산 시세", "가상화폐 시세", "주가 전망", "공모주",
+]
+
+
+def crawl_security(max_workers=24, max_items=0, progress=None, known_urls=None, days=None):
+    """보안뉴스 수집. 검색어(사고+행위 조합)가 곧 조건이라 키워드 필터는 끄고,
+    제목에 광고·홍보·시세성 제외어가 있으면 버린다."""
+    return crawl(max_workers=max_workers, max_items=max_items, progress=progress,
+                 known_urls=known_urls, days=days, categories=SECURITY_CATEGORIES,
+                 keyword_filter=False, title_exclude=SEC_EXCLUDE_TITLE)

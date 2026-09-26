@@ -506,6 +506,50 @@ async function loadNews() {
   syncUI();
 })();
 
+// 보안뉴스 분류(체크박스): 개인정보 / 해킹·침해 / 취약점 / 정책·규제 / 보안트렌드.
+// 서버가 검색어 그룹명을 category로 저장하므로, 저장된 category로 버킷을 정한다.
+const SEC_CATS = ["개인정보", "해킹·침해", "취약점", "정책·규제", "보안트렌드"];
+let secCats = new Set(SEC_CATS);
+function secBucket(it) {
+  const c = it.category || "";
+  return SEC_CATS.includes(c) ? c : "보안트렌드"; // 알 수 없는 값은 트렌드로
+}
+function filterSecByCat(items) {
+  if (secCats.size >= SEC_CATS.length) return items;  // 전부 선택 = 전체
+  if (secCats.size === 0) return [];                   // 모두 해제 = 없음
+  return items.filter((it) => secCats.has(secBucket(it)));
+}
+async function loadSecurity() {
+  const el = document.getElementById("list-security");
+  showLoading(el);
+  try {
+    const res = await fetch("/api/secnews?category=all");   // 전체를 받아 분류는 클라이언트에서
+    setTabData("security", el, await res.json(), (list) => renderNewsGroups(el, list));
+    TAB_DATA.security.prefilter = filterSecByCat;
+    renderTab("security");
+  } catch (e) { emptyState(el, "불러오지 못했어요. 잠시 후 다시 시도해 주세요."); }
+}
+(function initSecCats() {
+  const box = document.getElementById("sec-cats");
+  if (!box) return;
+  const allBox = box.querySelector('[data-cat="all"]');
+  const catBoxes = SEC_CATS.map((c) => box.querySelector(`[data-cat="${c}"]`));
+  const syncUI = () => {
+    catBoxes.forEach((cb) => { cb.checked = secCats.has(cb.dataset.cat); });
+    allBox.checked = SEC_CATS.every((c) => secCats.has(c));
+  };
+  box.addEventListener("change", (e) => {
+    const cb = e.target;
+    const cat = cb.dataset.cat;
+    if (cat === "all") secCats = cb.checked ? new Set(SEC_CATS) : new Set();
+    else if (cb.checked) secCats.add(cat);
+    else secCats.delete(cat);
+    syncUI();
+    if (TAB_DATA.security) renderTab("security");
+  });
+  syncUI();
+})();
+
 async function loadCat() {
   const el = document.getElementById("list-cat");
   showLoading(el);
@@ -876,6 +920,7 @@ document.getElementById("status-cat-btn").addEventListener("click", () => runSta
 document.getElementById("status-game-btn").addEventListener("click", () => runStatus("game"));
 document.getElementById("status-news-btn").addEventListener("click", () => runStatus("news"));
 document.getElementById("status-biz-btn").addEventListener("click", () => runStatus("biz"));
+document.getElementById("status-security-btn").addEventListener("click", () => runStatus("security"));
 document.getElementById("status-event-btn").addEventListener("click", () => runStatus("event"));
 document.getElementById("status-boards-btn").addEventListener("click", () => runStatus("boards"));
 document.getElementById("status-social-btn").addEventListener("click", () => runStatus("social"));
@@ -889,6 +934,7 @@ const CRAWL_UI = {
   game: { btn: "collect-game", msg: "msg-game", reload: () => loadGame() },
   news: { btn: "collect-news", msg: "msg-news", reload: () => loadNews() },
   biz: { btn: "collect-biz", msg: "msg-biz", reload: () => loadBiz() },
+  security: { btn: "collect-security", msg: "msg-security", reload: () => loadSecurity() },
   event: { btn: "collect-event", msg: "msg-event", reload: () => loadEvent() },
   boards: { btn: "collect-boards", msg: "msg-boards", reload: () => loadBoards() },
   social: { btn: "collect-social", msg: "msg-social", reload: () => loadSocial() },
@@ -969,6 +1015,9 @@ document.getElementById("collect-game").addEventListener("click", (e) =>
 document.getElementById("collect-biz").addEventListener("click", (e) =>
   runCrawl(e.currentTarget, "biz", document.getElementById("msg-biz"), loadBiz)
 );
+document.getElementById("collect-security").addEventListener("click", (e) =>
+  runCrawl(e.currentTarget, "security", document.getElementById("msg-security"), loadSecurity)
+);
 document.getElementById("collect-event").addEventListener("click", (e) =>
   runCrawl(e.currentTarget, "event", document.getElementById("msg-event"), loadEvent)
 );
@@ -982,7 +1031,7 @@ document.getElementById("collect-social").addEventListener("click", (e) =>
   runCrawl(e.currentTarget, "social", document.getElementById("msg-social"), loadSocial)
 );
 // ----------------------------- DB 비우기(관리자, 현재 탭만) -----------------------------
-const TAB_KO = { cat: "냥정보", game: "게임정보", news: "NC뉴스", biz: "업계동향", event: "행사일정", boards: "재단게시판", social: "재단YT", report: "리포트" };
+const TAB_KO = { cat: "냥정보", game: "게임정보", news: "NC뉴스", biz: "업계동향", security: "보안뉴스", event: "행사일정", boards: "재단게시판", social: "재단YT", report: "리포트" };
 function activeTab() {
   const t = document.querySelector(".tab.active");
   return (t && t.dataset.tab) || "cat";
@@ -1069,6 +1118,7 @@ async function loadMeta() {
     document.getElementById("last-game").textContent = fmtLast(m.game);
     document.getElementById("last-news").textContent = fmtLast(m.news);
     document.getElementById("last-biz").textContent = fmtLast(m.biz);
+    document.getElementById("last-security").textContent = fmtLast(m.security);
     document.getElementById("last-event").textContent = fmtLast(m.event);
     document.getElementById("last-boards").textContent = fmtLast(m.boards);
     document.getElementById("last-social").textContent = fmtLast(m.social);
@@ -1704,6 +1754,7 @@ loadCat();
 loadGame();
 loadNews();
 loadBiz();
+loadSecurity();
 loadEvent();
 loadBoards();
 loadSocial();

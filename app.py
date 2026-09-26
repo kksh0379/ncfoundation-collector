@@ -299,8 +299,8 @@ def admin_purge():
         return jsonify({"ok": False, "error": "DB에 연결할 수 없어요(Neon 깨는 중일 수 있음). 20초 뒤 다시 시도해 주세요."}), 503
     data = request.get_json(silent=True) or {}
     scope = data.get("scope", "all")
-    groups = ["cat", "game", "news", "biz", "event", "boards", "social"] if scope == "all" else [scope]
-    _SEC = {"cat": "cat", "game": "game", "news": "nc", "biz": "biz"}
+    groups = ["cat", "game", "news", "biz", "security", "event", "boards", "social"] if scope == "all" else [scope]
+    _SEC = {"cat": "cat", "game": "game", "news": "nc", "biz": "biz", "security": "sec"}
     deleted = {}
     try:
         for g in groups:
@@ -317,7 +317,7 @@ def admin_purge():
     if data.get("recollect"):
         days = data.get("days")
         for g in groups:
-            if _start_job(g, days=days if g in ("cat", "game", "news", "biz", "event") else None):
+            if _start_job(g, days=days if g in ("cat", "game", "news", "biz", "security", "event") else None):
                 started.append(g)
     return jsonify({"ok": True, "deleted": deleted, "recollect_started": started})
 
@@ -584,6 +584,7 @@ def meta():
         "game": m.get("last_crawl_game"),
         "news": m.get("last_crawl_news"),
         "biz": m.get("last_crawl_biz"),
+        "security": m.get("last_crawl_security"),
         "event": m.get("last_crawl_event"),
         "boards": m.get("last_crawl_boards"),
         "social": m.get("last_crawl_social"),
@@ -661,6 +662,12 @@ def get_gamenews():
 @app.get("/api/biznews")
 def get_biznews():
     return _safe_list(lambda: db.list_news(section="biz"))
+
+
+@app.get("/api/secnews")
+def get_secnews():
+    category = request.args.get("category", "all")
+    return _safe_list(lambda: db.list_news(category=category, section="sec"))
 
 
 @app.get("/api/events")
@@ -766,6 +773,11 @@ def diag():
         targets.append(
             ("구글 뉴스(RSS) · 업계동향", google_news.RSS_URL + "?q=" + _quote("문화재단") + "&hl=ko&gl=KR&ceid=KR:ko", None)
         )
+    if group in ("all", "security"):
+        from urllib.parse import quote as _quote
+        targets.append(
+            ("구글 뉴스(RSS) · 보안뉴스", google_news.RSS_URL + "?q=" + _quote("개인정보 유출") + "&hl=ko&gl=KR&ceid=KR:ko", None)
+        )
     if group in ("all", "event"):
         from urllib.parse import quote as _quote
         targets.append(
@@ -856,7 +868,7 @@ def inspect():
 # 수집은 요청 한 번에 끝까지 처리하고 결과를 바로 반환한다. (구조가 단순해 어떤
 # 버전의 프론트엔드 JS가 캐시돼 있어도 호환되며, 무료 호스팅 재시작에도 안전)
 # 마지막 결과는 /api/crawl/status 폴링형 프론트와의 호환을 위해 보관한다.
-_last_result = {"news": None, "cat": None, "biz": None, "boards": None, "social": None}
+_last_result = {"news": None, "cat": None, "biz": None, "security": None, "boards": None, "social": None}
 
 
 # 저장 정책: 키 = 원문 URL.
@@ -887,6 +899,10 @@ def _save_game(items):
 
 def _save_biz(items):
     return _save_news(items, section="biz")
+
+
+def _save_security(items):
+    return _save_news(items, section="sec")
 
 
 def _purge_biz_nc(progress=None):
@@ -961,6 +977,7 @@ _CRAWLERS = {
     "cat": (google_news.crawl_cat, _save_cat),
     "game": (google_news.crawl_game, _save_game),
     "biz": (google_news.crawl_biz, _save_biz),
+    "security": (google_news.crawl_security, _save_security),
     "event": (events.crawl, _save_event),
     "boards": (boards.crawl_all, _save_boards),
     "social": (social.crawl_all, _save_social),
@@ -975,8 +992,8 @@ def _do_crawl(group, progress=None, days=None):
     progress("DB 연결 중…")
     _ensure_db(force=True)  # 실제로 접속을 기다려 Neon을 깨운다(수집은 DB가 꼭 필요)
     try:
-        if group in ("news", "cat", "game", "biz", "event"):
-            # 뉴스류(뉴스/냥정보/게임/업계동향/행사일정): 수집 기간(days) 전달. 저장 시 ON CONFLICT로 중복 처리.
+        if group in ("news", "cat", "game", "biz", "security", "event"):
+            # 뉴스류(뉴스/냥정보/게임/업계동향/보안뉴스/행사일정): 수집 기간(days) 전달. 저장 시 ON CONFLICT로 중복 처리.
             items = crawl_fn(progress=progress, days=days)
         else:
             items = crawl_fn(progress=progress)
@@ -987,7 +1004,7 @@ def _do_crawl(group, progress=None, days=None):
             _purge_news_noise(progress)  # 기존에 쌓인 본사 노이즈(야구/백화점 등) 정리
         if group == "biz":
             _purge_biz_nc(progress)  # 업계동향에 섞인 NC 기사 정리(NC뉴스와 분리)
-        if group in ("news", "cat", "game", "biz"):
+        if group in ("news", "cat", "game", "biz", "security"):
             _enrich_news_images(progress)  # 이미지 없는 최근 기사에 대표 이미지(og:image) 보강
         progress(f"완료 · 신규 {result.get('new', 0)}건 · 갱신 {result.get('updated', 0)}건")
     except Exception as e:  # noqa: BLE001
@@ -1194,7 +1211,7 @@ def report_get():
 BATCH_DAYS = int(os.environ.get("BATCH_DAYS", "30"))  # 정기 배치 뉴스 수집 창(최근 N일)
 
 
-_BATCH_GROUPS = ("cat", "game", "news", "biz", "event", "boards", "social")
+_BATCH_GROUPS = ("cat", "game", "news", "biz", "security", "event", "boards", "social")
 _batch_state = {"running": False, "ts": 0}
 
 
@@ -1210,7 +1227,7 @@ def _batch_all():
         print(f"[batch] 순차 수집 배치 시작 (뉴스류 최근 {BATCH_DAYS}일)", flush=True)
         for group in _BATCH_GROUPS:
             try:
-                days = BATCH_DAYS if group in ("cat", "game", "news", "biz", "event") else None
+                days = BATCH_DAYS if group in ("cat", "game", "news", "biz", "security", "event") else None
                 _do_crawl(group, days=days)
             except Exception as e:  # noqa: BLE001
                 print(f"[batch] {group} 오류: {e}", flush=True)
@@ -1268,7 +1285,7 @@ def _auto_backfill():
     print(f"[backfill] DB 비어있음 → 자동 백필 시작(뉴스류 최근 {days}일 + 게시판/소셜, 순차)", flush=True)
 
     def _run():
-        for group in ("cat", "game", "news", "biz", "event"):
+        for group in ("cat", "game", "news", "biz", "security", "event"):
             try:
                 _do_crawl(group, days=days)
             except Exception as e:  # noqa: BLE001
