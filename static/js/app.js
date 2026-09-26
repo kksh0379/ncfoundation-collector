@@ -571,6 +571,11 @@ async function loadSecurity() {
     secSort = b.dataset.sort;
     seg.querySelectorAll("button").forEach((x) => x.classList.toggle("active", x === b));
     if (TAB_DATA.security) renderTab("security");
+    // 중요도순인데 아직 AI 분석된 기사가 없으면 안내(=최신순과 동일하게 보임)
+    if (secSort === "importance") {
+      const items = (TAB_DATA.security && TAB_DATA.security.items) || [];
+      if (!items.some((it) => it.ai_importance)) toast("먼저 🧠 AI 분석을 실행하면 중요도순이 적용돼요");
+    }
   });
 })();
 
