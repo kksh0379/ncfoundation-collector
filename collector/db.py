@@ -431,6 +431,13 @@ def get_report_snapshot(sid):
         return dict(r) if r else None
 
 
+def report_snapshot_exists(pkey):
+    """해당 pkey의 스냅샷이 이미 있는지(자동 생성 중복 방지용)."""
+    with get_conn() as conn:
+        r = conn.execute(_q("SELECT 1 FROM report_snapshot WHERE pkey=? LIMIT 1"), (pkey,)).fetchone()
+        return bool(r)
+
+
 def latest_report_snapshot(offset=0, kind=None):
     cond = ("WHERE " + _kind_cond(kind)) if kind else ""
     with get_conn() as conn:

@@ -134,6 +134,7 @@ flowchart TB
 - **`SEC_AI_BATCH`** — AI 분석 1회 LLM 호출당 기사 수. 기본 `10`. (선택)
 - **`SEC_AI_MAX_TOKENS`** — AI 분석 응답 토큰 상한. 기본 `8000`. (선택)
 - **`SECREPORT_MAX_TOKENS`** / **`SECREPORT_ARTICLES`** — 월간 보안 리포트 응답 토큰 상한(기본 `10000`)·입력 기사 수 상한(기본 `45`). (선택)
+- **`SECREPORT_AUTO`** — 월간 보안 리포트 **월초 자동 생성** 여부. 기본 켜짐(`1`), `0`이면 수동만. (`ANTHROPIC_API_KEY` 있을 때만 동작)
 - **`BACKFILL_DAYS`** — 최초 자동 백필 기간(일). 기본 `1825`(5년).
 - **`BATCH_DAYS`** — 정기 배치의 뉴스 수집 창(일). 기본 `30`.
 - **`AUTO_BACKFILL`** — 부팅 시 DB 비면 자동 수집할지. 기본 꺼짐(`0`).
@@ -213,7 +214,7 @@ flowchart TB
 - 섹션: ① 이번 달 요약(집계 타일: 전체/심각/높음/CVE + 하이라이트) ② 주요 사고·이슈(중요도·시사점) ③ 주요 취약점(CVE) ④ 법·제도·규제 ⑤ 보안 트렌드 ⑥ **담당자 점검·대응 권고**.
 - 단위: **1개월**(월초에 지난달). 스냅샷 키 `secmonth:YYYY-MM` → 같은 달 재실행 시 교체. 열람은 누구나, 생성은 관리자.
 - 엔진 `collector/security_report.py`(analysis의 LLM 연결부 재사용). 엔드포인트: 생성 `/api/report/run?kind=security[&month=YYYY-MM]`, 상태 `/api/report/status?kind=security`, 목록/열람은 `/api/report/list?kind=security`·`/get`.
-- (현재는 관리자 수동 생성. 월초 자동 생성은 후속 옵션.)
+- **자동 생성**: 정기 배치(스케줄러 4시간·외부 크론)가 돌 때마다 "지난달 리포트가 없으면 생성"(idempotent) → 월초에 지난달치가 자동 생성되고, 이미 있으면 skip해 **월 1회만** LLM 사용. `SECREPORT_AUTO=0`으로 끌 수 있고, `ANTHROPIC_API_KEY` 없으면 자동으로 건너뜀. 관리자 수동 생성(`지난달 분석`)도 그대로 가능.
 - **엔진**: `ANTHROPIC_API_KEY` 필요. 모델 `ANALYSIS_MODEL`(기본 sonnet).
 - **1차 구현 범위**: 끝단 동작(탭·분석·스냅샷·리포트·드릴다운). 심화(정교한 Activity 클러스터링, 1·3·6개월/1·3·5년 기간축 UI, Gap 전용 화면, 신뢰도 지표 표시)는 다음 단계.
 

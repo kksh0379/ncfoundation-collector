@@ -1335,6 +1335,36 @@ _BATCH_GROUPS = ("cat", "game", "news", "biz", "security", "event", "boards", "s
 _batch_state = {"running": False, "ts": 0}
 
 
+def _auto_security_report():
+    """월초에 '지난달' 보안 리포트를 자동 생성한다(관리자 수동 실행과 별개).
+    - SECREPORT_AUTO=0 이면 끔. ANTHROPIC_API_KEY 없으면 skip.
+    - 이미 해당 월(secmonth:YYYY-MM) 스냅샷이 있으면 skip → 한 달에 한 번만 LLM 사용(idempotent).
+    - 지난달 보안뉴스가 아직 없으면 skip(다음 배치에서 재시도).
+    배치(스케줄러/크론)가 돌 때마다 호출되지만, 위 조건 때문에 실제 생성은 월 1회뿐이다."""
+    if os.environ.get("SECREPORT_AUTO", "1") == "0":
+        return
+    if not os.environ.get("ANTHROPIC_API_KEY", "").strip():
+        return
+    try:
+        if not _ensure_db():
+            return
+        ym = security_report.prev_month()
+        if db.report_snapshot_exists(f"secmonth:{ym}"):
+            return  # 이미 생성됨
+        data, err = security_report.run(ym=ym)
+        if err or not data:
+            print(f"[secreport] 자동 생성 보류({ym}): {err}", flush=True)
+            return
+        m = data.get("_meta", {})
+        label = _now_kst()
+        db.save_report_snapshot(label, label, f"{ym} 월간", m.get("model", ""),
+                                json.dumps(data, ensure_ascii=False),
+                                pkey=f"secmonth:{ym}", kind="security")
+        print(f"[secreport] {ym} 월간 보안 리포트 자동 생성 완료", flush=True)
+    except Exception as e:  # noqa: BLE001
+        print(f"[secreport] 자동 생성 실패: {e}", flush=True)
+
+
 def _batch_all():
     """전 탭을 '순차'로 수집(한 번에 하나씩) → 동시 다중 크롤링에 의한 메모리·DB 과부하 방지.
     비차단: 단일 백그라운드 스레드가 그룹을 차례로 처리한다. 뉴스류는 최근 BATCH_DAYS 창."""
@@ -1351,6 +1381,7 @@ def _batch_all():
                 _do_crawl(group, days=days)
             except Exception as e:  # noqa: BLE001
                 print(f"[batch] {group} 오류: {e}", flush=True)
+        _auto_security_report()  # 월초에 지난달 보안 리포트 자동 생성(이미 있으면 skip)
         _batch_state["running"] = False
         print("[batch] 순차 수집 배치 완료", flush=True)
 
