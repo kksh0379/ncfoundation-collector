@@ -661,6 +661,14 @@ body.is-admin .admin-only { display: inline-flex !important; }
 }
 .notes-tab.active { background: var(--primary); color: #fff; border-color: var(--primary); }
 
+/* 개발노트 도식(mermaid) · 코드블록 */
+#notes-content .mermaid { margin: 12px 0; padding: 8px; overflow-x: auto; text-align: center;
+  background: #fafbfc; border: 1px solid var(--border); border-radius: 10px; }
+#notes-content .mermaid svg { max-width: none; height: auto; }
+#notes-content .codeblock { margin: 10px 0; padding: 10px 12px; overflow-x: auto;
+  background: #f5f6f8; border: 1px solid var(--border); border-radius: 8px;
+  font-size: 12px; line-height: 1.5; white-space: pre; }
+
 /* 패치내역 아코디언 */
 .changelog { max-height: 64vh; overflow: auto; }
 .cl-date { font-size: 12px; font-weight: 700; color: var(--muted); margin: 14px 0 6px; }

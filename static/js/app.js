@@ -1162,16 +1162,31 @@ function mdToHtml(md) {
     .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
   let html = "", inList = false;
   const closeList = () => { if (inList) { html += "</ul>"; inList = false; } };
-  (md || "").split(/\r?\n/).forEach((raw) => {
+  // 코드펜스(```) 처리: ```mermaid 는 다이어그램 div, 그 외는 <pre><code>. (다이어그램은 showNotes에서 렌더)
+  let fence = null, fenceLang = "", fenceBuf = [];
+  const lines = (md || "").split(/\r?\n/);
+  for (let i = 0; i < lines.length; i++) {
+    const raw = lines[i];
+    const fm = raw.match(/^\s*```(\w*)\s*$/);
+    if (fence !== null) {
+      if (fm) { // 닫힘
+        const body = fenceBuf.join("\n");
+        if (fenceLang === "mermaid") html += `<div class="mermaid">${esc(body)}</div>`;
+        else html += `<pre class="codeblock"><code>${esc(body)}</code></pre>`;
+        fence = null; fenceLang = ""; fenceBuf = [];
+      } else { fenceBuf.push(raw); }
+      continue;
+    }
+    if (fm) { closeList(); fence = true; fenceLang = fm[1] || ""; fenceBuf = []; continue; }
     const line = raw.replace(/\s+$/, "");
     const t = line.replace(/^\s+/, "");
-    if (!t) { closeList(); return; }
-    if (/^#{1,6}\s/.test(t)) { closeList(); const lv = Math.min(t.match(/^#+/)[0].length + 1, 6); html += `<h${lv}>${inline(t.replace(/^#+\s/, ""))}</h${lv}>`; return; }
-    if (/^---+$/.test(t)) { closeList(); html += "<hr>"; return; }
-    if (/^>\s?/.test(t)) { closeList(); html += `<blockquote>${inline(t.replace(/^>\s?/, ""))}</blockquote>`; return; }
-    if (/^([-*]|\d+\.)\s/.test(t)) { if (!inList) { html += "<ul>"; inList = true; } html += `<li>${inline(t.replace(/^([-*]|\d+\.)\s/, ""))}</li>`; return; }
+    if (!t) { closeList(); continue; }
+    if (/^#{1,6}\s/.test(t)) { closeList(); const lv = Math.min(t.match(/^#+/)[0].length + 1, 6); html += `<h${lv}>${inline(t.replace(/^#+\s/, ""))}</h${lv}>`; continue; }
+    if (/^---+$/.test(t)) { closeList(); html += "<hr>"; continue; }
+    if (/^>\s?/.test(t)) { closeList(); html += `<blockquote>${inline(t.replace(/^>\s?/, ""))}</blockquote>`; continue; }
+    if (/^([-*]|\d+\.)\s/.test(t)) { if (!inList) { html += "<ul>"; inList = true; } html += `<li>${inline(t.replace(/^([-*]|\d+\.)\s/, ""))}</li>`; continue; }
     closeList(); html += `<p>${inline(t)}</p>`;
-  });
+  }
   closeList();
   return html;
 }
@@ -1203,12 +1218,38 @@ function renderChangelog(md) {
   return html;
 }
 
+// 개발노트의 ```mermaid``` 도식을 그림으로 렌더. mermaid.js는 처음 필요할 때만 CDN에서 로드.
+let _mermaidLoad = null;
+function _loadMermaid() {
+  if (window.mermaid) return Promise.resolve(window.mermaid);
+  if (_mermaidLoad) return _mermaidLoad;
+  _mermaidLoad = new Promise((resolve, reject) => {
+    const s = document.createElement("script");
+    s.src = "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js";
+    s.onload = () => { try { window.mermaid.initialize({ startOnLoad: false, theme: "default" }); } catch (e) {} resolve(window.mermaid); };
+    s.onerror = () => reject(new Error("mermaid load fail"));
+    document.head.appendChild(s);
+  });
+  return _mermaidLoad;
+}
+async function _renderMermaid(container) {
+  const nodes = container.querySelectorAll(".mermaid");
+  if (!nodes.length) return;
+  try {
+    const m = await _loadMermaid();
+    await m.run({ nodes });
+  } catch (e) {
+    // 오프라인 등으로 렌더 실패 시: 원본 소스를 코드블록으로라도 보이게 폴백.
+    nodes.forEach((n) => { if (!n.querySelector("svg")) { const pre = document.createElement("pre"); pre.className = "codeblock"; pre.textContent = n.textContent; n.replaceWith(pre); } });
+  }
+}
 function showNotes(which) {
   const el = document.getElementById("notes-content");
   if (which === "changelog") {
     el.innerHTML = `<div class="changelog">${renderChangelog(_notesData.changelog || "")}</div>`;
   } else {
     el.innerHTML = mdToHtml(_notesData[which] || "(내용 없음)");
+    _renderMermaid(el);
   }
   document.querySelectorAll(".notes-tab").forEach((b) =>
     b.classList.toggle("active", b.dataset.notes === which));

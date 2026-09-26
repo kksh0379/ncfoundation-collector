@@ -20,6 +20,70 @@
 
 ---
 
+## 0.5 전체 프로세스 도식 (프론트 → 서버 API → 수집·분석 → 외부 → DB)
+
+> 아래 다이어그램은 GitHub·개발노트 팝업에서 그림으로 렌더됩니다. 화살표는 데이터/호출 방향입니다.
+
+```mermaid
+flowchart TB
+  subgraph CLIENT["📱 프론트엔드 · templates/index.html + static/js/app.js"]
+    UI["탭 화면<br/>냥·게임·nc뉴스·업계·행사·게시판·재단YT"]
+    ACT["🔍 AI 리포트 · 🔖 스크랩 · 로그인/로그아웃"]
+  end
+
+  subgraph SERVER["🖥 Flask 서버 · app.py"]
+    READ["조회 API GET<br/>/api/catnews · /gamenews · /news · /biznews<br/>/api/events · /boards · /social · /meta"]
+    RPTAPI["리포트 API<br/>/api/report/list · /get · /status · /run"]
+    AUTH["계정·개인화 API<br/>/api/login · /logout · /me · /mydata<br/>/api/scrap · /read · /groups · /scrap/groups"]
+    CRAWLAPI["수집 API 관리자<br/>/api/crawl/:group/start · /status<br/>/api/admin/purge · /api/notes"]
+    SCHED["내부 스케줄러 + 외부 크론<br/>/api/cron"]
+  end
+
+  subgraph COLLECT["🧲 수집·분석 · collector/*"]
+    GNEWS["google_news.py<br/>뉴스류·행사 RSS 수집"]
+    EV["events.py<br/>행사 날짜·장소 추출"]
+    BRD["boards.py<br/>게시판 수집"]
+    SOC["social.py<br/>재단YT 수집"]
+    DED["dedup.py<br/>동일기사 묶기"]
+    ANA["analysis.py<br/>AI 리포트 생성"]
+  end
+
+  subgraph EXT["🌐 외부 서비스"]
+    GRSS["Google News RSS"]
+    YTAPI["YouTube Data API"]
+    BAPI["기관 내부 API<br/>대표홈·프로젝토리·나의AAC·FAIR AI"]
+    CLAUDE["Anthropic Claude API"]
+  end
+
+  DB[("🗄 DB · Postgres Neon / SQLite<br/>news·boards·social·events<br/>user_state·report_snapshot")]
+
+  UI -->|fetch 조회| READ
+  ACT -->|fetch| AUTH
+  ACT -->|리포트 열람| RPTAPI
+  READ --> DB
+  AUTH --> DB
+  RPTAPI --> DB
+  CRAWLAPI -->|수집 실행| COLLECT
+  SCHED -->|정기 배치| COLLECT
+  RPTAPI -->|분석 실행 관리자| ANA
+  GNEWS --> GRSS
+  EV --> GRSS
+  SOC --> YTAPI
+  BRD --> BAPI
+  ANA --> CLAUDE
+  GNEWS --> DED
+  ANA -->|데이터 읽기| DB
+  COLLECT -->|upsert 저장| DB
+```
+
+**흐름 요약**
+1. **조회**: 프론트가 각 탭 진입 시 `조회 API(GET)`를 호출 → 서버가 **DB**에서 읽어 카드/캘린더로 렌더. (비로그인도 가능)
+2. **개인화**: 로그인 후 스크랩/읽음/그룹은 `계정 API`로 **`user_state`** 에 계정별 저장·동기화.
+3. **수집**: 관리자 "수집 실행"(`/api/crawl/:group/start`) 또는 **스케줄러/크론**(`/api/cron`)이 `collector/*` 실행 → **외부 소스**(구글뉴스 RSS·유튜브 API·기관 내부 API)에서 가져와 dedup 후 **DB에 upsert**.
+4. **AI 리포트**: 관리자 "분석 실행"(`/api/report/run`) → `analysis.py`가 DB의 뉴스·재단YT를 정리해 **Claude API** 호출 → 결과 JSON을 **`report_snapshot`** 에 스냅샷 저장. 열람(`/get`·`/list`)은 누구나.
+
+---
+
 ## 1. 탭 구성
 
 | 탭 | 내용 | 수집 방식 |
