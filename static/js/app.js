@@ -1796,13 +1796,61 @@ function renderReport(payload) {
     + (m.model ? ` · ${escapeHtml(m.model)}` : "");
   el.innerHTML = `<div class="rp-topmeta">${meta}</div>` + h;
 }
+// 월간 보안 리포트(정보보안·개인정보 담당자용) 렌더
+function renderSecurityReport(payload) {
+  const el = document.getElementById("report-body");
+  const d = payload && payload.data;
+  if (!payload || payload.empty || !d || !Object.keys(d).length) {
+    el.innerHTML = `<div class="empty"><div class="empty-msg">아직 생성된 보안 리포트가 없어요.</div>`
+      + `<div class="empty-hint">관리자가 '지난달 분석'을 누르면 첫 월간 보안 리포트가 만들어져요.</div></div>`;
+    return;
+  }
+  const m = d._meta || {}; const c = m.counts || {}; const byImp = c.by_importance || {};
+  let h = "";
+  if (d.summary) h += `<div class="rp-summary">${escapeHtml(d.summary)}</div>`;
+  const tiles = [["전체 기사", c.total], ["심각", byImp.CRITICAL], ["높음", byImp.HIGH], ["CVE 언급", c.cve_mentions]]
+    .map(([k, v]) => `<div class="rp-tile"><div class="rp-tile-n">${v ?? "–"}</div><div class="rp-tile-k">${k}</div></div>`).join("");
+  h += rpSection("01 · 이번 달 요약", `<div class="rp-tiles">${tiles}</div>`
+    + (d.highlights && d.highlights.length ? `<ul class="rp-hl">${rpList(d.highlights)}</ul>` : ""));
+  if (d.top_incidents && d.top_incidents.length) {
+    h += rpSection("02 · 주요 사고·이슈", d.top_incidents.map((x) => {
+      const t = x.url ? `<a href="${escapeHtml(x.url)}" target="_blank" rel="noopener">${escapeHtml(x.title || "")}</a>` : escapeHtml(x.title || "");
+      return `<div class="rp-item">${impBadgeHtml({ ai_importance: x.importance })}<b>${t}</b>`
+        + (x.category ? ` <span class="rp-dir">${escapeHtml(x.category)}</span>` : "")
+        + `<div class="rp-detail">${escapeHtml(x.impact || "")}</div></div>`;
+    }).join(""));
+  }
+  if (d.vulnerabilities && d.vulnerabilities.length) {
+    h += rpSection("03 · 주요 취약점", d.vulnerabilities.map((x) =>
+      `<div class="rp-item"><b>${escapeHtml(x.name || "")}</b>${x.cve ? ` <span class="ai-fact">🆔 ${escapeHtml(x.cve)}</span>` : ""}`
+      + `<div class="rp-detail">${escapeHtml(x.note || "")}</div></div>`).join(""));
+  }
+  if (d.regulatory && d.regulatory.length) {
+    h += rpSection("04 · 법·제도·규제", d.regulatory.map((x) =>
+      `<div class="rp-item"><b>${escapeHtml(x.title || "")}</b><div class="rp-detail">${escapeHtml(x.note || "")}</div></div>`).join(""));
+  }
+  if (d.trends && d.trends.length) {
+    h += rpSection("05 · 보안 트렌드", d.trends.map((x) =>
+      `<div class="rp-item"><b>${escapeHtml(x.topic || "")}</b><div class="rp-detail">${escapeHtml(x.note || "")}</div></div>`).join(""));
+  }
+  if (d.actions && d.actions.length) {
+    h += rpSection("06 · 담당자 점검·대응 권고", d.actions.map((x) =>
+      `<div class="rp-item rp-task"><b>✔ ${escapeHtml(x.task || "")}</b><div class="rp-detail">${escapeHtml(x.detail || "")}</div></div>`).join(""));
+  }
+  if (d.confidence_note) h += `<div class="rp-note">⚠️ ${escapeHtml(d.confidence_note)}</div>`;
+  const meta = `대상 ${escapeHtml(m.month || "")} · 생성 ${escapeHtml(payload.created_at || "")}`
+    + (m.model ? ` · ${escapeHtml(m.model)}` : "");
+  el.innerHTML = `<div class="rp-topmeta">${meta}</div>` + h;
+}
+let reportKind = "foundation";
 async function loadReport(id) {
   const el = document.getElementById("report-body");
   if (!el.dataset.loaded) el.innerHTML = `<li class="empty">${catSpin("리포트 불러오는 중…")}</li>`;
   try {
+    const getUrl = id ? ("/api/report/get?id=" + id) : ("/api/report/get?kind=" + reportKind);
     const [snaps, rep] = await Promise.all([
-      fetch("/api/report/list").then((r) => r.json()),
-      fetch("/api/report/get" + (id ? "?id=" + id : "")).then((r) => r.json()),
+      fetch("/api/report/list?kind=" + reportKind).then((r) => r.json()),
+      fetch(getUrl).then((r) => r.json()),
     ]);
     const sel = document.getElementById("report-snap");
     if (sel) {
@@ -1810,7 +1858,7 @@ async function loadReport(id) {
         || `<option>스냅샷 없음</option>`;
       if (rep && rep.id) sel.value = rep.id;
     }
-    renderReport(rep);
+    if (reportKind === "security") renderSecurityReport(rep); else renderReport(rep);
     el.dataset.loaded = "1";
   } catch (e) { el.innerHTML = `<div class="empty"><div class="empty-msg">리포트를 불러오지 못했어요.</div></div>`; }
 }
@@ -1821,7 +1869,7 @@ async function loadReport(id) {
   if (sel) sel.addEventListener("change", () => loadReport(sel.value));
   let timer = null;
   function poll() {
-    fetch("/api/report/status").then((r) => r.json()).then((st) => {
+    fetch("/api/report/status?kind=" + reportKind).then((r) => r.json()).then((st) => {
       if (st.running) {
         msg.style.color = ""; msg.innerHTML = '<span class="mini-spin"></span> ' + escapeHtml(st.progress || "분석 중…");
       } else {
@@ -1829,16 +1877,39 @@ async function loadReport(id) {
         if (runBtn) runBtn.disabled = false;
         const rs = st.result || {};
         if (rs.error) { msg.style.color = "#dc2626"; msg.textContent = "분석 실패: " + rs.error; }
-        else if (rs.ok) { msg.style.color = "#16a34a"; msg.textContent = "분석 완료"; loadReport(); }
+        else if (rs.ok) { msg.style.color = "#16a34a"; msg.textContent = "분석 완료"; const el = document.getElementById("report-body"); if (el) delete el.dataset.loaded; loadReport(); }
       }
     }).catch(() => {});
   }
   if (runBtn) runBtn.addEventListener("click", () => {
     runBtn.disabled = true; msg.style.color = ""; msg.innerHTML = '<span class="mini-spin"></span> 분석 시작…';
-    fetch("/api/report/run?window=90", { method: "POST" }).then((r) => r.json()).then(() => {
+    const url = reportKind === "security" ? "/api/report/run?kind=security" : "/api/report/run?window=90";
+    fetch(url, { method: "POST" }).then((r) => r.json()).then(() => {
       if (!timer) timer = setInterval(poll, 2500); poll();
     }).catch(() => { runBtn.disabled = false; msg.textContent = "시작 실패"; });
   });
+  // 리포트 종류 토글(재단 동향 / 보안 월간)
+  const kindSeg = document.getElementById("rep-kind");
+  function applyKindUI() {
+    if (runBtn) runBtn.textContent = reportKind === "security" ? "지난달 분석" : "분석 실행";
+    const title = document.getElementById("report-title");
+    if (title) title.textContent = reportKind === "security" ? "🛡 월간 보안 리포트" : "🔍 AI 재단 동향 리포트";
+    const nf = document.getElementById("report-note-foundation");
+    const ns = document.getElementById("report-note-security");
+    if (nf) nf.hidden = reportKind === "security";
+    if (ns) ns.hidden = reportKind !== "security";
+  }
+  if (kindSeg) kindSeg.addEventListener("click", (e) => {
+    const b = e.target.closest("button[data-kind]");
+    if (!b || b.dataset.kind === reportKind) return;
+    reportKind = b.dataset.kind;
+    kindSeg.querySelectorAll("button").forEach((x) => x.classList.toggle("active", x === b));
+    applyKindUI();
+    msg.textContent = "";
+    const el = document.getElementById("report-body"); if (el) delete el.dataset.loaded;
+    loadReport();
+  });
+  applyKindUI();
   // 스냅샷 삭제(현재 선택) / 전체 초기화
   async function purgeReport(body) {
     msg.style.color = ""; msg.innerHTML = '<span class="mini-spin"></span> 삭제 중…';
@@ -1861,7 +1932,7 @@ async function loadReport(id) {
   });
   const purgeBtn = document.getElementById("report-purge");
   if (purgeBtn) purgeBtn.addEventListener("click", () =>
-    armConfirm(purgeBtn, "전체삭제 확정", () => purgeReport({ all: true })));
+    armConfirm(purgeBtn, "전체삭제 확정", () => purgeReport({ all: true, kind: reportKind })));
 
   // 상단 버튼 → 풀팝업 열기/닫기
   const modal = document.getElementById("report-modal");

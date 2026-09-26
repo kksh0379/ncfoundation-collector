@@ -133,6 +133,7 @@ flowchart TB
 - **`SEC_AI_LIMIT`** — 보안뉴스 🧠 AI 분석 1회 실행당 분석할 기사 수 상한. 기본 `60`. (선택)
 - **`SEC_AI_BATCH`** — AI 분석 1회 LLM 호출당 기사 수. 기본 `10`. (선택)
 - **`SEC_AI_MAX_TOKENS`** — AI 분석 응답 토큰 상한. 기본 `8000`. (선택)
+- **`SECREPORT_MAX_TOKENS`** / **`SECREPORT_ARTICLES`** — 월간 보안 리포트 응답 토큰 상한(기본 `10000`)·입력 기사 수 상한(기본 `45`). (선택)
 - **`BACKFILL_DAYS`** — 최초 자동 백필 기간(일). 기본 `1825`(5년).
 - **`BATCH_DAYS`** — 정기 배치의 뉴스 수집 창(일). 기본 `30`.
 - **`AUTO_BACKFILL`** — 부팅 시 DB 비면 자동 수집할지. 기본 꺼짐(`0`).
@@ -204,7 +205,15 @@ flowchart TB
 - **파이프라인**: 수집 데이터(우리=nc 재단 + NC문화재단 유튜브 / 동종=업계동향 + 주요 재단 유튜브) → 정리·중복보도 묶기(**미디어 노출량 ≠ 활동 수**) → LLM 분석 → 리포트 JSON → **스냅샷 저장** → 다음 실행 때 지난 리포트와 비교.
 - **리포트 9섹션**: ① Executive Brief ② 지난 리포트 이후 변화(NEW/UP/DOWN/CONTINUED/DISAPPEARED) ③ 업계 동향 ④ 재단별 움직임 ⑤ Trend ⑥ Emerging Signals(판단 근거 포함) ⑦ 우리 재단 Position ⑧ Benchmark ⑨ 검토 과제. + 모든 결론에 **근거 원문 드릴다운**.
 - **저장**: `report_snapshot` 테이블. **키=기간+분석일자(`pkey`)** — 같은 날 같은 기간을 다시 돌리면 새로 쌓지 않고 **교체(업데이트)**, 다른 날/다른 기간은 별도 보존(비교용). 비교('지난 리포트')는 같은 기간·다른 시점 최신 스냅샷과 수행.
-- **삭제**(관리자, 리포트 팝업 상단): `🗑 삭제`(현재 선택 스냅샷) · `전체 초기화`(모든 스냅샷). 엔드포인트 `/api/report/purge` (`{"id":N}` 또는 `{"all":true}`).
+- **삭제**(관리자, 리포트 팝업 상단): `🗑 삭제`(현재 선택 스냅샷) · `전체 초기화`(현재 종류만). 엔드포인트 `/api/report/purge` (`{"id":N}` 또는 `{"all":true,"kind":...}`).
+- **리포트 2종**(팝업 상단 토글): `재단 동향`(기존) / `🛡 보안(월간)`. `report_snapshot.kind`='foundation'|'security'로 구분 저장·조회.
+
+### 월간 보안 리포트 (🛡, 정보보안·개인정보보호 담당자용)
+- 지난달(기본) 국내 보안뉴스(section='sec')를 종합해 **월간 보안 브리핑** 생성. 담당자가 바로 활용하도록 실무적으로.
+- 섹션: ① 이번 달 요약(집계 타일: 전체/심각/높음/CVE + 하이라이트) ② 주요 사고·이슈(중요도·시사점) ③ 주요 취약점(CVE) ④ 법·제도·규제 ⑤ 보안 트렌드 ⑥ **담당자 점검·대응 권고**.
+- 단위: **1개월**(월초에 지난달). 스냅샷 키 `secmonth:YYYY-MM` → 같은 달 재실행 시 교체. 열람은 누구나, 생성은 관리자.
+- 엔진 `collector/security_report.py`(analysis의 LLM 연결부 재사용). 엔드포인트: 생성 `/api/report/run?kind=security[&month=YYYY-MM]`, 상태 `/api/report/status?kind=security`, 목록/열람은 `/api/report/list?kind=security`·`/get`.
+- (현재는 관리자 수동 생성. 월초 자동 생성은 후속 옵션.)
 - **엔진**: `ANTHROPIC_API_KEY` 필요. 모델 `ANALYSIS_MODEL`(기본 sonnet).
 - **1차 구현 범위**: 끝단 동작(탭·분석·스냅샷·리포트·드릴다운). 심화(정교한 Activity 클러스터링, 1·3·6개월/1·3·5년 기간축 UI, Gap 전용 화면, 신뢰도 지표 표시)는 다음 단계.
 
@@ -247,6 +256,7 @@ flowchart TB
 - `collector/social.py` — 재단YT(NC 채널 Data API + 주요 재단 유튜브 검색).
 - `collector/analysis.py` — AI 리포트(데이터 정리·중복 묶기·LLM 호출·JSON 스키마).
 - `collector/security_ai.py` — 보안뉴스 AI 후처리(배치 태깅·중요도·시사점, analysis의 LLM 연결부 재사용).
+- `collector/security_report.py` — 월간 보안 리포트(정보보안·개인정보 담당자용, 지난달 종합·LLM 브리핑).
 - `collector/dedup.py` — 동일 기사 그룹화.
 - `collector/db.py` — 저장소(Postgres/SQLite, 직접 접속), news/boards/social/events/user_state/report_snapshot.
 - `collector/fetcher.py` / `collector/extractor.py` — HTTP 헬퍼 / 본문·이미지 추출.

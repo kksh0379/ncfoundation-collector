@@ -971,6 +971,10 @@ body.tab-event #view-toggle { display: none; }
 
 /* ===== AI 분석 리포트 ===== */
 body.tab-report .viewbar { display: none; }
+.seg.rep-kind { display: inline-flex; margin: 8px 0 2px; border: 1px solid var(--border); border-radius: 9px; overflow: hidden; background: #fff; }
+.seg.rep-kind button { border: 0; background: none; color: var(--muted); font-size: 13px; font-weight: 700; padding: 8px 16px; cursor: pointer; }
+.seg.rep-kind button + button { border-left: 1px solid var(--border); }
+.seg.rep-kind button.active { background: var(--primary); color: #fff; }
 .report-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 10px 0 4px; }
 .report-snap { flex: 1 1 160px; min-width: 0; height: 34px; border: 1px solid var(--border); border-radius: 8px; padding: 0 8px; background: #fff; font-size: 13px; color: var(--text); }
 #run-report, #report-del, #report-purge { flex: 0 0 auto; }

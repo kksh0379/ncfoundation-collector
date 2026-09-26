@@ -15,7 +15,8 @@ from datetime import datetime, timedelta, timezone
 
 from flask import Flask, Response, jsonify, render_template, request, session
 
-from collector import analysis, boards, db, dedup, events, fetcher, google_news, security_ai, social
+from collector import (analysis, boards, db, dedup, events, fetcher, google_news,
+                       security_ai, security_report, social)
 
 app = Flask(__name__)
 # 초안 단계: 브라우저가 옛 JS/CSS를 캐시해 혼란을 주지 않도록 정적파일 캐시를 끈다.
@@ -1146,10 +1147,45 @@ def _report_run(window_days):
         st["running"] = False
 
 
+_SECREPORT_JOB = {"running": False, "progress": "", "result": None, "started_ts": 0}
+
+
+def _security_report_run(ym):
+    st = _SECREPORT_JOB
+    try:
+        _ensure_db(force=True)
+        data, err = security_report.run(ym=ym, progress=lambda m: st.update(progress=m))
+        if err:
+            st["result"] = {"error": err}
+            st["progress"] = f"오류: {err}"
+        else:
+            m = data.get("_meta", {})
+            label = _now_kst()
+            month = m.get("month", ym)
+            sid = db.save_report_snapshot(label, label, f"{month} 월간", m.get("model", ""),
+                                          json.dumps(data, ensure_ascii=False),
+                                          pkey=f"secmonth:{month}", kind="security")
+            st["result"] = {"ok": True, "id": sid, "month": month}
+            st["progress"] = "완료"
+    except Exception as e:  # noqa: BLE001
+        st["result"] = {"error": str(e)}
+        st["progress"] = f"오류: {e}"
+    finally:
+        st["running"] = False
+
+
 @app.post("/api/report/run")
 def report_run():
     if not _admin_ok():
         return jsonify({"error": "unauthorized"}), 401
+    kind = request.args.get("kind", "foundation")
+    if kind == "security":
+        if _SECREPORT_JOB.get("running") and (time.time() - _SECREPORT_JOB.get("started_ts", 0) < 1800):
+            return jsonify({"running": True, "already": True})
+        ym = request.args.get("month") or security_report.prev_month()
+        _SECREPORT_JOB.update(running=True, progress="보안 리포트 준비…", result=None, started_ts=time.time())
+        threading.Thread(target=_security_report_run, args=(ym,), daemon=True).start()
+        return jsonify({"running": True, "month": ym})
     if _REPORT_JOB.get("running") and (time.time() - _REPORT_JOB.get("started_ts", 0) < 1800):
         return jsonify({"running": True, "already": True})
     window = request.args.get("window", default=90, type=int)
@@ -1160,9 +1196,10 @@ def report_run():
 
 @app.get("/api/report/status")
 def report_status():
-    st = dict(_REPORT_JOB)
+    job = _SECREPORT_JOB if request.args.get("kind") == "security" else _REPORT_JOB
+    st = dict(job)
     if st.get("running") and (time.time() - st.get("started_ts", 0) > 1800):
-        _REPORT_JOB["running"] = False
+        job["running"] = False
         st["running"] = False
         st["progress"] = "중단됨(시간 초과)"
     return jsonify({"running": st.get("running"), "progress": st.get("progress"),
@@ -1181,7 +1218,8 @@ def report_models():
 def report_list():
     if not _ensure_db():
         return jsonify([])
-    return jsonify(db.list_report_snapshots(30))
+    kind = request.args.get("kind")  # None=전체, 'foundation'|'security'
+    return jsonify(db.list_report_snapshots(30, kind=kind))
 
 
 @app.post("/api/report/purge")
@@ -1194,7 +1232,7 @@ def report_purge():
     data = request.get_json(silent=True) or {}
     try:
         if data.get("all"):
-            n = db.clear_report_snapshots()
+            n = db.clear_report_snapshots(kind=data.get("kind"))  # kind 지정 시 해당 종류만
             return jsonify({"ok": True, "deleted": n, "scope": "all"})
         sid = data.get("id")
         if sid is None:
@@ -1210,7 +1248,8 @@ def report_get():
     if not _ensure_db():
         return jsonify({"error": "db"}), 503
     sid = request.args.get("id", type=int)
-    row = db.get_report_snapshot(sid) if sid else db.latest_report_snapshot(0)
+    kind = request.args.get("kind")  # id 없이 최신 요청 시 종류 지정
+    row = db.get_report_snapshot(sid) if sid else db.latest_report_snapshot(0, kind=kind)
     if not row:
         return jsonify({"error": "없음", "empty": True})
     try:
@@ -1219,7 +1258,7 @@ def report_get():
         data = {}
     # 직전 스냅샷 id(비교용) 함께 전달
     prev = None
-    lst = db.list_report_snapshots(30)
+    lst = db.list_report_snapshots(30, kind=(row.get("kind") or kind))
     ids = [r["id"] for r in lst]
     if row["id"] in ids:
         i = ids.index(row["id"])

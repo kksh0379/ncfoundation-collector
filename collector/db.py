@@ -146,7 +146,8 @@ _DDL = [
     )""",
     # AI 재단 동향 분석 리포트 스냅샷(실행 시점별로 누적 저장 → 변화 비교).
     f"""CREATE TABLE IF NOT EXISTS report_snapshot (
-        id {_AUTO_PK}, created_at TEXT, label TEXT, period TEXT, model TEXT, data TEXT, pkey TEXT
+        id {_AUTO_PK}, created_at TEXT, label TEXT, period TEXT, model TEXT, data TEXT, pkey TEXT,
+        kind TEXT
     )""",
     # 행사일정(AI 국내 행사). start_date/end_date=행사 기간(ISO), venue/region=장소.
     f"""CREATE TABLE IF NOT EXISTS events (
@@ -184,6 +185,7 @@ def init_db():
             conn.execute("ALTER TABLE news ADD COLUMN IF NOT EXISTS ai_insight TEXT")
             conn.execute("ALTER TABLE news ADD COLUMN IF NOT EXISTS ai_at TEXT")
             conn.execute("ALTER TABLE report_snapshot ADD COLUMN IF NOT EXISTS pkey TEXT")
+            conn.execute("ALTER TABLE report_snapshot ADD COLUMN IF NOT EXISTS kind TEXT")
             conn.execute("ALTER TABLE boards ADD COLUMN IF NOT EXISTS image_url TEXT")
             conn.execute("ALTER TABLE social ADD COLUMN IF NOT EXISTS image_url TEXT")
         else:
@@ -204,6 +206,8 @@ def init_db():
             rcols = {r["name"] for r in conn.execute("PRAGMA table_info(report_snapshot)").fetchall()}
             if "pkey" not in rcols:
                 conn.execute("ALTER TABLE report_snapshot ADD COLUMN pkey TEXT")
+            if "kind" not in rcols:
+                conn.execute("ALTER TABLE report_snapshot ADD COLUMN kind TEXT")
             bcols = {r["name"] for r in conn.execute("PRAGMA table_info(boards)").fetchall()}
             if "image_url" not in bcols:
                 conn.execute("ALTER TABLE boards ADD COLUMN image_url TEXT")
@@ -350,42 +354,57 @@ def clear_events():
 
 
 # ---------------------------- 분석 리포트 스냅샷 ----------------------------
-def save_report_snapshot(created_at, label, period, model, data_json, pkey=None):
-    """리포트 스냅샷 저장. pkey(분석기간+분석일자)가 같은 기존 스냅샷이 있으면
-    새로 쌓지 않고 교체(업데이트)한다 → 같은 날 같은 기간 재실행 시 중복 누적 방지."""
+def save_report_snapshot(created_at, label, period, model, data_json, pkey=None, kind="foundation"):
+    """리포트 스냅샷 저장. pkey(종류+기간+일자)가 같은 기존 스냅샷이 있으면
+    새로 쌓지 않고 교체(업데이트)한다. kind='foundation'(재단 동향)|'security'(보안 월간)."""
     with get_conn() as conn:
         if pkey:
             conn.execute(_q("DELETE FROM report_snapshot WHERE pkey = ?"), (pkey,))
         conn.execute(_q(
-            "INSERT INTO report_snapshot (created_at, label, period, model, data, pkey) VALUES (?,?,?,?,?,?)"),
-            (created_at, label, period, model, data_json, pkey))
+            "INSERT INTO report_snapshot (created_at, label, period, model, data, pkey, kind) "
+            "VALUES (?,?,?,?,?,?,?)"),
+            (created_at, label, period, model, data_json, pkey, kind))
         row = conn.execute("SELECT MAX(id) AS id FROM report_snapshot").fetchone()
         return int(row["id"]) if row and row["id"] is not None else None
+
+
+def _kind_cond(kind):
+    """리포트 종류 조건. 레거시(kind NULL)는 foundation으로 취급."""
+    if kind == "security":
+        return "kind = 'security'"
+    return "COALESCE(kind,'foundation') = 'foundation'"
 
 
 def latest_report_snapshot_excluding(pkey):
     """비교용 '지난 리포트' 선택. 같은 기간(window)·다른 시점의 최신 스냅샷을 우선하고,
     없으면(레거시 pkey 없음 등) 현재 키와 다른 최신 스냅샷을 쓴다."""
     prefix = (pkey.split(":", 1)[0] + ":") if (pkey and ":" in pkey) else None
+    fcond = _kind_cond("foundation")  # 재단 동향 리포트 비교(보안 스냅샷 배제)
     with get_conn() as conn:
         if prefix:
             r = conn.execute(_q(
-                "SELECT * FROM report_snapshot WHERE pkey LIKE ? AND pkey <> ? "
+                f"SELECT * FROM report_snapshot WHERE {fcond} AND pkey LIKE ? AND pkey <> ? "
                 "ORDER BY id DESC LIMIT 1"), (prefix + "%", pkey)).fetchone()
             if r:
                 return dict(r)
         r = conn.execute(_q(
-            "SELECT * FROM report_snapshot WHERE pkey IS NULL OR pkey <> ? ORDER BY id DESC LIMIT 1"),
-            (pkey,)).fetchone()
+            f"SELECT * FROM report_snapshot WHERE {fcond} AND (pkey IS NULL OR pkey <> ?) "
+            "ORDER BY id DESC LIMIT 1"), (pkey,)).fetchone()
         return dict(r) if r else None
 
 
-def clear_report_snapshots():
-    """리포트 스냅샷 전체 삭제. 반환: 삭제 건수."""
+def clear_report_snapshots(kind=None):
+    """리포트 스냅샷 삭제. kind 지정 시 해당 종류만, 아니면 전체. 반환: 삭제 건수."""
     with get_conn() as conn:
-        row = conn.execute("SELECT COUNT(*) AS n FROM report_snapshot").fetchone()
-        n = int(row["n"]) if row else 0
-        conn.execute("DELETE FROM report_snapshot")
+        if kind:
+            cond = _kind_cond(kind)
+            row = conn.execute(f"SELECT COUNT(*) AS n FROM report_snapshot WHERE {cond}").fetchone()
+            n = int(row["n"]) if row else 0
+            conn.execute(f"DELETE FROM report_snapshot WHERE {cond}")
+        else:
+            row = conn.execute("SELECT COUNT(*) AS n FROM report_snapshot").fetchone()
+            n = int(row["n"]) if row else 0
+            conn.execute("DELETE FROM report_snapshot")
     return n
 
 
@@ -397,10 +416,11 @@ def delete_report_snapshot(sid):
     return 1
 
 
-def list_report_snapshots(limit=30):
+def list_report_snapshots(limit=30, kind=None):
+    cond = ("WHERE " + _kind_cond(kind)) if kind else ""
     with get_conn() as conn:
         rows = conn.execute(_q(
-            "SELECT id, created_at, label, period, model FROM report_snapshot "
+            f"SELECT id, created_at, label, period, model, kind FROM report_snapshot {cond} "
             "ORDER BY id DESC LIMIT ?"), (limit,)).fetchall()
         return [dict(r) for r in rows]
 
@@ -411,9 +431,10 @@ def get_report_snapshot(sid):
         return dict(r) if r else None
 
 
-def latest_report_snapshot(offset=0):
+def latest_report_snapshot(offset=0, kind=None):
+    cond = ("WHERE " + _kind_cond(kind)) if kind else ""
     with get_conn() as conn:
-        r = conn.execute(_q("SELECT * FROM report_snapshot ORDER BY id DESC LIMIT 1 OFFSET ?"),
+        r = conn.execute(_q(f"SELECT * FROM report_snapshot {cond} ORDER BY id DESC LIMIT 1 OFFSET ?"),
                          (offset,)).fetchone()
         return dict(r) if r else None
 
