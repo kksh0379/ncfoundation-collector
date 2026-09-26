@@ -1184,6 +1184,27 @@ def report_list():
     return jsonify(db.list_report_snapshots(30))
 
 
+@app.post("/api/report/purge")
+def report_purge():
+    """리포트 스냅샷 삭제(관리자). body: {"id": N} → 해당 1건, {"all": true} → 전체."""
+    if not _admin_ok():
+        return jsonify({"error": "unauthorized"}), 401
+    if not _ensure_db(force=True):
+        return jsonify({"ok": False, "error": "DB에 연결할 수 없어요. 잠시 후 다시 시도해 주세요."}), 503
+    data = request.get_json(silent=True) or {}
+    try:
+        if data.get("all"):
+            n = db.clear_report_snapshots()
+            return jsonify({"ok": True, "deleted": n, "scope": "all"})
+        sid = data.get("id")
+        if sid is None:
+            return jsonify({"ok": False, "error": "삭제할 스냅샷 id가 없어요."}), 400
+        n = db.delete_report_snapshot(int(sid))
+        return jsonify({"ok": True, "deleted": n, "scope": "one"})
+    except Exception as e:  # noqa: BLE001
+        return jsonify({"ok": False, "error": f"삭제 실패: {e}"}), 500
+
+
 @app.get("/api/report/get")
 def report_get():
     if not _ensure_db():

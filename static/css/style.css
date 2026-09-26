@@ -971,9 +971,9 @@ body.tab-event #view-toggle { display: none; }
 
 /* ===== AI 분석 리포트 ===== */
 body.tab-report .viewbar { display: none; }
-.report-bar { display: flex; align-items: center; gap: 8px; padding: 10px 0 4px; }
-.report-snap { flex: 1 1 auto; min-width: 0; height: 34px; border: 1px solid var(--border); border-radius: 8px; padding: 0 8px; background: #fff; font-size: 13px; color: var(--text); }
-#run-report { flex: 0 0 auto; }
+.report-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 10px 0 4px; }
+.report-snap { flex: 1 1 160px; min-width: 0; height: 34px; border: 1px solid var(--border); border-radius: 8px; padding: 0 8px; background: #fff; font-size: 13px; color: var(--text); }
+#run-report, #report-del, #report-purge { flex: 0 0 auto; }
 .report-note { font-size: 12px; color: var(--muted); line-height: 1.55; background: #f4f7ff; border: 1px solid #dbe6ff; border-radius: 8px; padding: 10px 12px; margin: 4px 0 10px; }
 .report-note b { color: var(--text); }
 .rp-topmeta { font-size: 12px; color: var(--muted); margin: 2px 0 10px; }

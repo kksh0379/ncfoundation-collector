@@ -380,6 +380,23 @@ def latest_report_snapshot_excluding(pkey):
         return dict(r) if r else None
 
 
+def clear_report_snapshots():
+    """리포트 스냅샷 전체 삭제. 반환: 삭제 건수."""
+    with get_conn() as conn:
+        row = conn.execute("SELECT COUNT(*) AS n FROM report_snapshot").fetchone()
+        n = int(row["n"]) if row else 0
+        conn.execute("DELETE FROM report_snapshot")
+    return n
+
+
+def delete_report_snapshot(sid):
+    """스냅샷 1건 삭제. 반환: 삭제 건수(0/1)."""
+    with get_conn() as conn:
+        cur = conn.cursor()
+        cur.execute(_q("DELETE FROM report_snapshot WHERE id = ?"), (sid,))
+    return 1
+
+
 def list_report_snapshots(limit=30):
     with get_conn() as conn:
         rows = conn.execute(_q(

@@ -1815,6 +1815,32 @@ async function loadReport(id) {
       if (!timer) timer = setInterval(poll, 2500); poll();
     }).catch(() => { runBtn.disabled = false; msg.textContent = "시작 실패"; });
   });
+  // 스냅샷 삭제(현재 선택) / 전체 초기화
+  async function purgeReport(body, confirmMsg) {
+    if (!confirm(confirmMsg)) return;
+    msg.style.color = ""; msg.innerHTML = '<span class="mini-spin"></span> 삭제 중…';
+    try {
+      const r = await fetch("/api/report/purge", {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+      });
+      const j = await r.json();
+      if (!r.ok || !j.ok) throw new Error(j.error || ("서버 오류 " + r.status));
+      msg.style.color = "#16a34a"; msg.textContent = `🗑 삭제 완료(${j.deleted || 0}건)`;
+      const el = document.getElementById("report-body"); if (el) delete el.dataset.loaded;
+      loadReport();
+    } catch (e) { msg.style.color = "#dc2626"; msg.textContent = "삭제 실패: " + e.message; }
+  }
+  const delBtn = document.getElementById("report-del");
+  if (delBtn) delBtn.addEventListener("click", () => {
+    const id = sel && sel.value;
+    if (!id || isNaN(Number(id))) { msg.style.color = "#dc2626"; msg.textContent = "삭제할 스냅샷이 없어요."; return; }
+    const label = (sel.options[sel.selectedIndex] || {}).text || id;
+    purgeReport({ id: Number(id) }, `이 스냅샷을 삭제할까요?\n\n${label}`);
+  });
+  const purgeBtn = document.getElementById("report-purge");
+  if (purgeBtn) purgeBtn.addEventListener("click", () =>
+    purgeReport({ all: true }, "저장된 모든 리포트 스냅샷을 삭제할까요?\n(되돌릴 수 없어요. 비교 이력도 사라집니다.)"));
+
   // 상단 버튼 → 풀팝업 열기/닫기
   const modal = document.getElementById("report-modal");
   const openBtn = document.getElementById("report-open-btn");
