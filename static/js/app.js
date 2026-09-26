@@ -130,6 +130,26 @@ function toast(msg) {
   t.textContent = msg; t.classList.add("show");
   clearTimeout(_toastTimer); _toastTimer = setTimeout(() => t.classList.remove("show"), 1400);
 }
+// 위험 동작(삭제/초기화) 확인: 모바일에서 native confirm()이 막히는 경우가 있어
+// '한 번 더 눌러 확정'(두 번 탭) 방식으로 대체한다. 첫 탭=무장(빨간 확정 상태)·둘째 탭=실행.
+function armConfirm(btn, armedText, onConfirm) {
+  if (!btn) { onConfirm(); return; }
+  if (btn._armed) {
+    clearTimeout(btn._armTimer); btn._armed = false;
+    if (btn._orig != null) btn.textContent = btn._orig;
+    btn.classList.remove("armed");
+    onConfirm();
+    return;
+  }
+  if (btn._orig == null) btn._orig = btn.textContent;
+  btn._armed = true; btn.textContent = armedText; btn.classList.add("armed");
+  toast("한 번 더 누르면 실행돼요");
+  btn._armTimer = setTimeout(() => {
+    btn._armed = false;
+    if (btn._orig != null) btn.textContent = btn._orig;
+    btn.classList.remove("armed");
+  }, 4000);
+}
 // 스크랩 토글(로그인 필요, 서버 저장, +토스트)
 function toggleScrap(key) {
   if (!key) return;
@@ -1134,10 +1154,6 @@ async function purgeDb() {
   const scope = activeTab();               // 현재 보고 있는 탭만 초기화
   const label = TAB_KO[scope] || scope;
   const days = 1825;                        // 뉴스/냥정보 재수집 기간(5년)
-  if (!confirm(
-    `[${label}] 탭의 수집 데이터를 모두 삭제합니다.\n` +
-    "삭제 후 곧바로 새로 수집을 시작합니다.\n\n계속할까요?"
-  )) return;
   const btn = document.getElementById("purge-db-btn");
   const msgEl = document.getElementById("msg-" + scope) || document.getElementById("msg-cat");
   btn.disabled = true;
@@ -1164,7 +1180,11 @@ async function purgeDb() {
     btn.disabled = false;
   }
 }
-document.getElementById("purge-db-btn").addEventListener("click", purgeDb);
+document.getElementById("purge-db-btn").addEventListener("click", () => {
+  const btn = document.getElementById("purge-db-btn");
+  const label = TAB_KO[activeTab()] || activeTab();
+  armConfirm(btn, `[${label}] 초기화 확정`, purgeDb);
+});
 
 // ----------------------------- 커스텀 드롭다운 -----------------------------
 function setupDropdown(id, onChange) {
@@ -1542,7 +1562,6 @@ async function renameGroupFlow(gid) {
   catch (e) { toast("이름변경 실패"); }
 }
 async function deleteGroupFlow(gid) {
-  if (!confirm(`'${groupName(gid)}' 그룹을 삭제할까요?\n(스크랩한 글 자체는 지워지지 않아요)`)) return;
   try {
     const r = await api("/api/groups", { op: "del", id: gid });
     GROUPS = r.groups || [];
@@ -1557,7 +1576,7 @@ document.addEventListener("click", (e) => {
   if (chip) { scrapFilterGroup = chip.dataset.gid; renderScraps(); return; }
   if (e.target.closest(".scrap-chip-add")) { createGroupFlow(null); return; }
   const rn = e.target.closest(".grp-rename"); if (rn) { renameGroupFlow(rn.dataset.gid); return; }
-  const dl = e.target.closest(".grp-del"); if (dl) { deleteGroupFlow(dl.dataset.gid); return; }
+  const dl = e.target.closest(".grp-del"); if (dl) { armConfirm(dl, "삭제 확정", () => deleteGroupFlow(dl.dataset.gid)); return; }
   const ng = e.target.closest(".grp-new"); if (ng) { createGroupFlow(ng.dataset.key); return; }
   const ab = e.target.closest(".grp-assign");
   if (ab) { const p = ab.closest(".card").querySelector(".grp-assign-panel"); if (p) p.classList.toggle("open"); return; }
@@ -1834,30 +1853,15 @@ async function loadReport(id) {
       loadReport();
     } catch (e) { msg.style.color = "#dc2626"; msg.textContent = "삭제 실패: " + e.message; }
   }
-  // 모바일에서 native confirm()이 막히는 경우가 있어, '한 번 더 눌러 확정'(두 번 탭) 방식으로 확인.
-  function armAction(btn, armedText, onConfirm) {
-    if (btn._armed) {
-      clearTimeout(btn._armTimer); btn._armed = false;
-      btn.textContent = btn._orig; btn.classList.remove("armed");
-      onConfirm();
-      return;
-    }
-    btn._orig = btn._orig || btn.textContent;
-    btn._armed = true; btn.textContent = armedText; btn.classList.add("armed");
-    toast("한 번 더 누르면 삭제돼요");
-    btn._armTimer = setTimeout(() => {
-      btn._armed = false; btn.textContent = btn._orig; btn.classList.remove("armed");
-    }, 4000);
-  }
   const delBtn = document.getElementById("report-del");
   if (delBtn) delBtn.addEventListener("click", () => {
     const id = sel && sel.value;
     if (!id || isNaN(Number(id))) { msg.style.color = "#dc2626"; msg.textContent = "삭제할 스냅샷이 없어요."; return; }
-    armAction(delBtn, "한번 더!", () => purgeReport({ id: Number(id) }));
+    armConfirm(delBtn, "한번 더!", () => purgeReport({ id: Number(id) }));
   });
   const purgeBtn = document.getElementById("report-purge");
   if (purgeBtn) purgeBtn.addEventListener("click", () =>
-    armAction(purgeBtn, "전체삭제 확정", () => purgeReport({ all: true })));
+    armConfirm(purgeBtn, "전체삭제 확정", () => purgeReport({ all: true })));
 
   // 상단 버튼 → 풀팝업 열기/닫기
   const modal = document.getElementById("report-modal");
