@@ -974,6 +974,11 @@ body.tab-report .viewbar { display: none; }
 .report-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 10px 0 4px; }
 .report-snap { flex: 1 1 160px; min-width: 0; height: 34px; border: 1px solid var(--border); border-radius: 8px; padding: 0 8px; background: #fff; font-size: 13px; color: var(--text); }
 #run-report, #report-del, #report-purge { flex: 0 0 auto; }
+/* 삭제/초기화: 넉넉한 터치 타깃 + '한 번 더 누르면 삭제' 무장 상태 */
+#report-del, #report-purge { min-height: 34px; padding: 6px 12px; }
+#report-del.armed, #report-purge.armed {
+  background: #dc2626 !important; color: #fff !important; border-color: #dc2626 !important;
+}
 .report-note { font-size: 12px; color: var(--muted); line-height: 1.55; background: #f4f7ff; border: 1px solid #dbe6ff; border-radius: 8px; padding: 10px 12px; margin: 4px 0 10px; }
 .report-note b { color: var(--text); }
 .rp-topmeta { font-size: 12px; color: var(--muted); margin: 2px 0 10px; }

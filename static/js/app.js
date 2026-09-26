@@ -1821,8 +1821,7 @@ async function loadReport(id) {
     }).catch(() => { runBtn.disabled = false; msg.textContent = "시작 실패"; });
   });
   // 스냅샷 삭제(현재 선택) / 전체 초기화
-  async function purgeReport(body, confirmMsg) {
-    if (!confirm(confirmMsg)) return;
+  async function purgeReport(body) {
     msg.style.color = ""; msg.innerHTML = '<span class="mini-spin"></span> 삭제 중…';
     try {
       const r = await fetch("/api/report/purge", {
@@ -1835,16 +1834,30 @@ async function loadReport(id) {
       loadReport();
     } catch (e) { msg.style.color = "#dc2626"; msg.textContent = "삭제 실패: " + e.message; }
   }
+  // 모바일에서 native confirm()이 막히는 경우가 있어, '한 번 더 눌러 확정'(두 번 탭) 방식으로 확인.
+  function armAction(btn, armedText, onConfirm) {
+    if (btn._armed) {
+      clearTimeout(btn._armTimer); btn._armed = false;
+      btn.textContent = btn._orig; btn.classList.remove("armed");
+      onConfirm();
+      return;
+    }
+    btn._orig = btn._orig || btn.textContent;
+    btn._armed = true; btn.textContent = armedText; btn.classList.add("armed");
+    toast("한 번 더 누르면 삭제돼요");
+    btn._armTimer = setTimeout(() => {
+      btn._armed = false; btn.textContent = btn._orig; btn.classList.remove("armed");
+    }, 4000);
+  }
   const delBtn = document.getElementById("report-del");
   if (delBtn) delBtn.addEventListener("click", () => {
     const id = sel && sel.value;
     if (!id || isNaN(Number(id))) { msg.style.color = "#dc2626"; msg.textContent = "삭제할 스냅샷이 없어요."; return; }
-    const label = (sel.options[sel.selectedIndex] || {}).text || id;
-    purgeReport({ id: Number(id) }, `이 스냅샷을 삭제할까요?\n\n${label}`);
+    armAction(delBtn, "한번 더!", () => purgeReport({ id: Number(id) }));
   });
   const purgeBtn = document.getElementById("report-purge");
   if (purgeBtn) purgeBtn.addEventListener("click", () =>
-    purgeReport({ all: true }, "저장된 모든 리포트 스냅샷을 삭제할까요?\n(되돌릴 수 없어요. 비교 이력도 사라집니다.)"));
+    armAction(purgeBtn, "전체삭제 확정", () => purgeReport({ all: true })));
 
   // 상단 버튼 → 풀팝업 열기/닫기
   const modal = document.getElementById("report-modal");
