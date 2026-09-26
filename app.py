@@ -1135,7 +1135,8 @@ def _report_run(window_days):
             period = data.get("period_label") or f"최근 {window_days}일"
             sid = db.save_report_snapshot(label, label, period,
                                           data.get("_meta", {}).get("model", ""),
-                                          json.dumps(data, ensure_ascii=False))
+                                          json.dumps(data, ensure_ascii=False),
+                                          pkey=data.get("_meta", {}).get("pkey"))
             st["result"] = {"ok": True, "id": sid}
             st["progress"] = "완료"
     except Exception as e:  # noqa: BLE001

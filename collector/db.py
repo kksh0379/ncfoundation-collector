@@ -146,7 +146,7 @@ _DDL = [
     )""",
     # AI 재단 동향 분석 리포트 스냅샷(실행 시점별로 누적 저장 → 변화 비교).
     f"""CREATE TABLE IF NOT EXISTS report_snapshot (
-        id {_AUTO_PK}, created_at TEXT, label TEXT, period TEXT, model TEXT, data TEXT
+        id {_AUTO_PK}, created_at TEXT, label TEXT, period TEXT, model TEXT, data TEXT, pkey TEXT
     )""",
     # 행사일정(AI 국내 행사). start_date/end_date=행사 기간(ISO), venue/region=장소.
     f"""CREATE TABLE IF NOT EXISTS events (
@@ -183,6 +183,7 @@ def init_db():
             conn.execute("ALTER TABLE news ADD COLUMN IF NOT EXISTS ai_importance TEXT")
             conn.execute("ALTER TABLE news ADD COLUMN IF NOT EXISTS ai_insight TEXT")
             conn.execute("ALTER TABLE news ADD COLUMN IF NOT EXISTS ai_at TEXT")
+            conn.execute("ALTER TABLE report_snapshot ADD COLUMN IF NOT EXISTS pkey TEXT")
             conn.execute("ALTER TABLE boards ADD COLUMN IF NOT EXISTS image_url TEXT")
             conn.execute("ALTER TABLE social ADD COLUMN IF NOT EXISTS image_url TEXT")
         else:
@@ -200,6 +201,9 @@ def init_db():
             for _c in ("ai_tags", "ai_importance", "ai_insight", "ai_at"):
                 if _c not in cols:
                     conn.execute(f"ALTER TABLE news ADD COLUMN {_c} TEXT")
+            rcols = {r["name"] for r in conn.execute("PRAGMA table_info(report_snapshot)").fetchall()}
+            if "pkey" not in rcols:
+                conn.execute("ALTER TABLE report_snapshot ADD COLUMN pkey TEXT")
             bcols = {r["name"] for r in conn.execute("PRAGMA table_info(boards)").fetchall()}
             if "image_url" not in bcols:
                 conn.execute("ALTER TABLE boards ADD COLUMN image_url TEXT")
@@ -346,13 +350,34 @@ def clear_events():
 
 
 # ---------------------------- 분석 리포트 스냅샷 ----------------------------
-def save_report_snapshot(created_at, label, period, model, data_json):
+def save_report_snapshot(created_at, label, period, model, data_json, pkey=None):
+    """리포트 스냅샷 저장. pkey(분석기간+분석일자)가 같은 기존 스냅샷이 있으면
+    새로 쌓지 않고 교체(업데이트)한다 → 같은 날 같은 기간 재실행 시 중복 누적 방지."""
     with get_conn() as conn:
+        if pkey:
+            conn.execute(_q("DELETE FROM report_snapshot WHERE pkey = ?"), (pkey,))
         conn.execute(_q(
-            "INSERT INTO report_snapshot (created_at, label, period, model, data) VALUES (?,?,?,?,?)"),
-            (created_at, label, period, model, data_json))
+            "INSERT INTO report_snapshot (created_at, label, period, model, data, pkey) VALUES (?,?,?,?,?,?)"),
+            (created_at, label, period, model, data_json, pkey))
         row = conn.execute("SELECT MAX(id) AS id FROM report_snapshot").fetchone()
         return int(row["id"]) if row and row["id"] is not None else None
+
+
+def latest_report_snapshot_excluding(pkey):
+    """비교용 '지난 리포트' 선택. 같은 기간(window)·다른 시점의 최신 스냅샷을 우선하고,
+    없으면(레거시 pkey 없음 등) 현재 키와 다른 최신 스냅샷을 쓴다."""
+    prefix = (pkey.split(":", 1)[0] + ":") if (pkey and ":" in pkey) else None
+    with get_conn() as conn:
+        if prefix:
+            r = conn.execute(_q(
+                "SELECT * FROM report_snapshot WHERE pkey LIKE ? AND pkey <> ? "
+                "ORDER BY id DESC LIMIT 1"), (prefix + "%", pkey)).fetchone()
+            if r:
+                return dict(r)
+        r = conn.execute(_q(
+            "SELECT * FROM report_snapshot WHERE pkey IS NULL OR pkey <> ? ORDER BY id DESC LIMIT 1"),
+            (pkey,)).fetchone()
+        return dict(r) if r else None
 
 
 def list_report_snapshots(limit=30):

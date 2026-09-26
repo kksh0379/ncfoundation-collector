@@ -338,7 +338,10 @@ def run(window_days=90, progress=None):
     }
     if counts["recent_our"] + counts["recent_peers"] == 0:
         return None, "최근 기간에 분석할 콘텐츠가 없습니다. 먼저 뉴스/재단YT를 수집해 주세요."
-    prev = db.latest_report_snapshot(0)
+    # 분석 키 = 기간(window)+분석일자. 같은 키면 저장 시 교체된다. 비교('지난 리포트')는
+    # 같은 키(같은 날 재실행)를 건너뛰고 서로 다른 시점의 최신 스냅샷과 한다.
+    pkey = f"{window_days}d:{inp['as_of']}"
+    prev = db.latest_report_snapshot_excluding(pkey)
     prev_text = ""
     if prev:
         try:
@@ -352,5 +355,5 @@ def run(window_days=90, progress=None):
     if err:
         return None, err
     data["_meta"] = {"counts": counts, "window_days": window_days,
-                     "model": used_model or resolve_model(), "as_of": inp["as_of"]}
+                     "model": used_model or resolve_model(), "as_of": inp["as_of"], "pkey": pkey}
     return data, None
