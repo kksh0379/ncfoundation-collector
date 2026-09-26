@@ -2003,8 +2003,9 @@ async function loadReport(id) {
     const max = el.scrollWidth - el.clientWidth;
     if (max <= 2) { el.style.maskImage = el.style.webkitMaskImage = ""; return; }  // 스크롤 불필요
     const l = el.scrollLeft > 2, r = el.scrollLeft < max - 2;
-    const g = `linear-gradient(to right, ${l ? "transparent" : "#000"} 0, #000 22px, `
-      + `#000 calc(100% - 22px), ${r ? "transparent" : "#000"} 100%)`;
+    // 페이드 폭을 넓게(48px) + 가장자리는 거의 완전 투명하게 → 스크롤 인지 강화
+    const g = `linear-gradient(to right, ${l ? "rgba(0,0,0,0.02)" : "#000"} 0, #000 48px, `
+      + `#000 calc(100% - 48px), ${r ? "rgba(0,0,0,0.02)" : "#000"} 100%)`;
     el.style.maskImage = g; el.style.webkitMaskImage = g;
   };
   bars.forEach((el) => { upd(el); el.addEventListener("scroll", () => upd(el), { passive: true }); });
