@@ -714,7 +714,8 @@ function renderEventAlbum(list) {
   const el = document.getElementById("list-event");
   if (!list.length) {
     el.innerHTML = `<li class="empty"><div class="empty-msg">표시할 행사가 아직 없어요.</div>`
-      + `<div class="empty-hint">관리자가 '수집 실행'을 누르면 국내 AI 행사가 모여요.</div></li>`;
+      + `<button type="button" class="retry-btn" data-reload="event">↻ 다시 불러오기</button>`
+      + `<div class="empty-hint">관리자가 '수집 실행'을 누르면 국내 행사가 모여요.</div></li>`;
     return;
   }
   el.innerHTML = "";
@@ -774,7 +775,7 @@ function renderEventCalendar(list) {
   // 아젠다(이번 달 행사 상세 — 날짜·행사명·장소 모두 표시)
   let agenda;
   if (!monthEvents.length) {
-    agenda = `<div class="agenda-empty">이 달에는 표시할 행사가 없어요. ${dated.length ? "‹ › 로 다른 달을 보세요." : ""}</div>`;
+    agenda = `<div class="agenda-empty">이 달에는 표시할 행사가 없어요. ${dated.length ? "‹ › 로 다른 달을 보세요." : "<button type=\"button\" class=\"retry-btn\" data-reload=\"event\">↻ 다시 불러오기</button>"}</div>`;
   } else {
     agenda = monthEvents.map((s) => {
       const link = s.source_url || s.url;
