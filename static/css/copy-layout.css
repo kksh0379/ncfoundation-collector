@@ -1,0 +1,9 @@
+/* Break authored help/status copy by meaning; keep Korean words together. */
+:is(.event-note,.report-note,.rp-note,.feat-note,.hint,.ig-note,.login-hint,.login-test-info,.empty-msg,.empty-hint,.agenda-empty,.cal-note,.cal-tap-hint,.cal-preview-note,.cal-preview-summary,.ed-hint,.ed-empty,.ed-preferences>p,.finance-muted,.finance-notice,.finance-empty,.finance-tip,.lrev-note,.lrev-empty,.lunch-loc-empty,.airec-empty,.aipick-hint,.airec-why,.recipe-step-d,.recipe-foot,.slot-hint,.reader-status,.reader-summary-note,.result-msg,#ed-status) {
+  word-break:keep-all;overflow-wrap:anywhere;text-wrap:pretty;line-height:1.65;
+}
+:is(.result-msg,#lunch-msg,#login-err,.finance-notice,#finance-dart-status,#finance-business-result,#reader-status,.reader-summary-note,#ed-status,.airec-empty,.airec-why) {white-space:pre-line;}
+:is(.card-title,.ed-art h3,.ed-card h3,.reader-content h2,.finance-view h2,.modal-head,.aipick-title) {word-break:keep-all;overflow-wrap:anywhere;text-wrap:pretty;}
+#ed-status .ed-recharge {white-space:nowrap;}
+
+.airec-why b {display:block;margin-bottom:4px;}

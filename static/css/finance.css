@@ -1,0 +1,134 @@
+.finance-view { max-width: 1080px; margin: auto; padding: 24px 16px 32px; }
+.finance-view[hidden] { display: none; }
+.finance-view h1 { margin: 4px 0 8px; font-size: 22px; font-weight: 700; letter-spacing: -.3px; }
+.finance-view h2 { font-size: 17px; font-weight: 700; margin: 8px 0 12px; }
+.finance-view p { line-height: 1.6; }
+.finance-view a { color: var(--primary); text-decoration: none; }
+.finance-view a:hover { text-decoration: underline; }
+.finance-heading, .finance-section-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.finance-heading > div > p:last-child { color: var(--muted); margin: 0; font-size: 14px; }
+.finance-eyebrow { color: var(--primary); font-size: 10px; font-weight: 800; letter-spacing: 1px; margin: 0; }
+.finance-beta { display: inline-block; padding: 2px 4px; border-radius: var(--r-xs); font-size: 9px; font-weight: 700; line-height: 1.2; color: var(--primary-dark); background: #e6efff; letter-spacing: 0; vertical-align: middle; }
+.finance-nav-label { display: inline-flex; align-items: center; gap: 2px; }
+.fnav .finance-beta { font-size: 8px; padding: 1px 2px; }
+.finance-notice { background: #eaf1ff; color: #254d85; padding: 12px 14px; border-radius: var(--r-md); font-size: 13px; line-height: 1.5; }
+.finance-muted, .finance-section-heading > a { color: var(--muted); font-size: 12px; }
+.finance-fetched { margin: 2px 0 10px; font-size: 11.5px; font-weight: 600; color: var(--muted); }
+.finance-fetched:empty { display: none; }
+.finance-indicators { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 12px; margin-bottom: 18px; position: relative; }
+@media (min-width: 720px) { .finance-indicators { grid-template-columns: repeat(4, minmax(0,1fr)); } }
+.finance-help { display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box; width: 18px; height: 18px; min-width: 18px; min-height: 18px; aspect-ratio: 1; margin-left: 6px; padding: 0; border: 0; border-radius: 50%; background: #eaf1ff; color: var(--primary); font-size: 11px; font-weight: 800; line-height: 1; cursor: pointer; vertical-align: middle; flex: 0 0 auto; -webkit-appearance: none; appearance: none; transition: background .15s, color .15s, transform .1s; }
+.finance-help:hover { background: #d7e4ff; }
+.finance-help[aria-expanded="true"] { background: var(--primary); color: #fff; }
+.finance-help:active { transform: scale(.92); }
+.finance-help:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.finance-tip { position: absolute; z-index: 6; background: #1c1e21; color: #fff; font-size: 12px; font-weight: 400; line-height: 1.55; letter-spacing: 0; text-align: left; padding: 9px 11px; border-radius: var(--r-sm); box-shadow: 0 6px 18px rgba(0,0,0,.22); white-space: normal; }
+.finance-tip::before { content: ''; position: absolute; bottom: 100%; left: var(--arrow, 16px); transform: translateX(-50%); border: 6px solid transparent; border-bottom-color: #1c1e21; }
+.finance-card, .finance-indicator { background: var(--card); border: 1px solid var(--border); border-radius: var(--r-md); padding: 16px; min-width: 0; }
+.finance-indicator { position: relative; }
+.finance-stock-refresh { position: absolute; top: 12px; right: 12px; width: 28px; height: 28px; min-width: 28px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--border); border-radius: 50%; background: var(--bg); color: var(--primary); font-size: 15px; line-height: 1; cursor: pointer; -webkit-appearance: none; appearance: none; }
+.finance-stock-refresh:hover { background: #eaf1ff; border-color: var(--primary); }
+.finance-stock-refresh:active { transform: scale(.92); }
+.finance-stock-refresh.spin { animation: finance-spin .8s linear infinite; pointer-events: none; }
+@keyframes finance-spin { to { transform: rotate(360deg); } }
+.finance-quick { margin: 4px 0 2px; }
+.finance-chip { display: inline-flex; align-items: center; gap: 4px; border: 1px solid #a8bfe4; background: #f3f7ff; color: var(--primary-dark); border-radius: var(--r-lg); padding: 7px 14px; font-size: 13px; font-weight: 700; cursor: pointer; -webkit-appearance: none; appearance: none; }
+.finance-chip:hover { background: #e8f0ff; border-color: var(--primary); }
+.finance-chip.on { background: var(--primary); border-color: var(--primary); color: #fff; }
+/* 엔씨 공시 체크박스는 뉴스의 .checkbar 컴포넌트를 그대로 사용(style.css). finance-quick은 여백만. */
+.finance-quick.checkbar { margin: 6px 0 2px; align-items: center; }
+/* 전역 .finance-view input(width:100%·padding·border·background)이 체크박스에 남아 세로 정렬이
+   틀어지던 문제 → 박스 속성을 리셋하고 네이티브 체크박스로 고정(글자와 가운데 정렬). */
+.finance-view .checkbar input[type="checkbox"] { -webkit-appearance: checkbox; appearance: checkbox; box-sizing: border-box; width: 16px; min-width: 16px; height: 16px; margin: 0; padding: 0; border: 0; background: none; border-radius: 0; vertical-align: middle; accent-color: var(--primary); cursor: pointer; }
+.finance-view .checkbar label { line-height: 1; }
+.finance-dart-help { margin: 8px 0 0; font-size: 11.5px; line-height: 1.6; }
+.finance-dart-help b { color: var(--text); }
+.finance-indicator h3 { font-size: 13px; font-weight: 700; margin: 10px 0 6px; }
+.finance-indicator strong { font-size: 24px; letter-spacing: -.5px; }
+.finance-indicator .finance-unit { font-size: 12px; margin-left: 5px; color: var(--muted); }
+.finance-indicator p { margin: 7px 0 0; font-size: 12px; color: var(--muted); line-height: 1.5; }
+.finance-indicator svg { width: 100%; height: 36px; margin-top: 10px; color: var(--primary); }
+.finance-spark-label { display: block; font-size: 11px; color: var(--muted); margin-top: 2px; }
+.finance-mode { display: inline-block; font-size: 11px; font-weight: 600; border-radius: var(--r-xs); padding: 2px 7px; color: #526174; background: #f0f2f5; }
+.finance-mode.live { color: #146a3f; background: #e7f6ed; }
+.finance-tools { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.finance-card { margin-bottom: 18px; }
+.finance-view label { display: block; font-size: 12px; margin: 15px 0 7px; font-weight: 700; }
+.finance-input-row { display: flex; gap: 8px; }
+.finance-view input { min-width: 0; width: 100%; border: 1px solid var(--border); border-radius: var(--r-sm); padding: 11px 12px; background: var(--card); font-size: 16px; color: var(--text); }
+/* 폼 액션 버튼에만 최소 높이 적용(도움말 ?·스크랩·복사 아이콘 버튼은 제외). */
+.finance-view .btn-collect, .finance-view .btn-status { min-height: 40px; flex-shrink: 0; }
+.finance-calendar-list { list-style: none; margin: 16px 0 10px; padding: 0; }
+.finance-calendar-item { display: flex; gap: 12px; padding: 11px 0; border-bottom: 1px solid var(--border); align-items: flex-start; }
+.finance-calendar-item:last-child { border-bottom: none; }
+.finance-calendar-dday { flex-shrink: 0; min-width: 48px; text-align: center; font-size: 11px; font-weight: 700; color: var(--muted); background: var(--bg); border: 1px solid var(--border); border-radius: var(--r-sm); padding: 5px 6px; }
+.finance-calendar-dday.today { color: #fff; background: var(--primary); border-color: var(--primary); }
+.finance-calendar-item strong { font-size: 14px; font-weight: 700; line-height: 1.45; }
+.finance-calendar-item p { font-size: 12px; color: var(--muted); margin: 4px 0 0; line-height: 1.5; }
+.finance-calendar-shift { display: inline-block; margin-left: 6px; font-size: 10px; font-weight: 700; color: var(--muted); background: var(--bg); border: 1px solid var(--border); border-radius: var(--r-xs); padding: 1px 6px; vertical-align: middle; }
+.finance-calendar-empty { list-style: none; padding: 20px 0; color: var(--muted); font-size: 13px; }
+.finance-filters { display: flex; flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; gap: 6px; padding-bottom: 10px; scrollbar-width: none; }
+.finance-filters::-webkit-scrollbar { display: none; }
+.finance-filters button { flex: 0 0 auto; white-space: nowrap; border: 1px solid var(--border); background: var(--card); color: var(--muted); padding: 7px 14px; border-radius: var(--r-lg); font-size: 13px; font-weight: 600; cursor: pointer; }
+.finance-filters button.active { background: var(--primary); color: white; border-color: var(--primary); }
+/* 브리핑 항목은 메인 뉴스 카드(card/card-title/card-summary/card-actions/scrap-btn/copy-btn)를
+   그대로 재사용하되, 브리핑 안에서는 박스 대신 구분선 리스트로 보이도록 겉모양만 덜어낸다. */
+.finance-news-item.card { background: none; border: 0; border-radius: 0; box-shadow: none; margin: 0; padding: 16px 0; border-bottom: 1px solid var(--border); }
+.finance-news-item.card:last-child { border-bottom: 0; }
+.finance-news-item .finance-news-meta { font-size: 12px; color: var(--muted); margin: 6px 0 0; }
+.finance-empty { padding: 24px 0; color: var(--muted); font-size: 13px; line-height: 1.7; }
+.finance-loading { text-align: center; }
+.finance-pc-only { display: inline-flex; align-items: center; min-height: 34px; padding: 6px 10px; font-size: 12px; font-weight: 600; color: var(--muted); background: var(--bg); border: 1px dashed var(--border); border-radius: var(--r-sm); }
+.finance-sources { margin-top: 14px; font-size: 12px; }
+.finance-sources summary { cursor: pointer; padding: 10px 0; }
+.finance-source { display: flex; justify-content: space-between; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border); }
+.finance-table-wrap { overflow-x: auto; }
+.finance-view table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 12px; }
+.finance-view th, .finance-view td { text-align: left; padding: 12px 8px; border-bottom: 1px solid var(--border); line-height: 1.6; }
+.finance-view th { color: var(--muted); background: var(--bg); font-weight: 700; }
+/* 공시 표: 폭 고정 레이아웃으로 열이 밀려 날짜가 잘리지 않게. 기업·접수일은 한 줄,
+   공시명만 남는 폭에서 자연스럽게 줄바꿈(‘기업’이 세로로 쪼개지던 문제 해결). */
+.finance-dart-table { table-layout: fixed; }
+.finance-dart-table th, .finance-dart-table td { padding: 11px 6px; vertical-align: top; }
+.finance-dart-table th:first-child, .finance-dart-table td:first-child { width: 78px; white-space: normal; word-break: break-all; font-weight: 700; }
+.finance-dart-table th:nth-child(2), .finance-dart-table td:nth-child(2) { width: auto; }
+.finance-dart-table th:last-child, .finance-dart-table td:last-child { width: 80px; white-space: nowrap; text-align: right; color: var(--muted); }
+.finance-search-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+/* 상단 탭 분류 */
+.fin-tabs { display: flex; gap: 6px; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; margin: 4px 0 16px; padding-bottom: 2px; }
+.fin-tabs::-webkit-scrollbar { display: none; }
+.fin-tab { flex: 0 0 auto; padding: 8px 15px; border: 1px solid var(--border); border-radius: var(--r-pill); background: var(--card); color: var(--muted); font-size: 13px; font-weight: 700; cursor: pointer; white-space: nowrap; }
+.fin-tab.active { background: var(--primary); border-color: var(--primary); color: #fff; }
+.fin-panel[hidden] { display: none; }
+
+/* 돈 계산기 */
+.calc-card { margin-bottom: 14px; }
+.calc-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 12px; margin: 12px 0; }
+.calc-grid label { display: flex; flex-direction: column; gap: 5px; font-size: 12px; font-weight: 700; color: var(--muted); }
+.calc-grid label.calc-full { grid-column: 1 / -1; }
+.calc-grid input, .calc-grid select { padding: 9px 11px; border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--bg); color: var(--text); font-size: 15px; font-weight: 600; font-family: inherit; width: 100%; box-sizing: border-box; }
+.calc-grid input:focus, .calc-grid select:focus { outline: none; border-color: var(--primary); }
+.calc-out:empty { display: none; }
+.calc-out dl { display: grid; grid-template-columns: auto 1fr; gap: 7px 12px; margin: 4px 0 0; padding: 13px 15px; border: 1px solid var(--border); border-radius: var(--r-md); background: var(--bg); }
+.calc-out dt { font-size: 12.5px; font-weight: 700; color: var(--muted); }
+.calc-out dd { margin: 0; text-align: right; font-size: 13.5px; font-weight: 800; color: var(--text); }
+.calc-out dd.calc-hl { color: var(--primary); font-size: 16px; }
+.calc-note { margin-top: 9px; font-size: 11px; line-height: 1.5; }
+
+@media (max-width: 600px) {
+  .finance-view { padding: 20px 12px; }
+  .finance-tools { grid-template-columns: 1fr; gap: 0; }
+  .finance-card { padding: 16px; }
+  .finance-indicators { gap: 10px; }
+  .finance-indicator { padding: 14px 12px; border-radius: var(--r-md); }
+  .finance-indicator strong { font-size: 22px; }
+  .finance-indicator h3 { font-size: 13px; }
+  .finance-indicator .finance-unit { font-size: 11px; margin-left: 3px; }
+  .finance-section-heading > a { font-size: 11px; }
+}
+@media (max-width: 350px) { .fnav { padding-left: 1px; padding-right: 1px; font-size: 10px; } .finance-indicator strong { font-size: 18px; } }
+@media (max-width: 350px) {
+  .footnav { padding-left: 4px; padding-right: 4px; gap: 2px; }
+  .fnav .finance-beta { font-size: 7px; padding: 1px; }
+  .finance-nav-label { gap: 1px; }
+}

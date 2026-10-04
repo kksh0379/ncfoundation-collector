@@ -1,0 +1,335 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>휴 스코프 — 소식을 모으고, AI로 핵심을 읽다</title>
+  <meta name="description" content="뉴스·행사·재단 게시판·유튜브를 모으고, AI 핵심 요약·보안 분류·분기 동향·월간 브리핑으로 흐름을 읽는 개인용 서비스. 스크랩·그룹과 주변 맛집 추천까지." />
+  <link rel="icon" href="{{ url_for('static', filename='favicon.svg') }}" />
+  <link rel="apple-touch-icon" href="{{ url_for('static', filename='apple-touch-icon.png') }}" />
+  <meta property="og:title" content="휴 스코프 — 뉴스·행사·동향을 한눈에" />
+  <meta property="og:description" content="관심 소식 수집부터 AI 핵심 요약·보안 분류·동향 리포트, 스크랩 정리까지 한 흐름으로." />
+  <meta property="og:image" content="{{ url_for('static', filename='og-image.png') }}" />
+  <meta property="og:type" content="website" />
+  <style>
+    /* 유니버설 디자인 서체 'KoddiUD 온고딕'(한국장애인개발원, CC BY-SA) */
+    @font-face{font-family:"KoddiUD OnGothic";font-weight:400;font-display:swap;
+      src:url("{{ url_for('static', filename='fonts/KoddiUDOnGothic-Regular.woff2') }}") format("woff2")}
+    @font-face{font-family:"KoddiUD OnGothic";font-weight:700;font-display:swap;
+      src:url("{{ url_for('static', filename='fonts/KoddiUDOnGothic-Bold.woff2') }}") format("woff2")}
+    @font-face{font-family:"KoddiUD OnGothic";font-weight:800;font-display:swap;
+      src:url("{{ url_for('static', filename='fonts/KoddiUDOnGothic-ExtraBold.woff2') }}") format("woff2")}
+    :root{
+      --primary:#2d6cdf; --primary-dark:#1f54b3; --bg:#f4f5f7; --card:#fff;
+      --text:#1c1e21; --muted:#6b7280; --border:#e4e6eb;
+    }
+    *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+    html{scroll-behavior:smooth}
+    body{margin:0;font-family:"KoddiUD OnGothic",-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+      background:var(--bg);color:var(--text);line-height:1.6;
+      padding-bottom:calc(24px + env(safe-area-inset-bottom,0px))}
+    .wrap{max-width:1080px;margin:0 auto;padding:0 24px}
+    a{color:inherit}
+    h1,h2,h3,p,li,.disc{word-break:keep-all;overflow-wrap:anywhere}
+    h1,h2,h3{text-wrap:balance}
+    p,li,.disc{text-wrap:pretty}
+    section,.feat,.shot,.ai-item>div,.try{min-width:0}
+    .phrase{display:inline-block}
+    @media(max-width:540px){.wrap{padding:0 20px}}
+
+
+    /* The service overview is the key visual; each block represents a real feature. */
+    .hero{background:linear-gradient(145deg,#12264c,#174da9 70%,#2d6cdf);color:#fff;padding:58px 24px;overflow:hidden}
+    .hero-in{max-width:1080px;margin:0 auto;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.1fr);align-items:center;gap:48px}
+    .logo{font-size:20px;font-weight:800;letter-spacing:.02em;margin:0 0 20px;color:#c8dcff}
+    .hero-title{font-size:clamp(28px,3.7vw,42px);font-weight:800;line-height:1.32;letter-spacing:-.04em;margin:0 0 20px}
+    .sub{font-size:15px;line-height:1.8;color:#d6e4ff;margin:0;max-width:34em}
+    .sub span{display:block}
+    .hero-note{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:12px;color:#bdd2f8;margin:18px 0 0}
+    .hero-cta{display:inline-flex;align-items:center;justify-content:center;min-height:46px;padding:10px 22px;border-radius:12px;background:#fff;color:#174da9;font-size:14px;font-weight:800;text-decoration:none;margin-top:24px}
+    .scope-visual{position:relative;min-width:0;border-radius:24px;background:#f5f8ff;border:1px solid #ffffff88;padding:20px;box-shadow:0 24px 60px #061a4440;color:var(--text)}
+    .scope-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:18px;font-size:13px;font-weight:800;color:#2457a7}
+    .scope-head img{width:25px;height:25px;flex:none}
+    .scope-brand{display:flex;align-items:center;gap:9px}
+    .scope-label{font-size:10px;font-weight:600;color:#6983ab;white-space:nowrap}
+    .scope-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+    .scope-tile{min-width:0;padding:17px 14px;background:#fff;border:1px solid #e0e8f6;border-radius:14px;animation:scope-focus 8s ease-in-out infinite}
+    .scope-tile:nth-child(2){animation-delay:2s}.scope-tile:nth-child(3){animation-delay:4s}.scope-tile:nth-child(4){animation-delay:6s}
+    .scope-icon{display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:9px;background:#edf3ff;color:#2d6cdf;margin-bottom:10px}
+    .scope-icon svg{width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+    .scope-tile h2{font-size:15px;margin:0 0 6px;line-height:1.45;letter-spacing:-.02em}
+    .scope-tile p{font-size:11.5px;line-height:1.7;color:#6b7c95;margin:0}
+    .scope-tile p span{display:block}
+    .scope-extra{display:flex;flex-wrap:wrap;gap:6px;margin-top:14px;padding-top:14px;border-top:1px solid #dce5f4}
+    .scope-extra span{font-size:11px;background:#e9f0fc;color:#4e6c9d;border-radius:8px;padding:5px 8px}
+    @keyframes scope-focus{0%,25%,100%{border-color:#e0e8f6;box-shadow:none}10%,18%{border-color:#8db6ff;box-shadow:0 0 0 2px #2d6cdf12}}
+    @media(max-width:760px){.hero{padding:36px 20px 32px}.hero-in{grid-template-columns:minmax(0,1fr);gap:28px;max-width:560px}.hero-title{font-size:clamp(27px,6vw,36px)}.logo{margin-bottom:15px}.scope-visual{padding:16px;border-radius:20px}.scope-tile{padding:14px 12px}}
+    @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}.scope-tile{animation:none}}
+
+    /* Sections */
+    section{padding:38px 0 4px}
+    .kicker{color:var(--primary);font-weight:800;font-size:12.5px;letter-spacing:.6px;
+      text-transform:uppercase;margin:0 0 6px}
+    h2{font-size:21px;margin:0 0 6px;letter-spacing:-.3px}
+    .lead{color:var(--muted);font-size:14.5px;margin:0 0 20px}
+
+    /* Feature grid */
+    .feats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-top:8px}
+    .feat{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:16px 14px}
+    .feat .ic{font-size:22px;line-height:1}
+    .feat h3{font-size:14.5px;margin:9px 0 3px}
+    .feat p{font-size:12.5px;color:var(--muted);margin:0}
+    @media(max-width:900px){.feats{grid-template-columns:repeat(2,minmax(0,1fr))}}
+    @media(max-width:540px){.feats{grid-template-columns:minmax(0,1fr)}.feat{padding:18px}.feat h3{font-size:16px}.feat p{font-size:13px}}
+
+    /* Screenshot showcase */
+    .shots{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));align-items:start;gap:24px;margin-top:22px}
+    @media(max-width:760px){.shots{grid-template-columns:minmax(0,1fr);gap:24px}}
+    .shot{background:var(--card);border:1px solid var(--border);border-radius:20px;
+      padding:20px;box-shadow:0 8px 24px rgba(20,30,60,.06)}
+    .shot .cap{display:flex;align-items:flex-start;gap:8px;margin:0 0 4px}
+    .shot .cap .n{background:var(--primary);color:#fff;font-size:12px;font-weight:800;
+      border-radius:8px;padding:2px 8px;flex:none}
+    .shot h3{font-size:16px;margin:0}
+    .shot p{font-size:13px;color:var(--muted);margin:6px 0 14px}
+    .shot .frame{border:1px solid var(--border);border-radius:16px;overflow:hidden;
+      background:#f4f5f7;box-shadow:inset 0 0 0 1px rgba(0,0,0,.02)}
+    .shot img{display:block;width:100%;height:auto}
+    .shot .frame a{display:block;line-height:0}
+    .shot .frame a:focus-visible{outline:3px solid var(--primary);outline-offset:-3px}
+    .capture-note{font-size:12px;color:var(--muted);line-height:1.7}
+    .shot-zoom{display:inline-block;margin-top:9px;font-size:12px;font-weight:700;color:var(--primary);text-decoration:underline;text-underline-offset:3px}
+
+    /* Reader summary display example */
+    .reader-preview{padding:20px;background:#f5f5f1;border:1px solid #e6e8df;border-radius:16px}
+    .reader-preview-head{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:6px 12px;margin-bottom:12px}
+    .reader-preview-head b{font-size:14px;color:#254b2d}
+    .reader-preview-head span{font-size:11px;color:var(--muted)}
+    .reader-preview ul{padding-left:20px;margin:0;display:grid;gap:10px;font-size:13px;line-height:1.85}
+    .reader-preview strong{font-weight:800;color:#254b2d;text-decoration:underline;text-decoration-color:#6b9d7766;text-decoration-thickness:.16em;text-underline-offset:.16em}
+    .reader-preview .note{font-size:11.5px;margin:14px 0 0;color:var(--muted)}
+    @media(max-width:540px){.reader-preview{padding:16px}.reader-preview ul{font-size:12.5px}}
+
+    /* AI 강조 섹션 */
+    .ai-hero{background:linear-gradient(160deg,#1b2b52,#122043);color:#fff;border-radius:20px;
+      padding:24px 20px;margin-top:8px;position:relative;overflow:hidden}
+    .ai-hero::after{content:"";position:absolute;inset:0;
+      background:radial-gradient(circle at 88% -10%,rgba(120,160,255,.28),transparent 55%)}
+    .ai-hero .in{position:relative}
+    .ai-badge{display:inline-block;font-size:11.5px;font-weight:800;letter-spacing:.5px;
+      color:#bcd0ff;background:rgba(120,160,255,.16);border:1px solid rgba(120,160,255,.3);
+      border-radius:999px;padding:4px 12px}
+    .ai-hero h2{color:#fff;margin:12px 0 4px}
+    .ai-hero .lead{color:#aebbd8;margin:0 0 14px}
+    .ai-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:0 0 16px}
+    .ai-stat{background:rgba(120,160,255,.1);border:1px solid rgba(120,160,255,.2);
+      border-radius:12px;padding:10px 8px;text-align:center}
+    .ai-stat b{display:block;font-size:16px;font-weight:800;color:#fff;line-height:1.2}
+    .ai-stat span{display:block;font-size:10.5px;color:#aebbd8;margin-top:3px;line-height:1.35}
+    .ai-list{display:grid;gap:10px}
+    .ai-item{display:flex;gap:12px;align-items:flex-start;background:rgba(255,255,255,.05);
+      border:1px solid rgba(255,255,255,.1);border-radius:14px;padding:13px 14px}
+    .ai-item .ic{font-size:20px;line-height:1.2;flex:none}
+    .ai-item h3{display:flex;align-items:center;flex-wrap:wrap;gap:4px 8px;font-size:14.5px;margin:0 0 5px;color:#fff}
+    .ai-item p{font-size:12.5px;color:#aebbd8;margin:0;line-height:1.5}
+    .ai-item .auto{display:inline-block;font-size:10.5px;font-weight:700;color:#8ee6b0;
+      background:rgba(80,220,140,.12);border-radius:6px;padding:1px 7px;margin-left:0;vertical-align:middle;white-space:nowrap}
+
+    /* Try box */
+    .try{background:#0f1b33;color:#fff;border-radius:20px;padding:26px 22px;margin-top:20px}
+    .try h2{color:#fff}
+    .try .lead{color:#b9c2d6}
+    .steps{list-style:none;padding:0;margin:14px 0 0;counter-reset:s}
+    .steps li{position:relative;padding:10px 0 10px 40px;border-top:1px solid rgba(255,255,255,.1);
+      font-size:14px}
+    .steps li:first-child{border-top:0}
+    .steps li::before{counter-increment:s;content:counter(s);position:absolute;left:0;top:10px;
+      width:26px;height:26px;border-radius:50%;background:var(--primary);color:#fff;
+      font-weight:800;font-size:13px;display:flex;align-items:center;justify-content:center}
+    .creds{background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.14);
+      border-radius:12px;padding:14px 16px;margin-top:16px;font-size:13.5px}
+    .creds .row{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:baseline;gap:4px 12px;padding:6px 0}
+    .creds .row>span{min-width:0}.creds code{white-space:nowrap}
+    @media(max-width:400px){.creds .row{flex-direction:column;align-items:flex-start}.ai-stats{grid-template-columns:minmax(0,1fr)}.ai-stat{display:flex;align-items:center;justify-content:space-between;gap:10px;text-align:left}.ai-stat span{margin:0;text-align:right}}
+    .creds .row span:first-child{color:#9fb0cf}
+    .creds code{background:rgba(255,255,255,.14);border-radius:6px;padding:2px 8px;
+      font-size:13px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+    .try-cta{display:block;text-align:center;margin-top:18px;background:var(--primary);color:#fff;
+      font-weight:800;text-decoration:none;padding:14px;border-radius:12px;font-size:15px}
+
+    .private-tag{display:inline-block;font-size:10px;font-weight:600;padding:3px 8px;border:1px solid #8aaee766;border-radius:6px;vertical-align:middle;margin-left:5px}
+    .hero-accent{color:#bcd6ff}.hero-ai-tags{display:flex;flex-wrap:wrap;gap:7px;margin-top:18px}.hero-ai-tags span{font-size:11px;padding:5px 9px;background:#ffffff14;border:1px solid #ffffff26;border-radius:7px}
+    .hero-more{display:inline-block;margin:14px 0 0 15px;font-size:13px;color:#d6e4ff;text-underline-offset:4px}
+    .scope-ai{display:grid;gap:4px;margin-top:12px;padding:12px;border-radius:12px;background:#e7eefc;border:1px solid #ccdaf4}.scope-ai b{font-size:12px;color:#2457a7}.scope-ai span{font-size:11px;color:#4e6c9d;word-break:keep-all}
+    .feature-tag{display:inline-block;font-size:11px;font-weight:700;padding:3px 8px;background:#f0f3f8;color:#5f718b;border-radius:6px}.feature-tag.ai-tag{background:#e7f0ff;color:#245dc2}
+    .ai-capabilities{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.ai-item p{line-height:1.8}.ai-item strong{color:#e6efff}
+    .ai-demo{display:grid;grid-template-columns:minmax(0,.85fr) minmax(0,1.15fr);gap:24px;align-items:center;margin-top:24px;padding-top:24px;border-top:1px solid #ffffff26}
+    .ai-demo-copy{min-width:0}.ai-demo-copy h3{font-size:20px;line-height:1.55;margin:12px 0}.ai-demo-copy p{font-size:13px;color:#bfcae2;line-height:1.8;margin:10px 0}.ai-demo-copy .ai-boundary{font-size:11.5px;color:#aebbd8}
+    .reader-preview{color:var(--text)}.access-note{font-size:12px;color:#aebbd8;line-height:1.8;margin:16px 0 0;word-break:keep-all}
+    @media(max-width:760px){.ai-demo{grid-template-columns:minmax(0,1fr);gap:14px}.ai-demo-copy h3 br{display:none}}
+    @media(max-width:540px){.ai-capabilities{grid-template-columns:minmax(0,1fr)}.hero-more{display:block;margin-left:0}.private-tag{margin-left:0}.ai-demo-copy h3{font-size:18px}}
+
+    footer{text-align:center;color:var(--muted);font-size:12px;padding:34px 20px 10px}
+    .disc{font-size:11.5px;color:#9aa1ac;margin-top:6px}
+  p,.access-note {word-break:keep-all;overflow-wrap:anywhere;text-wrap:pretty;} h1,h2,h3 {word-break:keep-all;overflow-wrap:anywhere;text-wrap:balance;}
+  </style>
+</head>
+<body>
+  <header class="hero">
+    <div class="hero-in">
+      <div class="hero-copy">
+        <p class="logo">휴 스코프 <span class="private-tag">개인용 · 비공식 서비스</span></p>
+        <h1 class="hero-title">흩어진 소식은 한곳에,<br><span class="hero-accent">AI로 핵심은 더 빠르게.</span></h1>
+        <p class="sub">뉴스·행사·재단 게시판·유튜브를 모으고,<br>AI 요약과 리포트로 살펴본 뒤 필요한 자료를 정리하세요.</p><div class="hero-ai-tags"><span>AI 핵심 요약</span><span>보안 분류·중요도</span><span>동향 리포트</span></div>
+        <p class="hero-note"><span>설치 없이 브라우저에서</span><span>모바일 · 태블릿 · PC</span></p>
+        <a class="hero-cta" href="{{ url_for('index') }}">휴 스코프 열기 →</a><a class="hero-more" href="#ai">AI 기능 살펴보기 ↓</a>
+      </div>
+      <div class="scope-visual" role="group" aria-label="휴 스코프의 주요 기능 구성">
+        <div class="scope-head"><span class="scope-brand"><img src="{{ url_for('static', filename='favicon.svg') }}" alt="" />휴 스코프</span><span class="scope-label">모으고 · 살펴보고 · 정리하기</span></div>
+        <div class="scope-grid"><div class="scope-tile"><span class="scope-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 8h10M7 12h10M7 16h6"/></svg></span><h2>소식 모아보기</h2><p><span>뉴스 · 재단 게시판</span><span>유튜브 · 업계동향</span></p></div><div class="scope-tile"><span class="scope-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4M17 3v4M3 10h18M8 14h2M14 14h2"/></svg></span><h2>일정 확인</h2><p><span>국내 행사</span><span>앨범 · 캘린더</span></p></div><div class="scope-tile"><span class="scope-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 20h16M7 16v-4M12 16V5M17 16V9"/></svg></span><h2>흐름 읽기</h2><p><span>재단동향(분기)</span><span>보안(월간)</span></p></div><div class="scope-tile"><span class="scope-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M6 3h12v18l-6-4-6 4z"/></svg></span><h2>내 자료로 저장</h2><p><span>관심 글 스크랩</span><span>그룹으로 정리</span></p></div></div>
+        <div class="scope-extra"><span>냥정보 · 게임정보</span><span>주변 맛집 · 점심 추천</span><span>리더뷰 · AI 핵심 요약</span></div><div class="scope-ai"><b>AI가 도와주는 읽기</b><span>핵심 2~3문장 · 중요한 구절 강조 · 원문 확인</span></div>
+      </div>
+    </div>
+  </header>
+
+  <div class="wrap">
+    <section id="features">
+      <p class="kicker">주요 기능</p>
+      <h2>모으고, 읽고, 내 자료로 정리하기</h2>
+      <p class="lead">소식과 일정, 동향과 일상의 선택을 한곳에서 살펴보세요.<br>네 개의 하단 메뉴로 쉽게 오갈 수 있어요.</p>
+      <div class="feats">
+        <div class="feat"><div class="feature-tag">소식</div><h3>관심 분야별 피드</h3><p>NC 뉴스·업계동향·보안뉴스·냥정보·게임정보를 탭과 분류, 검색으로 골라 읽어요.</p></div>
+        <div class="feat"><div class="feature-tag">원문</div><h3>재단 게시판 · 유튜브</h3><p>재단 공지와 최신 영상을 모아 보고, 원문 보기 버튼으로 원래 사이트에 바로 연결해요.</p></div>
+        <div class="feat"><div class="feature-tag">일정</div><h3>국내 행사 · 캘린더</h3><p>행사명·날짜·장소를 앨범과 캘린더로 확인하고 관심 행사를 살펴봐요.</p></div>
+        <div class="feat"><div class="feature-tag ai-tag">AI 읽기</div><h3>본문 요약 · 동향 리포트</h3><p>기사의 핵심을 먼저 읽고, 재단동향(분기)·보안(월간) 리포트로 공개 자료의 흐름을 정리해요.</p></div>
+        <div class="feat"><div class="feature-tag">내 자료</div><h3>스크랩 · 그룹 · 검색</h3><p>필요한 글과 맛집을 계정에 저장하고 그룹으로 모아둬요.<br>저장한 자료 안에서도 검색할 수 있어요.</p></div>
+        <div class="feat"><div class="feature-tag">일상</div><h3>주변 맛집 · 점심 추천</h3><p>거리·평점·후기를 살펴보고 성향·기분·제외 조건에 맞는 한 곳을 골라요.<br>추천 결과는 슬롯 애니메이션으로 만나보세요.</p></div>
+      </div>
+    </section>
+
+
+    <section id="ai">
+      <div class="ai-hero">
+        <div class="in">
+          <span class="ai-badge">AI로 읽고 정리하기</span>
+          <h2>긴 글의 핵심부터, 여러 자료의 흐름까지</h2>
+          <p class="lead">기사를 짧게 읽고, 보안 소식을 분류하고, 기간별 자료를 종합하는 데 AI를 활용해요.</p>
+          <div class="ai-stats">
+            <div class="ai-stat"><b>핵심 2~3문장</b><span>지원되는 기사 본문 요약</span></div>
+            <div class="ai-stat"><b>분류 · 중요도</b><span>보안 소식에서 먼저 볼 내용</span></div>
+            <div class="ai-stat"><b>분기 · 월간</b><span>흩어진 자료를 기간별로 정리</span></div>
+          </div>
+          <div class="ai-capabilities">
+            <div class="ai-item"><div><h3>01 · 기사 핵심 요약 <span class="auto">리더뷰</span></h3><p>추출한 본문을 핵심 2~3문장으로 정리하고, 중요한 사실·수치·조치 구절은 <strong>볼드와 밑줄</strong>로 강조해요.<br>요약을 기다리는 동안 본문부터 읽을 수 있어요.</p></div></div>
+            <div class="ai-item"><div><h3>02 · 보안 소식 분류 <span class="auto">수집 후 처리</span></h3><p>개인정보유출·해킹·취약점·규제기관 처분을 분류하고 중요도를 정리해요.<br>관련 기관·CVE·규모·조치와 담당자 확인사항도 살펴볼 수 있어요.</p></div></div>
+            <div class="ai-item"><div><h3>03 · 재단동향(분기) <span class="auto">자료 종합</span></h3><p>뉴스·유튜브 등 공개 자료에서 변화·추세·새로운 신호를 정리하고 지난 리포트와 비교해요.<br>기관의 성과나 우열을 평가하는 자료가 아닙니다.</p></div></div>
+            <div class="ai-item"><div><h3>04 · 보안(월간) <span class="auto">매월 생성</span></h3><p>지난달 사고·취약점·규제기관 처분과 점검 권고를 브리핑으로 묶어요.<br>개별 기사를 넘어 한 달의 주요 이슈를 훑어볼 수 있어요.</p></div></div>
+          </div>
+          <div class="ai-demo">
+            <div class="ai-demo-copy"><span class="ai-badge">이렇게 보여요</span><h3>읽는 화면에서도<br>중요한 부분이 먼저 보여요.</h3><p>요약의 핵심 구절을 눈으로 짚고, 본문과 원문에서 자세한 맥락을 확인하세요.<br>리포트에서도 연결된 근거 자료를 함께 살펴볼 수 있어요.</p><p class="ai-boundary">AI 결과는 참고용이며 오류나 맥락 누락이 있을 수 있어요.<br>원문을 확보하지 못하면 수집된 정보만 정리하고, 요약에 근거 범위를 표시해요.<br>정보가 부족한 경우에는 요약을 제공하지 않아요.</p></div>
+            <div class="reader-preview" role="group" aria-label="AI 핵심 요약 표시 예시">
+              <div class="reader-preview-head"><b>AI 핵심 요약</b><span>표시 예시 · 실제 기사 요약 아님</span></div>
+              <ul>
+                <li>지원되는 기사 본문을 <strong>핵심 2~3문장</strong>으로 정리해 전체 흐름을 먼저 보여줘요.</li>
+                <li>요약 중 <strong>중요한 사실·수치·조치</strong>를 선별해 볼드와 은은한 밑줄로 표시해요.</li>
+                <li>요약을 읽은 뒤 <strong>본문과 원문</strong>에서 맥락과 자세한 내용을 확인할 수 있어요.</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="updates">
+      <p class="kicker">사용하는 순간까지</p>
+      <h2>작은 동작도 분명하고 편하게</h2>
+      <div class="feats">
+        <div class="feat"><div class="feature-tag">화면</div><h3>모바일부터 넓은 화면까지</h3><p>통일된 하단 메뉴와 읽기 버튼으로 이동해요. PC·태블릿에서는 이미지와 본문을 나란히 배치하고 이미지 없는 카드도 정렬해요.</p></div>
+        <div class="feat"><div class="feature-tag">저장</div><h3>저장과 취소를 눈에 보이게</h3><p>맛집은 ‘리뷰 있는 식당만’ 필터로 골라볼 수 있어요.<br>빈 북마크와 채워진 북마크로 저장 상태를 구분해요.<br>스크랩함에서 취소한 글은 부드럽게 사라져 목록 변화를 알아보기 쉬워요.</p></div>
+        <div class="feat"><div class="feature-tag">추천</div><h3>조건에 맞추는 점심 선택</h3><p>맛집 추천은 거리·평점·방문 이력 등을 반영하는 조건 기반 추천이에요.<br>친칠라 슬롯 애니메이션으로 선택을 즐겁게 만들고 움직임 감소 설정도 지원해요.</p></div>
+      </div>
+    </section>
+
+    <section id="screens">
+      <p class="kicker">Screens</p>
+      <h2>기능별 화면 미리보기</h2>
+      <p class="lead">현재 서비스에서 직접 촬영한 화면이에요.<br>새 하단 메뉴·읽기 버튼·스크랩 상태와 AI 요약을 확인해 보세요.</p>
+      <p class="capture-note">2026.10.02 촬영 · v2.49 서비스 화면 · 스크랩은 테스트 계정 예시 · 이미지를 누르면 크게 볼 수 있어요.</p>
+      <div class="shots">
+        <div class="shot">
+          <div class="cap"><span class="n">01</span><h3>탭별 피드 + 스마트 검색</h3></div>
+          <p>냥정보·게임·뉴스·업계동향을 탭으로 넘겨보고, 카드마다 본문 읽기 또는 원문 보기, 링크 복사·스크랩을 선택해요.<br>노출 게시물 수도 바로 표시돼요.</p>
+          <div class="frame"><a href="{{ url_for('static', filename='intro/shot-feed-v2.50.jpg') }}" target="_blank" rel="noopener" aria-label="화면 미리보기 원본 이미지 크게 보기"><img src="{{ url_for('static', filename='intro/shot-feed-v2.50.jpg') }}" alt="메인 피드 화면" width="1348" height="926" decoding="async" loading="lazy" /></a></div>
+          <a class="shot-zoom" href="{{ url_for('static', filename='intro/shot-feed-v2.50.jpg') }}" target="_blank" rel="noopener">전체 화면 보기 ↗</a>
+        </div>
+        <div class="shot">
+          <div class="cap"><span class="n">02</span><h3>행사일정 — 캘린더</h3></div>
+          <p>국내 문화행사를 앨범형과 캘린더형으로. 날짜·행사명·장소를 한눈에 보고, 날짜를 누르면 그날의 행사 요약을 말풍선으로 볼 수 있어요.</p>
+          <div class="frame"><a href="{{ url_for('static', filename='intro/shot-calendar-v2.50.jpg') }}" target="_blank" rel="noopener" aria-label="화면 미리보기 원본 이미지 크게 보기"><img src="{{ url_for('static', filename='intro/shot-calendar-v2.50.jpg') }}" alt="행사 캘린더 화면" width="1348" height="926" decoding="async" loading="lazy" /></a></div>
+          <a class="shot-zoom" href="{{ url_for('static', filename='intro/shot-calendar-v2.50.jpg') }}" target="_blank" rel="noopener">전체 화면 보기 ↗</a>
+        </div>
+        <div class="shot">
+          <div class="cap"><span class="n">03</span><h3>재단동향(분기)</h3></div>
+          <p>뉴스·유튜브 데이터로 NC문화재단과 동종 재단의 변화·추세·신규 신호를 AI가 요약. 로그인 없이도 열람 가능해요.</p>
+          <div class="frame"><a href="{{ url_for('static', filename='intro/shot-report-v2.50.jpg') }}" target="_blank" rel="noopener" aria-label="화면 미리보기 원본 이미지 크게 보기"><img src="{{ url_for('static', filename='intro/shot-report-v2.50.jpg') }}" alt="AI 동향 리포트 화면" width="1348" height="926" decoding="async" loading="lazy" /></a></div>
+          <a class="shot-zoom" href="{{ url_for('static', filename='intro/shot-report-v2.50.jpg') }}" target="_blank" rel="noopener">전체 화면 보기 ↗</a>
+        </div>
+        <div class="shot">
+          <div class="cap"><span class="n">04</span><h3>보안(월간) <span style="font-size:12px;color:var(--muted);font-weight:600">담당자용</span></h3></div>
+          <p>정보보안·개인정보보호 담당자를 위한 지난달 보안 브리핑. 주요 사고·취약점(CVE)·<b>개보위·공정위 처분</b>·트렌드와 담당자 점검 권고까지, 매월 자동으로 만들어져요.</p>
+          <div class="frame"><a href="{{ url_for('static', filename='intro/shot-secreport-v2.50.jpg') }}" target="_blank" rel="noopener" aria-label="화면 미리보기 원본 이미지 크게 보기"><img src="{{ url_for('static', filename='intro/shot-secreport-v2.50.jpg') }}" alt="월간 보안 리포트 화면" width="1348" height="926" decoding="async" loading="lazy" /></a></div>
+          <a class="shot-zoom" href="{{ url_for('static', filename='intro/shot-secreport-v2.50.jpg') }}" target="_blank" rel="noopener">전체 화면 보기 ↗</a>
+        </div>
+        <div class="shot">
+          <div class="cap"><span class="n">05</span><h3>나의 스크랩 + 그룹핑</h3></div>
+          <p>관심 글을 계정에 저장하고, 원하는 이름의 그룹으로 분류. 스크랩 안에서 검색도 됩니다.</p>
+          <div class="frame"><a href="{{ url_for('static', filename='intro/shot-scraps-v2.50.jpg') }}" target="_blank" rel="noopener" aria-label="화면 미리보기 원본 이미지 크게 보기"><img src="{{ url_for('static', filename='intro/shot-scraps-v2.50.jpg') }}" alt="스크랩·그룹 화면" width="1348" height="926" decoding="async" loading="lazy" /></a></div>
+          <a class="shot-zoom" href="{{ url_for('static', filename='intro/shot-scraps-v2.50.jpg') }}" target="_blank" rel="noopener">전체 화면 보기 ↗</a>
+        </div>
+        <div class="shot">
+          <div class="cap"><span class="n">06</span><h3>맛집 · 오늘 점심 <span style="font-size:12px;color:var(--muted);font-weight:600">NEW</span></h3></div>
+          <p>내 주변 점심을 위치별로 찾아보세요.<br>카테고리·검색·거리(도보)에 <b>이용자 평점·후기</b>가 쌓이고, 상세는 카카오맵으로 바로 이동해요.</p>
+          <div class="frame"><a href="{{ url_for('static', filename='intro/shot-lunch-v2.50.jpg') }}" target="_blank" rel="noopener" aria-label="화면 미리보기 원본 이미지 크게 보기"><img src="{{ url_for('static', filename='intro/shot-lunch-v2.50.jpg') }}" alt="맛집 목록 화면" width="1348" height="926" decoding="async" loading="lazy" /></a></div>
+          <a class="shot-zoom" href="{{ url_for('static', filename='intro/shot-lunch-v2.50.jpg') }}" target="_blank" rel="noopener">전체 화면 보기 ↗</a>
+        </div>
+        <div class="shot">
+          <div class="cap"><span class="n">07</span><h3>맛집 · 점심 추천 <span style="font-size:12px;color:var(--muted);font-weight:600">NEW</span></h3></div>
+          <p>성향·기분·제외 조건에 맞춰 한 곳을 골라줘요.<br>조건 기반으로 선택한 결과를 슬롯 애니메이션으로 소개해요.<br>서버 응답이 늦어도 이미 불러온 지역 맛집이 있으면 대체 추천으로 이어져요.</p>
+          <div class="frame"><a href="{{ url_for('static', filename='intro/shot-lunch-ai-v2.50.jpg') }}" target="_blank" rel="noopener" aria-label="화면 미리보기 원본 이미지 크게 보기"><img src="{{ url_for('static', filename='intro/shot-lunch-ai-v2.50.jpg') }}" alt="맛집 AI 추천 화면" width="1363" height="936" decoding="async" loading="lazy" /></a></div>
+          <a class="shot-zoom" href="{{ url_for('static', filename='intro/shot-lunch-ai-v2.50.jpg') }}" target="_blank" rel="noopener">전체 화면 보기 ↗</a>
+        </div>
+
+        <div class="shot">
+          <div class="cap"><span class="n">08</span><h3>AI 핵심 요약 · 본문 읽기</h3></div>
+          <p>본문 위에서 AI 요약을 먼저 읽고, 핵심 구절은 볼드와 밑줄로 확인해요.<br>글자 크기·다크 모드·원문 보기로 이어집니다.</p>
+          <div class="frame"><a href="{{ url_for('static', filename='intro/shot-reader-v2.50.jpg') }}" target="_blank" rel="noopener" aria-label="화면 미리보기 원본 이미지 크게 보기"><img src="{{ url_for('static', filename='intro/shot-reader-v2.50.jpg') }}" alt="실제 기사 AI 요약·강조 구절과 본문 읽기 화면" width="1363" height="936" decoding="async" loading="lazy" /></a></div>
+          <a class="shot-zoom" href="{{ url_for('static', filename='intro/shot-reader-v2.50.jpg') }}" target="_blank" rel="noopener">전체 화면 보기 ↗</a>
+        </div>
+
+      </div>
+    </section>
+
+    <section id="try">
+      <div class="try">
+        <p class="kicker" style="color:#7fa5ff">시작하기</p>
+        <h2>읽어보고, 필요한 자료를 모아보세요</h2>
+        <p class="lead">소식 열람·검색·리포트는 로그인 없이 살펴볼 수 있어요.<br>스크랩·그룹은 로그인 후 이용하세요.</p>
+        <ol class="steps">
+          <li><b>휴 스코프 열기</b>로 접속하고 개인용 서비스 안내 확인</li>
+          <li>관심 소식을 찾고 <b>본문 읽기·AI 요약</b> 또는 <b>원문 보기</b> 선택</li>
+          <li>저장이 필요하면 <b>로그인 → 일반 사용자 → 테스트 계정으로 로그인</b> 선택</li>
+        </ol>
+        <p class="access-note">일반 테스트 계정은 test1이며 비밀번호 입력 없이 버튼으로 로그인해요.<br>관리자·다른 계정은 별도로 선택할 수 있어요.</p>
+        <a class="try-cta" href="{{ url_for('index') }}">휴 스코프 열기 →</a>
+      </div>
+    </section>
+  </div>
+
+  <footer>
+    <span class="phrase">휴 스코프 · 소식을 모으고 흐름을 읽다</span> <span class="phrase">· v3.33</span>
+    <div class="disc">개인용 비공식 서비스입니다. AI 요약·리포트는 공개 자료를 살펴보기 위한 참고 정보이며 공식 입장·평가 자료가 아닙니다.</div>
+    <div class="disc">서체: KoddiUD 온고딕 (한국장애인개발원, CC BY-SA)</div>
+  </footer>
+</body>
+</html>
+

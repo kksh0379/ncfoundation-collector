@@ -1,0 +1,44 @@
+.reader-view { box-sizing:border-box; width:min(820px, calc(100% - 32px)); max-height:90dvh; padding:0; border:1px solid #e5e5df; border-radius: var(--r-lg); background:#fbfaf7; color:#242b35; box-shadow:0 24px 90px #14243833; overscroll-behavior:contain; }
+.reader-view::backdrop { background:rgba(20,30,45,.5); backdrop-filter:blur(3px); }
+.reader-toolbar { position:sticky; top:0; z-index:1; display:flex; flex-wrap:wrap; align-items:center; gap:10px; padding:16px 24px; border-bottom:1px solid #e7e6df; background:#fbfaf7; }
+.reader-brand { flex:1; font-weight:800; font-size:14px; color:#476248; }
+.reader-tools { display:flex; gap:6px; }
+.reader-toolbar button, .reader-retry { min-width:44px; min-height:44px; padding:8px 12px; border:1px solid #d8dcd3; border-radius: var(--r-md); background:#fff; color:#253429; cursor:pointer; font:inherit; }
+.reader-toolbar button:disabled { opacity:.4; cursor:default; }
+.reader-view :focus-visible { outline:3px solid #2d6cdf; outline-offset:3px; }
+.reader-content { max-width:640px; margin:auto; padding:32px 36px 52px; }
+.reader-content h2 { font-size:clamp(24px,4vw,34px); line-height:1.45; letter-spacing:-.04em; margin:0 0 18px; overflow-wrap:anywhere; }
+.reader-meta { color:#626b65; font-size:14px; line-height:1.7; margin-bottom:18px; }
+.reader-status { padding:14px 16px; border-radius: var(--r-md); background:#efeee7; color:#596158; font-size:14px; line-height:1.7; }
+.reader-summary-title { display:block; color:#315c39; font-size:1em; margin-bottom:8px; }
+.reader-summary-points { margin:0; padding-left:20px; word-break:keep-all; overflow-wrap:anywhere; }
+.reader-summary-points li + li { margin-top:7px; }
+.reader-summary-points li::marker { color:#527a5a; }
+.reader-summary-key { font-weight:800; color:#254b2d; text-decoration:underline; text-decoration-color:#8dbca18c; text-decoration-thickness:.16em; text-underline-offset:.16em; }
+.reader-view.dark .reader-summary-key { color:#c2e8cc; text-decoration-color:#639d7480; }
+.reader-view.dark .reader-summary-points li::marker { color:#8fcaa0; }
+.reader-summary-note { margin:8px 0 0; font-size:.857em; color:#697168; word-break:keep-all; overflow-wrap:anywhere; }
+.reader-view.dark .reader-summary-title { color:#8fcaa0; }
+.reader-view.dark .reader-summary-note { color:#a6adb5; }
+.reader-body { font-size:18px; line-height:1.95; letter-spacing:-.015em; overflow-wrap:anywhere; word-break:normal; }
+.reader-body p { margin:1.3em 0; }
+.reader-source { display:inline-flex; align-items:center; justify-content:center; min-height:44px; margin-top:24px; padding:10px 16px; border:1px solid #b8cabb; border-radius: var(--r-md); background:#eef5ee; color:#315c39; font-size:15px; font-weight:700; text-decoration:none; }
+.reader-source:hover { background:#e1eee2; }
+.reader-retry { margin-top:12px; }
+@media (max-width:600px) {
+  .reader-view { width:100%; max-width:100%; height:100dvh; max-height:100dvh; border:0; border-radius:0; margin:0; }
+  .reader-toolbar { padding:12px 16px; padding-top:max(12px, env(safe-area-inset-top)); gap:6px; }
+  .reader-content { padding:26px 22px max(40px, env(safe-area-inset-bottom)); }
+  .reader-brand { font-size:13px; }
+}
+
+/* 리더 다크(블랙) 테마 */
+.reader-view.dark { background:#15171a; color:#e7e8ea; border-color:#2a2d31; }
+.reader-view.dark .reader-toolbar { background:#15171a; border-bottom-color:#2a2d31; }
+.reader-view.dark .reader-brand { color:#8fcaa0; }
+.reader-view.dark .reader-toolbar button, .reader-view.dark .reader-retry { background:#23262b; color:#e7e8ea; border-color:#33373d; }
+.reader-view.dark .reader-meta { color:#a6adb5; }
+.reader-view.dark .reader-status { background:#22252a; color:#b9c0c8; }
+.reader-view.dark .reader-source { color:#8ab4ff; background:#232b37; border-color:#485b78; }
+.reader-view.dark .reader-source:hover { background:#2c394c; }
+.reader-view.dark .reader-body { color:#e7e8ea; }

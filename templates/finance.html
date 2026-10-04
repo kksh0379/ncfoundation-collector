@@ -1,0 +1,61 @@
+<main id="view-finance" class="finance-view" hidden>
+  <header class="finance-heading"><div><p class="finance-eyebrow">FINANCE & TAX</p><h1>재무세무 <span class="finance-beta">beta</span></h1><p>정책 변화부터 거래처 확인까지, 한눈에.</p></div></header>
+  <p id="finance-status" class="finance-notice" role="status">재무세무 정보를 불러옵니다.</p>
+  <nav class="fin-tabs" id="fin-tabs" role="tablist" aria-label="재무세무 분류">
+    <button type="button" class="fin-tab active" data-fintab="indicators" role="tab" aria-selected="true">지표</button>
+    <button type="button" class="fin-tab" data-fintab="calc" role="tab" aria-selected="false">계산기</button>
+    <button type="button" class="fin-tab" data-fintab="tax" role="tab" aria-selected="false">세무·공시</button>
+    <button type="button" class="fin-tab" data-fintab="news" role="tab" aria-selected="false">브리핑</button>
+  </nav>
+
+  <div class="fin-panel" data-panel="indicators" role="tabpanel">
+    <section aria-labelledby="finance-economy-title"><div class="finance-section-heading"><h2 id="finance-economy-title">경제지표</h2><a href="https://ecos.bok.or.kr/" target="_blank" rel="noopener noreferrer">한국은행 ECOS ↗</a></div><p id="finance-fetched" class="finance-fetched" aria-live="polite"></p><div id="finance-indicators" class="finance-indicators"></div></section>
+  </div>
+
+  <div class="fin-panel" data-panel="calc" role="tabpanel" hidden>
+    <section class="finance-card calc-card" aria-labelledby="calc-salary-title"><span class="finance-eyebrow">급여</span><h2 id="calc-salary-title">연봉 실수령액</h2>
+      <div class="calc-grid">
+        <label class="calc-full">연봉 (만원)<input id="calc-salary-annual" type="number" inputmode="numeric" min="0" placeholder="예: 4000"></label>
+        <label>부양가족 (본인 포함)<input id="calc-salary-family" type="number" inputmode="numeric" min="1" value="1"></label>
+        <label>월 비과세 (식대 등, 원)<input id="calc-salary-nontax" type="number" inputmode="numeric" min="0" value="200000"></label>
+      </div>
+      <div class="calc-out" id="calc-salary-out" aria-live="polite"></div>
+      <p class="finance-muted calc-note">참고용 근사치 — 소득세는 간이세액표·공제 상황에 따라 달라집니다.<br>4대보험료는 2025년 요율 기준이며, 정확한 금액은 <a href="https://www.nts.go.kr/" target="_blank" rel="noopener noreferrer">홈택스 ↗</a>에서 확인하세요.</p>
+    </section>
+
+    <section class="finance-card calc-card" aria-labelledby="calc-save-title"><span class="finance-eyebrow">저축</span><h2 id="calc-save-title">예·적금 이자 (세후)</h2>
+      <div class="calc-grid">
+        <label>유형<select id="calc-save-type"><option value="recurring">적금 (매월 납입)</option><option value="lump">예금 (목돈 거치)</option></select></label>
+        <label>이자 방식<select id="calc-save-comp"><option value="simple">단리</option><option value="monthly">월복리</option></select></label>
+        <label><span id="calc-save-amount-label">월 납입액 (원)</span><input id="calc-save-amount" type="number" inputmode="numeric" min="0" placeholder="예: 500000"></label>
+        <label>연이율 (%)<input id="calc-save-rate" type="number" inputmode="decimal" min="0" step="0.01" placeholder="예: 3.5"></label>
+        <label>기간 (개월)<input id="calc-save-months" type="number" inputmode="numeric" min="1" placeholder="예: 12"></label>
+      </div>
+      <div class="calc-out" id="calc-save-out" aria-live="polite"></div>
+      <p class="finance-muted calc-note">이자소득세 15.4%(소득세 14% + 지방소득세 1.4%) 적용.<br>우대·비과세 상품은 제외한 일반 과세 기준입니다.</p>
+    </section>
+
+    <section class="finance-card calc-card" aria-labelledby="calc-loan-title"><span class="finance-eyebrow">대출</span><h2 id="calc-loan-title">대출 원리금</h2>
+      <div class="calc-grid">
+        <label class="calc-full">대출금 (원)<input id="calc-loan-amount" type="number" inputmode="numeric" min="0" placeholder="예: 30000000"></label>
+        <label>연이율 (%)<input id="calc-loan-rate" type="number" inputmode="decimal" min="0" step="0.01" placeholder="예: 5"></label>
+        <label>기간 (개월)<input id="calc-loan-months" type="number" inputmode="numeric" min="1" placeholder="예: 36"></label>
+        <label>상환 방식<select id="calc-loan-type"><option value="annuity">원리금균등</option><option value="equal">원금균등</option></select></label>
+      </div>
+      <div class="calc-out" id="calc-loan-out" aria-live="polite"></div>
+      <p class="finance-muted calc-note">중도상환수수료·거치기간은 제외한 단순 계산입니다.</p>
+    </section>
+  </div>
+
+  <div class="fin-panel" data-panel="tax" role="tabpanel" hidden>
+    <div class="finance-tools">
+      <section class="finance-card" aria-labelledby="finance-business-title"><span class="finance-eyebrow">거래처 체크</span><h2 id="finance-business-title">휴·폐업 상태조회</h2><p class="finance-muted">국세청에 등록된 사업자 운영상태를 확인하세요.</p><form id="finance-business-form"><label for="finance-business-number">사업자등록번호</label><div class="finance-input-row"><input id="finance-business-number" name="number" inputmode="numeric" autocomplete="off" placeholder="000-00-00000" maxlength="12" required pattern="([0-9]{10}|[0-9]{3}-[0-9]{2}-[0-9]{5})"><button class="btn-collect" type="submit">조회</button></div></form><p id="finance-business-result" class="finance-notice" role="status">번호는 조회에만 사용하며 저장하지 않습니다.</p></section>
+      <section class="finance-card" aria-labelledby="finance-calendar-title"><span class="finance-eyebrow">일정 알림</span><h2 id="finance-calendar-title">세무 캘린더</h2><ul id="finance-calendar-list" class="finance-calendar-list" aria-live="polite"></ul><p id="finance-calendar-message" class="finance-muted"></p><a href="https://www.nts.go.kr/" target="_blank" rel="noopener noreferrer">국세청 홈택스에서 세무 일정 확인 ↗</a></section>
+    </div>
+    <section class="finance-card" aria-labelledby="finance-dart-title"><div class="finance-section-heading"><h2 id="finance-dart-title">기업 공시</h2><a href="https://opendart.fss.or.kr/" target="_blank" rel="noopener noreferrer">Open DART ↗</a></div><p class="finance-muted">최근 90일 공시 · 종목코드(6자리)나 DART 고유번호(8자리)로 관심 기업을 조회할 수 있어요.</p><div class="finance-quick checkbar"><label><input type="checkbox" id="finance-dart-nc"> (주)엔씨 공시만 보기</label></div><form id="finance-dart-form"><label for="finance-corp-code">종목코드 또는 DART 고유번호 (선택)</label><div class="finance-input-row"><input id="finance-corp-code" inputmode="numeric" maxlength="8" pattern="[0-9]{6}|[0-9]{8}" placeholder="종목코드 6자리 또는 고유번호 8자리"><button class="btn-status" type="submit">공시 조회</button></div></form><p class="finance-dart-help finance-muted">※ 상장사는 <b>종목코드</b>로, 비상장사는 <b>고유번호</b>로 조회돼요.<br><b>사업자등록번호로는 조회할 수 없어요</b>(DART가 지원하지 않음).<br>고유번호는 <a href="https://filer.fss.or.kr/raaa001/goIndex.do" target="_blank" rel="noopener noreferrer">전자공시 고유번호 조회 ↗</a>에서 확인할 수 있어요.</p><p id="finance-dart-status" role="status" class="finance-muted"></p><div class="finance-table-wrap"><table class="finance-dart-table"><caption class="finance-search-label">공시 목록</caption><thead><tr><th scope="col">기업</th><th scope="col">공시명</th><th scope="col">접수일</th></tr></thead><tbody id="finance-dart-rows"></tbody></table></div></section>
+  </div>
+
+  <div class="fin-panel" data-panel="news" role="tabpanel" hidden>
+    <section class="finance-card" aria-labelledby="finance-news-title"><div class="finance-section-heading"><h2 id="finance-news-title">재무세무 브리핑</h2><span class="finance-muted">RSS 소식</span></div><div class="finance-filters" id="finance-filters" role="group" aria-label="소식 분류"><button type="button" class="active" data-category="all" aria-pressed="true">전체</button><button type="button" data-category="policy" aria-pressed="false">세법·보도자료</button><button type="button" data-category="guide" aria-pressed="false">회계·세무 가이드</button><button type="button" data-category="legislation" aria-pressed="false">입법예고</button></div><label class="finance-search-label" for="finance-search">소식 검색</label><input id="finance-search" type="search" placeholder="제목·요약·출처 검색" class="search-input"><div id="finance-news" aria-live="polite"></div><details class="finance-sources"><summary>수집 출처 및 연결 상태</summary><div id="finance-sources"></div></details></section>
+  </div>
+</main>
